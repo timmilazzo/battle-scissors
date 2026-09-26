@@ -145,11 +145,13 @@ export const CONFIG = {
     ],
     spots: [[215, 806], [719, 725], [769, 1101]],   // centres of the fenced round pads where a Pin can be built
     spotR: 92,               // pad radius: sizes the Pin art standing on it
+    roadHalfWidth: 50,       // shoves can move an enemy's centre at most this far from the road centreline (painted road is ~110-150 wide)
     workshopR: 118,          // heart pad radius: the red flash when the workshop takes damage
   },
   pathSmoothSteps: 16,       // Catmull-Rom samples per path segment (road smoothness)
   workshopHp: 10,            // workshop hit points; an enemy that arrives deals its size tier
   workshopHitMs: 400,        // red flash on the workshop when it takes damage
+  hudLowHp: 3,               // the HUD's heart counter turns red at or below this many hearts
 
   // --- waves & scoring ---
   // One array per wave; each entry is [type, count, atSec]: `count` enemies of `type` starting `atSec` seconds into

@@ -44,17 +44,19 @@ initWeaponSelect({ onPick: id => { selectWeapon(id); rasterizeArt(); }, onStart:
 document.getElementById('title').addEventListener('pointerdown', () => { unlockAudio(); sfx('snip'); });
 for (const b of document.querySelectorAll('[data-soon]')) b.addEventListener('click', () => showToast(b.dataset.soon + ': coming soon'));
 
-// Mute: HUD button and the title's Sound icon; persisted by audio.js.
-const muteBtn = document.getElementById('mute'), titleSound = document.getElementById('title-sound');
+// Mute: the top-bar button (game-over only), the pause card's Sound button and the title's Sound icon; persisted by audio.js.
+const muteBtn = document.getElementById('mute'), titleSound = document.getElementById('title-sound'), pauseSound = document.getElementById('pause-sound');
 function showMute() {
   const m = isMuted();
   muteBtn.setAttribute('aria-pressed', String(m));                    // the icon swaps on aria-pressed (CSS)
   muteBtn.setAttribute('aria-label', m ? 'Unmute sound' : 'Mute sound');
   titleSound.classList.toggle('muted', m); titleSound.setAttribute('aria-pressed', String(m));
+  pauseSound.textContent = m ? 'Sound: off' : 'Sound: on'; pauseSound.setAttribute('aria-pressed', String(m));
 }
 const toggleMute = e => { e.stopPropagation(); unlockAudio(); setMuted(!isMuted()); showMute(); };
 muteBtn.addEventListener('click', toggleMute);
 titleSound.addEventListener('click', e => { toggleMute(e); showToast(isMuted() ? 'Sound off' : 'Sound on'); });
+pauseSound.addEventListener('click', toggleMute);
 showMute();
 
 // Onboarding coach skip links.
@@ -68,6 +70,7 @@ initActionBar({ toast: showToast });
 const pauseBtn = document.getElementById('pause');
 pauseBtn.addEventListener('click', e => { e.stopPropagation(); togglePause(); });
 on('resume', () => setPaused(false));
+on('pause-home', e => { e.stopPropagation(); goTitle(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) setPaused(true); });
 
 // Run report (pause card mid-run, GAME_OVER / win card at the end) and the debug panel's export.

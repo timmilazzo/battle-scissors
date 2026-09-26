@@ -94,23 +94,20 @@
   #hint { display: none; margin: 0; max-width: 320px; text-align: center; font: 12px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: rgba(255, 241, 194, 0.75); }
   #hint b { color: #ffd23f; }
 
-  /* HUD (top-left): wave badge, score pill, hearts pill. Filled by src/hud.js. */
+  /* HUD (top-left, one compact row): wave badge and the workshop's hearts left as one heart + a number. Filled by
+     src/hud.js. Score lives on the pause and game-over cards, not here. */
   #hud {
     position: fixed; top: calc(10px + env(safe-area-inset-top)); left: calc(10px + env(safe-area-inset-left)); z-index: 9;
-    display: flex; flex-direction: column; align-items: flex-start; gap: 9px; pointer-events: none;
+    display: flex; align-items: center; gap: 8px; pointer-events: none;
   }
   #hud[hidden] { display: none; }
-  .hud-row { display: flex; align-items: center; gap: 8px; }
   .hud-wave { display: flex; flex-direction: column; align-items: center; padding: 5px 13px 7px; border-radius: 14px; line-height: 1; }
   .hud-wave small { font-size: 10px; letter-spacing: 2px; color: #cfe0ff; }
   .hud-wave b { font-size: 22px; letter-spacing: 0.5px; font-variant-numeric: tabular-nums; }
-  .hud-score { display: flex; align-items: center; gap: 7px; height: 36px; padding: 0 14px 0 6px; border-radius: 999px; outline-offset: -6px; }
-  .hud-score b { font-size: 19px; font-variant-numeric: tabular-nums; }
-  .coin { flex: none; width: 24px; height: 24px; border-radius: 50%; box-sizing: border-box; display: flex; align-items: center; justify-content: center;
-    background: radial-gradient(circle at 35% 30%, #ffe27a, #f0a81c 60%, #c47a0c); border: 2px solid #7a4a08; box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.2);
-    font-size: 12px; color: #7a4a08; text-shadow: none; }
-  .hud-hearts { display: flex; gap: 2px; padding: 6px 10px 7px; border-radius: 999px; outline-offset: -6px; }
-  .heart { width: 15px; height: 14px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 28'%3E%3Cpath d='M15 27C13 25 1 17 1 9 1 4 5 1 9 1c3 0 5 2 6 4 1-2 3-4 6-4 4 0 8 3 8 8 0 8-12 16-14 18z' fill='%23e8323f' stroke='%236a0f16' stroke-width='2'/%3E%3Cpath d='M15 22C11 19 5 14 5 9.5 5 6.5 7 5 9 5c2.5 0 4.5 2 6 4.5C16.5 7 18.5 5 21 5c2 0 4 1.5 4 4.5 0 4.5-6 9.5-10 12.5z' fill='none' stroke='%23ffd9d9' stroke-width='1.3' stroke-dasharray='2 2'/%3E%3C/svg%3E") center / contain no-repeat;
+  .hud-hearts { display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px 0 10px; border-radius: 999px; outline-offset: -6px; }
+  .hud-hearts b { font-size: 19px; font-variant-numeric: tabular-nums; min-width: 1.2em; }
+  .hud-hearts.low b { color: #ff8a8a; }
+  .heart { width: 22px; height: 20px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 28'%3E%3Cpath d='M15 27C13 25 1 17 1 9 1 4 5 1 9 1c3 0 5 2 6 4 1-2 3-4 6-4 4 0 8 3 8 8 0 8-12 16-14 18z' fill='%23e8323f' stroke='%236a0f16' stroke-width='2'/%3E%3Cpath d='M15 22C11 19 5 14 5 9.5 5 6.5 7 5 9 5c2.5 0 4.5 2 6 4.5C16.5 7 18.5 5 21 5c2 0 4 1.5 4 4.5 0 4.5-6 9.5-10 12.5z' fill='none' stroke='%23ffd9d9' stroke-width='1.3' stroke-dasharray='2 2'/%3E%3C/svg%3E") center / contain no-repeat;
     transition: transform 150ms, filter 150ms, opacity 150ms; }
   .heart.lost { filter: grayscale(1) brightness(0.55); opacity: 0.55; transform: scale(0.85); }
   .heart.pop { animation: hpop 420ms ease-out; }
@@ -412,11 +409,8 @@
   </button>
 </div>
 <div id="hud" hidden>
-  <div class="hud-row">
-    <div class="felt blue hud-wave"><small>WAVE</small><b id="hud-wave">1/6</b></div>
-    <div class="felt dark hud-score"><span class="coin">✕</span><b id="hud-score">0</b></div>
-  </div>
-  <div class="felt dark hud-hearts" id="hud-hearts" aria-label="Workshop health"></div>
+  <div class="felt blue hud-wave"><small>WAVE</small><b id="hud-wave">1/6</b></div>
+  <div class="felt dark hud-hearts" id="hud-hearts" aria-label="Workshop health"><span class="heart"></span><b id="hud-hp">10</b></div>
 </div>
 <div id="spots" hidden></div>
 <div id="picker" class="felt brown" role="dialog" aria-label="Build a Pin" hidden><div class="tcap">BUILD A PIN</div><div class="tcards"></div></div>
@@ -500,6 +494,11 @@
       <dt>Seed</dt><dd id="pause-seed">—</dd>
     </dl>
     <button id="resume" class="felt-btn" type="button"><span class="tri"></span>RESUME</button>
+    <!-- during play the top bar shows only ⏸; sound and back-to-title live here -->
+    <div class="over-actions">
+      <button id="pause-sound" class="felt-btn small" type="button" aria-pressed="false">Sound: on</button>
+      <button id="pause-home" class="felt-btn small" type="button">Quit to title</button>
+    </div>
     <div class="over-actions">
       <button class="felt-btn small" type="button" data-copy-report>Copy run report</button>
       <button class="felt-btn small" type="button" data-send-feedback>Send feedback</button>

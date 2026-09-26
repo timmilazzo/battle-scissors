@@ -68,12 +68,12 @@ const els = {
   overWaves: document.getElementById('over-waves'), overAcc: document.getElementById('over-acc'), overSeed: document.getElementById('over-seed'),
 };
 function showScreens() {
-  const m = state.mode, menu = m === 'TITLE' || m === 'SELECT';
+  const m = state.mode;
   els.title.hidden = m !== 'TITLE';
   els.select.hidden = m !== 'SELECT';
   els.over.hidden = m !== 'GAME_OVER';
-  els.reset.hidden = menu;
-  els.mute.hidden = menu;
+  els.reset.hidden = els.mute.hidden = m !== 'GAME_OVER';        // mid-run they're on the pause card, out of the way
+
   els.pauseBtn.hidden = !live();
   els.pause.hidden = !state.paused || state.pauseCard !== 'menu';
   els.pinsIntro.hidden = !state.paused || state.pauseCard !== 'pins';
@@ -409,6 +409,7 @@ function bladeContacts(dt) {
       if (vn < push) { e.pvx += nx * (push - vn); e.pvy += ny * (push - vn); }
       const vs = e.pvx * dx + e.pvy * dy, slide = push * C.contactSlide;
       if (vs < slide) { e.pvx += dx * (slide - vs); e.pvy += dy * (slide - vs); }
+      keepOnRoad(e); e.x = e.px + e.ox; e.y = e.py + e.oy;       // at the road's edge the blade slides past instead
     }
   }
 }
@@ -596,6 +597,17 @@ function spawnEnemy(name) {
   return e;
 }
 
+// Shoves (snips, blade contact) can push an enemy toward the road's edge but never off it: its offset from the
+// centreline is capped at level.roadHalfWidth, and velocity still pushing outward is dropped so it slides along the edge.
+function keepOnRoad(e) {
+  const max = C.level.roadHalfWidth * view.L, d2 = e.ox * e.ox + e.oy * e.oy;
+  if (d2 <= max * max) return;
+  const d = Math.sqrt(d2), nx = e.ox / d, ny = e.oy / d;
+  e.ox = nx * max; e.oy = ny * max;
+  const vn = e.pvx * nx + e.pvy * ny;
+  if (vn > 0) { e.pvx -= nx * vn; e.pvy -= ny * vn; }
+}
+
 function reachWorkshop(e) {
   e.on = false; tweens.cancel(e); e.pulling = false;
   state.hp = Math.max(0, state.hp - e.type.tier); state.workshopHitT = 1;
@@ -755,7 +767,7 @@ export function update(now, dt) {
       } else if (!e.pulling) e.u += step;                        // while a Magnet pulls it, its tween owns u, ox, oy
       if (e.u >= 1) { reachWorkshop(e); if (!live()) break; continue; }
       pathPoint(e);
-      if (!e.pulling) { e.ox = (e.ox + e.pvx * dt) * returnKeep; e.oy = (e.oy + e.pvy * dt) * returnKeep; }
+      if (!e.pulling) { e.ox = (e.ox + e.pvx * dt) * returnKeep; e.oy = (e.oy + e.pvy * dt) * returnKeep; keepOnRoad(e); }
       e.pvx *= pushKeep; e.pvy *= pushKeep;
       e.x = e.px + e.ox; e.y = e.py + e.oy;
       alive++;
