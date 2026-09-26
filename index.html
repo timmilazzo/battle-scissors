@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<!--
+  Battle Scissors — pinch-to-snip defense. Code lives in src/ (plain ES modules, no build step).
+  Double-click Play.bat (or run `node tools/serve.js`) and open http://localhost:8000/.
+  ES modules don't load from file://, so opening this file directly shows a "use Play.bat" message instead.
+
+  TOUCH: two fingers = the scissor HANDLES. Blades extend up/away from your fingers.
+    - Spread fingers = open blades. Rotate hand = aim.
+    - Pinch FAST = SNIP, medium = weak "nick", slow = nothing (scissors shake). Graded by average closing speed.
+    - Wider opening before the close = more power. Hits near the pivot hit hardest; near the tips they graze and shove.
+
+  DESKTOP FALLBACK (mouse + keyboard):
+    - Move mouse ............ virtual finger midpoint (pivot sits above the cursor)
+    - Mouse wheel ........... finger spread (flick the wheel toward you fast to snip, scroll slowly to see "too slow")
+    - Shift+wheel or A / D .. rotate
+    - Hold left button ...... blades open over ~0.5s; release = snap shut (release early = weaker strike)
+    - Space ................. instant snip at the current pose (tests cut-zone logic directly)
+    - E ..................... SHRED (Helicopter special) when charged; on touch: tap a third finger while gripping
+    - Pins (towers) ......... tap (click) a + on an empty spot beside the road, then pick a Pin
+    - R ..................... back to the title screen (same as the Reset button)
+    - P or Esc .............. pause / resume (same as the ⏸ button)
+
+  FLOW: TITLE -> SELECT (weapon) -> [TUTORIAL on first play, or from "How to play"] -> PLAYING -> WAVE_CLEAR (2s) -> PLAYING ... -> GAME_OVER (lose, or win after the last wave).
+        Any live mode can be paused (state.paused): a card with RESUME, Copy run report, Send feedback.
+
+  DEBUG PANEL: long-press the top-right corner for 1.5s (touch or mouse) to toggle.
+
+  ART: weapons are layered SVGs in assets/weapons (see CONFIG.weapons); rotating groups open around the pivot.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Battle Scissors</title>
+<!-- Add to Home Screen: fullscreen, portrait, no browser chrome. Android reads the manifest; iOS reads the apple-* tags
+     (iOS can't lock orientation from a web app). All paths are relative so the game also runs from a subpath. -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#070d16">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Scissors">
+<meta name="format-detection" content="telephone=no">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png">
+<link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+<style>
+  html, body {
+    margin: 0; height: 100%; overflow: hidden; background: #070d16;
+    touch-action: none; overscroll-behavior: none;
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  canvas { position: fixed; left: 0; top: 0; display: block; touch-action: none; }
+  /* ---------- in-game UI: stitched felt, matching the title buttons ----------
+     .felt = a chunky felt tile: coloured felt (--fc) with a fuzzy texture and a soft top light, a dark rim (--rim)
+     with a raised edge underneath, and a dashed cream stitch just inside the edge. Rounded bold cream lettering. */
+  /* Lilita One (SIL OFL, assets/fonts/LilitaOne-OFL.txt): the chunky felt lettering. One weight, declared for the whole
+     range so bold text uses it as-is instead of a faked bold. */
+  @font-face { font-family: "Lilita One"; src: url(assets/fonts/LilitaOne-Regular.ttf) format("truetype"); font-weight: 100 900; font-display: swap; }
+  :root {
+    --ui-font: "Lilita One", "Arial Rounded MT Bold", "Trebuchet MS", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --felt-fuzz: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.55 -0.12'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  .felt {
+    --fc: #6b3f1d; --rim: #2a170a;
+    position: relative; box-sizing: border-box; color: #fff4dc; font-family: var(--ui-font); font-weight: 900;
+    text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45);
+    background: var(--felt-fuzz), radial-gradient(130% 110% at 30% 12%, rgba(255, 250, 230, 0.26), rgba(255, 250, 230, 0) 55%),
+      linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.18)), var(--fc);
+    border: 3px solid var(--rim);
+    box-shadow: inset 0 2px 1px rgba(255, 255, 255, 0.28), inset 0 -3px 2px rgba(0, 0, 0, 0.3), 0 4px 0 var(--rim), 0 7px 12px rgba(0, 0, 0, 0.45);
+    outline: 2px dashed rgba(255, 240, 205, 0.85); outline-offset: -7px;
+  }
+  button.felt { cursor: pointer; touch-action: manipulation; transition: transform 80ms ease-out, filter 80ms ease-out; }
+  button.felt:hover { filter: brightness(1.08); }
+  button.felt:active { transform: translateY(3px); box-shadow: inset 0 2px 1px rgba(255, 255, 255, 0.28), inset 0 -3px 2px rgba(0, 0, 0, 0.3), 0 1px 0 var(--rim), 0 3px 6px rgba(0, 0, 0, 0.45); }
+  .felt.brown { --fc: #6b3f1d; --rim: #2a170a; }
+  .felt.dark { --fc: #4a2a12; --rim: #1f1006; }
+  .felt.blue { --fc: #2f5fc0; --rim: #142c62; }
+  .felt.green { --fc: #3f9a2c; --rim: #17450f; }
+  .felt.purple { --fc: #7a3fb8; --rim: #331560; }
+
+  /* top-right controls: pause, sound, back to title (above every screen, so they work on the pause card too) */
+  #topbar {
+    position: fixed; top: calc(10px + env(safe-area-inset-top)); right: calc(10px + env(safe-area-inset-right)); z-index: 20;
+    display: flex; gap: 8px; pointer-events: none;
+  }
+  #topbar button { pointer-events: auto; width: 46px; height: 44px; padding: 0; border-radius: 12px; display: flex; align-items: center; justify-content: center; outline-offset: -6px; }
+  #topbar button[hidden] { display: none; }
+  #topbar svg { width: 22px; height: 22px; fill: #ffc93d; filter: drop-shadow(0 2px 0 rgba(60, 30, 5, 0.8)); }
+  #topbar .ic-on, #topbar [aria-pressed="true"] .ic-off { display: block; }
+  #topbar .ic-off, #topbar [aria-pressed="true"] .ic-on { display: none; }
+  /* desktop controls: shown on the pause card once the mouse is used (input.js toggles display) */
+  #hint { display: none; margin: 0; max-width: 320px; text-align: center; font: 12px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: rgba(255, 241, 194, 0.75); }
+  #hint b { color: #ffd23f; }
+
+  /* HUD (top-left): wave badge, score pill, hearts pill. Filled by src/hud.js. */
+  #hud {
+    position: fixed; top: calc(10px + env(safe-area-inset-top)); left: calc(10px + env(safe-area-inset-left)); z-index: 9;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 9px; pointer-events: none;
+  }
+  #hud[hidden] { display: none; }
+  .hud-row { display: flex; align-items: center; gap: 8px; }
+  .hud-wave { display: flex; flex-direction: column; align-items: center; padding: 5px 13px 7px; border-radius: 14px; line-height: 1; }
+  .hud-wave small { font-size: 10px; letter-spacing: 2px; color: #cfe0ff; }
+  .hud-wave b { font-size: 22px; letter-spacing: 0.5px; font-variant-numeric: tabular-nums; }
+  .hud-score { display: flex; align-items: center; gap: 7px; height: 36px; padding: 0 14px 0 6px; border-radius: 999px; outline-offset: -6px; }
+  .hud-score b { font-size: 19px; font-variant-numeric: tabular-nums; }
+  .coin { flex: none; width: 24px; height: 24px; border-radius: 50%; box-sizing: border-box; display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(circle at 35% 30%, #ffe27a, #f0a81c 60%, #c47a0c); border: 2px solid #7a4a08; box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.2);
+    font-size: 12px; color: #7a4a08; text-shadow: none; }
+  .hud-hearts { display: flex; gap: 2px; padding: 6px 10px 7px; border-radius: 999px; outline-offset: -6px; }
+  .heart { width: 15px; height: 14px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 28'%3E%3Cpath d='M15 27C13 25 1 17 1 9 1 4 5 1 9 1c3 0 5 2 6 4 1-2 3-4 6-4 4 0 8 3 8 8 0 8-12 16-14 18z' fill='%23e8323f' stroke='%236a0f16' stroke-width='2'/%3E%3Cpath d='M15 22C11 19 5 14 5 9.5 5 6.5 7 5 9 5c2.5 0 4.5 2 6 4.5C16.5 7 18.5 5 21 5c2 0 4 1.5 4 4.5 0 4.5-6 9.5-10 12.5z' fill='none' stroke='%23ffd9d9' stroke-width='1.3' stroke-dasharray='2 2'/%3E%3C/svg%3E") center / contain no-repeat;
+    transition: transform 150ms, filter 150ms, opacity 150ms; }
+  .heart.lost { filter: grayscale(1) brightness(0.55); opacity: 0.55; transform: scale(0.85); }
+  .heart.pop { animation: hpop 420ms ease-out; }
+  @keyframes hpop { 30% { transform: scale(1.6); filter: brightness(2); } }
+  .bump { animation: tbump 260ms ease-out; }
+  @keyframes tbump { 40% { transform: scale(1.18); } }
+
+  /* action bar (bottom): the thread pill (Pin currency) and the SHRED button (charge meter). */
+  #tray {
+    position: fixed; left: 50%; bottom: calc(10px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 15;
+    display: flex; align-items: flex-end; gap: 10px; pointer-events: none;
+  }
+  #tray[hidden] { display: none; }
+  /* landscape: the road ends bottom-centre at the workshop, so the bar moves to the empty bottom-right corner */
+  @media (min-aspect-ratio: 1/1) { #tray { left: auto; right: calc(12px + env(safe-area-inset-right)); transform: none; } }
+  .tcap { font: 900 10px/1 var(--ui-font); letter-spacing: 1.5px; color: #ffe4aa; text-shadow: 0 1px 0 rgba(0, 0, 0, 0.8), 0 0 4px rgba(0, 0, 0, 0.8); padding-left: 8px; }
+  .tgroup { display: flex; flex-direction: column; gap: 5px; }
+  /* Thread: a spool + the balance on a felt pill; pickups fly into it and it pops. */
+  .thread-chip { display: inline-flex; align-items: center; gap: 7px; height: 50px; padding: 0 16px 0 10px; border-radius: 999px; outline-offset: -7px; }
+  .thread-chip b { font-size: 22px; font-variant-numeric: tabular-nums; }
+  .thread-chip .unit { font-size: 10px; letter-spacing: 1px; color: #ffe4aa; }
+  .spool { position: relative; flex: none; width: 18px; height: 22px; }
+  .spool::before { content: ""; position: absolute; left: 3px; right: 3px; top: 3px; bottom: 3px; border-radius: 2px;
+    background: repeating-linear-gradient(-14deg, #5fe0a8 0 2px, #2fa870 2px 3.5px); }
+  .spool::after { content: ""; position: absolute; inset: 0; border-top: 3.5px solid #e0b06a; border-bottom: 3.5px solid #e0b06a; border-radius: 2px; }
+  .tcost .spool { width: 11px; height: 14px; }
+  .tcost .spool::before { left: 2px; right: 2px; top: 2px; bottom: 2px; }
+  .tcost .spool::after { border-width: 2.5px 0; }
+  /* first time a Pin is affordable (until its explainer has been seen): the thread pill pulses with the + buttons */
+  #tray.pin-attn .thread-chip { animation: tchip 0.9s ease-in-out infinite; }
+  @keyframes tchip { 50% { box-shadow: inset 0 2px 1px rgba(255, 255, 255, 0.28), 0 4px 0 var(--rim), 0 0 0 3px #fff1c2, 0 0 22px rgba(255, 241, 194, 0.9); } }
+  /* SHRED: scissors badge, name, stitched meter, status */
+  .shred { display: grid; grid-template-columns: 34px auto; column-gap: 8px; align-content: center; align-items: center; min-height: 50px; padding: 6px 14px 7px 8px; border-radius: 16px; text-align: left; outline-offset: -7px; }
+  .shred .ticon { grid-row: 1 / 4; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 17px; color: #3b1060; text-shadow: none; background: radial-gradient(circle at 35% 30%, #efdcff, #b88af0); border: 2px solid #331560; }
+  .shred .tname { font-size: 15px; letter-spacing: 1px; line-height: 1; }
+  .shred .tmeter { display: block; width: 84px; height: 7px; margin: 3px 0 2px; border-radius: 4px; background: rgba(20, 5, 40, 0.6); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5); overflow: hidden; }
+  .shred .tmeter > span { display: block; height: 100%; width: 0; background: linear-gradient(#e6cfff, #b88af0); transition: width 150ms; }
+  .shred .tsub { font-size: 9.5px; line-height: 1; color: #e6d4ff; letter-spacing: 0.3px; white-space: nowrap; }
+  .shred.ready { --fc: #d98a12; --rim: #6a3a04; animation: tready 0.9s ease-in-out infinite; }
+  .shred.ready .ticon { background: radial-gradient(circle at 35% 30%, #fff6c8, #ffc93d); border-color: #6a3a04; }
+  .shred.ready .tmeter > span { background: linear-gradient(#fff6c8, #ffd23f); }
+  .shred.ready .tsub { color: #fff1c2; }
+  @keyframes tready { 50% { filter: brightness(1.18); box-shadow: inset 0 2px 1px rgba(255, 255, 255, 0.28), 0 4px 0 var(--rim), 0 0 22px rgba(255, 210, 63, 0.9); } }
+
+  /* Pin spots: a green felt + button on each empty pad of the level (positioned by actionBar.js) */
+  #spots { position: fixed; inset: 0; z-index: 14; pointer-events: none; }
+  #spots[hidden] { display: none; }
+  .spot-add { position: absolute; pointer-events: auto; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%;
+    opacity: 0.65; font-size: 28px; line-height: 1; outline-offset: -7px; }
+  .spot-add[hidden] { display: none; }
+  .spot-add span { margin-top: -3px; }
+  #spots.can .spot-add { opacity: 1; animation: sbob 1.6s ease-in-out infinite; }
+  @keyframes sbob { 50% { transform: translateY(-4px); } }
+  #spots.attn .spot-add { animation: sattn 0.9s ease-in-out infinite; }
+  @keyframes sattn { 50% { transform: scale(1.15); box-shadow: 0 4px 0 var(--rim), 0 0 0 3px #fff1c2, 0 0 24px rgba(255, 241, 194, 0.95); } }
+  #spots .spot-add[aria-expanded="true"] { --fc: #6b3f1d; --rim: #2a170a; opacity: 1; animation: none; transform: rotate(45deg); }
+
+  /* the picker: a felt panel beside the tapped spot, one felt button per Pin in that Pin's colours */
+  #picker { position: fixed; z-index: 16; display: flex; flex-direction: column; gap: 8px; padding: 10px 10px 12px; border-radius: 18px; outline-offset: -8px; }
+  #picker[hidden] { display: none; }
+  #picker::after { content: ""; position: absolute; top: calc(100% + 3px); left: var(--arrow, 50%); margin-left: -10px; border: 10px solid transparent; border-top-color: #2a170a; }
+  #picker.below::after { top: auto; bottom: calc(100% + 3px); border-top-color: transparent; border-bottom-color: #2a170a; }
+  #picker .tcap { text-align: center; padding: 2px 0 0; font-size: 12px; color: #ffc93d; }
+  #picker .tcards { display: flex; flex-direction: column; gap: 9px; }
+  .pick {
+    display: grid; grid-template-columns: 38px auto; grid-template-rows: auto auto auto; column-gap: 9px; align-items: center;
+    width: 100%; min-width: 186px; padding: 8px 14px 9px 9px; border-radius: 14px; text-align: left; white-space: nowrap; outline-offset: -6px;
+  }
+  .pick .ticon { grid-row: 1 / 4; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.35), rgba(0, 0, 0, 0.25)); border: 2px solid var(--rim); box-shadow: 0 0 10px var(--tc); }
+  .pick .ticon svg { width: 22px; height: 22px; }
+  .pick .tname { font-size: 16px; line-height: 1.05; }
+  .pick .tsub { font-size: 10.5px; line-height: 1.2; color: #ffeccc; font-weight: 700; }
+  .pick .tcost { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; line-height: 1.2; color: #d8ffe9; font-variant-numeric: tabular-nums; }
+  .pick.poor { filter: saturate(0.35) brightness(0.8); }
+  .pick.poor .tcost { color: #ffb0a8; }
+
+  /* contextual tip (first affordable Pin, first SHRED): a cream parchment bubble */
+  #tip {
+    position: fixed; z-index: 16; max-width: min(300px, calc(100vw - 16px)); box-sizing: border-box; padding: 10px 14px;
+    font: 900 13.5px/1.35 var(--ui-font); color: #4a2a10; text-align: center; cursor: pointer;
+    background: #fff1c8; border: 3px solid #7a4a1c; border-radius: 14px; box-shadow: 0 4px 0 #7a4a1c, 0 10px 18px rgba(0, 0, 0, 0.45);
+    outline: 2px dashed rgba(122, 74, 28, 0.55); outline-offset: -7px;
+  }
+  #tip[hidden] { display: none; }
+  #tip::after { content: ""; position: absolute; top: calc(100% + 3px); left: var(--arrow, 50%); margin-left: -9px; border: 9px solid transparent; border-top-color: #7a4a1c; }
+
+  /* onboarding coach */
+  #coach {
+    /* below the top-right button bar (10px + 44px tall), which would otherwise cover the prompt on a phone */
+    position: fixed; left: 50%; top: calc(64px + env(safe-area-inset-top)); transform: translateX(-50%); z-index: 15;
+    width: min(420px, calc(100vw - 32px)); box-sizing: border-box; padding: 14px 18px 11px; text-align: center; pointer-events: none;
+    font: 400 24px/1.2 var(--ui-font); letter-spacing: 0.4px; color: #fff1c2; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
+    background: var(--felt-fuzz), radial-gradient(120% 90% at 30% 0%, rgba(255, 240, 210, 0.18), rgba(255, 240, 210, 0) 60%), linear-gradient(#7a4a24, #5a3418);
+    border: 4px solid #2a170a; border-radius: 20px; box-shadow: inset 0 2px 1px rgba(255, 255, 255, 0.2), 0 5px 0 #2a170a, 0 12px 22px rgba(0, 0, 0, 0.5);
+    outline: 2px dashed rgba(255, 236, 196, 0.75); outline-offset: -10px;
+  }
+  #coach[hidden] { display: none; }
+  #coach .coach-links { display: flex; justify-content: space-between; margin-top: 6px; }
+  #coach button { pointer-events: auto; padding: 6px 4px; background: none; border: 0; cursor: pointer; touch-action: manipulation;
+    font: 700 13px "Trebuchet MS", system-ui, sans-serif; color: rgba(255, 228, 170, 0.8); text-decoration: underline; }
+
+  /* title scissors: real weapon art following the pointer, above the art and buttons but never catching clicks */
+  #title-fx { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; pointer-events: none; filter: drop-shadow(0 8px 10px rgba(0, 0, 0, 0.5)); }
+  .art-btn.muted { filter: grayscale(1) brightness(0.8); }
+
+  /* ---------- screens (TITLE / GAME_OVER) — felt & stitch look ---------- */
+  .screen {
+    position: fixed; inset: 0; z-index: 10; box-sizing: border-box;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px;
+    padding: calc(24px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom));
+    background: radial-gradient(ellipse at 50% 40%, rgba(8, 18, 12, 0.35), rgba(4, 10, 7, 0.78));
+    font-family: "Arial Rounded MT Bold", "Trebuchet MS", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    touch-action: manipulation;
+  }
+  .screen[hidden] { display: none; }
+  /* TITLE: painted plate, portrait (assets/title-bg.webp, 941x1672) or landscape (assets/title-bg-landscape.webp,
+     1672x941) by screen shape. The art box is always full height: screens narrower than the plate crop its sides
+     (portrait 375x812 shows plate x ~84..857; landscape 4:3 shows ~208..1462), wider ones get blurred side bars.
+     Each button shows the region --x/--y/--w/--h of assets/title-mock.webp (941x1672) as a sprite, clipped to --r.
+     It is drawn at --px/--py (portrait, defaults to --x/--y, same size) or --lx/--ly/--lw/--lh (landscape plate px). */
+  #title { padding: 0; gap: 0; overflow: hidden; background: #2b1a0d; --plate: url(assets/title-bg.webp); }
+  #title::before { content: ""; position: absolute; inset: -40px; background: var(--plate) center / cover; filter: blur(24px) brightness(0.55); }
+  .title-art { --cw: 941; --ch: 1672; position: relative; flex: none; height: 100%; aspect-ratio: 941 / 1672; background: var(--plate) center / 100% 100% no-repeat; }
+  .art-btn { --dx: var(--px, var(--x)); --dy: var(--py, var(--y)); --dw: var(--w); --dh: var(--h); }
+  @media (min-aspect-ratio: 1/1) {
+    #title { --plate: url(assets/title-bg-landscape.webp); }
+    .title-art { --cw: 1672; --ch: 941; aspect-ratio: 1672 / 941; }
+    .art-btn { --dx: var(--lx); --dy: var(--ly); --dw: var(--lw); --dh: var(--lh); }
+  }
+  .art-btn {
+    position: absolute; padding: 0; margin: 0; border: 0; cursor: pointer; touch-action: manipulation;
+    left: calc(var(--dx) / var(--cw) * 100%); top: calc(var(--dy) / var(--ch) * 100%);
+    width: calc(var(--dw) / var(--cw) * 100%); height: calc(var(--dh) / var(--ch) * 100%);
+    background: url(assets/title-mock.webp) no-repeat;
+    background-size: calc(941 / var(--w) * 100%) calc(1672 / var(--h) * 100%);
+    background-position: calc(var(--x) / (941 - var(--w)) * 100%) calc(var(--y) / (1672 - var(--h)) * 100%);
+    border-radius: var(--r); transition: transform 80ms ease-out, filter 80ms ease-out;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .art-btn.icon { margin-top: env(safe-area-inset-top); }
+  .art-btn:hover { filter: brightness(1.07); }
+  .art-btn:active { transform: translateY(3%) scale(0.97); filter: brightness(0.9); }
+  .art-btn:focus-visible { outline: 3px solid #ffe27a; outline-offset: 3px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .toast {
+    position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); z-index: 40; transform: translateX(-50%);
+    padding: 11px 20px 12px; border-radius: 14px; white-space: nowrap; pointer-events: none;
+    font: 400 16px var(--ui-font); letter-spacing: 0.3px; color: #fff1c2; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
+    background: var(--felt-fuzz), #4a2a12; border: 3px solid #1f1006; box-shadow: 0 4px 0 #1f1006, 0 10px 18px rgba(0, 0, 0, 0.5);
+    outline: 2px dashed rgba(255, 228, 170, 0.7); outline-offset: -7px;
+  }
+  .toast[hidden] { display: none; }
+
+  /* ---------- modals: felt panels with puffy felt headings, like the title art ---------- */
+  /* (every screen but the title blurs the game behind it) */
+  .screen:not(#title) { -webkit-backdrop-filter: blur(4px) saturate(0.85); backdrop-filter: blur(4px) saturate(0.85); }
+  /* Big felt buttons (PLAY-style): chunky rounded rectangle of felt, dark rim with a raised edge, cream stitching,
+     cream lettering outlined in the rim colour. --fc felt, --rim rim. */
+  .felt-btn {
+    --fc: #43a332; --rim: #1a4d12;
+    display: inline-flex; align-items: center; justify-content: center; gap: 16px; box-sizing: border-box;
+    min-width: min(300px, 80vw); padding: 16px 34px 18px; border-radius: 24px; cursor: pointer; touch-action: manipulation;
+    font: 400 clamp(30px, 9vw, 44px)/1 var(--ui-font); letter-spacing: 1.5px; color: #fff6dc;
+    text-shadow: 0 -2px 0 var(--rim), 2px 0 0 var(--rim), -2px 0 0 var(--rim), 0 2px 0 var(--rim), 2px 2px 0 var(--rim), -2px 2px 0 var(--rim), 0 5px 0 var(--rim);
+    background: var(--felt-fuzz), radial-gradient(130% 110% at 30% 8%, rgba(255, 250, 230, 0.32), rgba(255, 250, 230, 0) 55%),
+      linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.2)), var(--fc);
+    border: 4px solid var(--rim);
+    box-shadow: inset 0 3px 1px rgba(255, 255, 255, 0.3), inset 0 -4px 2px rgba(0, 0, 0, 0.3), 0 6px 0 var(--rim), 0 12px 22px rgba(0, 0, 0, 0.5);
+    outline: 2.5px dashed rgba(255, 244, 214, 0.85); outline-offset: -11px;
+    transition: transform 80ms ease-out, filter 80ms ease-out;
+  }
+  .felt-btn:hover { filter: brightness(1.07); }
+  .felt-btn:active { transform: translateY(4px); box-shadow: inset 0 3px 1px rgba(255, 255, 255, 0.3), inset 0 -4px 2px rgba(0, 0, 0, 0.3), 0 2px 0 var(--rim), 0 6px 12px rgba(0, 0, 0, 0.5); }
+  .felt-btn .tri { width: 0; height: 0; border-style: solid; border-width: 0.42em 0 0.42em 0.62em; border-color: transparent transparent transparent #ffc93d; filter: drop-shadow(0 3px 0 #8a4f08) drop-shadow(0 -1px 0 #8a4f08); }
+  .felt-btn.small, .felt-btn.back { --fc: #8a5428; --rim: #3a2210; }
+  /* The panel: brown felt with a fuzzy texture, a soft top light, a thick rim with a raised edge and a stitched border.
+     Room at the top for the heading, which sits over the panel's top edge like a sewn-on patch. */
+  .card {
+    position: relative; display: flex; flex-direction: column; align-items: center; gap: 14px;
+    width: min(360px, 100%); box-sizing: border-box; margin-top: 34px; padding: 30px 22px 24px; border-radius: 28px; color: #fff1c2;
+    background: var(--felt-fuzz), radial-gradient(120% 70% at 30% 0%, rgba(255, 240, 210, 0.18), rgba(255, 240, 210, 0) 60%),
+      linear-gradient(#80502a, #5a3418);
+    border: 4px solid #2a170a;
+    box-shadow: inset 0 3px 1px rgba(255, 255, 255, 0.2), inset 0 -6px 3px rgba(0, 0, 0, 0.3), 0 7px 0 #2a170a, 0 20px 40px rgba(0, 0, 0, 0.6);
+    outline: 2.5px dashed rgba(255, 236, 196, 0.75); outline-offset: -13px;
+  }
+  /* Puffy felt heading, three layers of the same text (data-text): the h2 itself is the thick dark outline with a
+     raised edge and a drop shadow; ::after lays the felt-coloured letters on top (a gradient with the fuzz texture,
+     clipped to the text); ::before adds a faint light rim over them. --t1..--t3 = felt colours top to bottom,
+     --tr = outline. */
+  .card h2 {
+    --t1: #ffe27a; --t2: #f8a51f; --t3: #d8700c; --tr: #3a1d08;
+    position: relative; margin: -64px 0 0; padding: 0 8px;
+    font: 400 clamp(36px, 12vw, 54px)/1.05 var(--ui-font); letter-spacing: 1.5px; text-align: center;
+    color: var(--tr); -webkit-text-stroke: 12px var(--tr); text-shadow: 0 6px 0 var(--tr), 0 12px 16px rgba(0, 0, 0, 0.55);
+  }
+  .card h2::before, .card h2::after {
+    content: attr(data-text); position: absolute; inset: 0; padding: inherit; pointer-events: none;
+    -webkit-text-stroke: 0; text-shadow: none; color: transparent;
+  }
+  .card h2::after { z-index: 1; background: var(--felt-fuzz), linear-gradient(var(--t1) 12%, var(--t2) 58%, var(--t3)); -webkit-background-clip: text; background-clip: text; }
+  .card h2::before { z-index: 2; -webkit-text-stroke: 1.2px rgba(255, 252, 230, 0.45); }
+  .card h2.win { --t1: #c8f59a; --t2: #6fcf4a; --t3: #3a9a2a; --tr: #123d0c; }
+  .card h2.lose { --t1: #ffb38a; --t2: #ef5a3a; --t3: #b8281c; --tr: #3d0c06; }
+  .card h2.blue { --t1: #a8d8ff; --t2: #4a8fe8; --t3: #2a5fc0; --tr: #0e2350; }
+  /* stats: a sunken felt slot with stitched dividers */
+  .card dl {
+    display: grid; grid-template-columns: 1fr auto; width: 100%; box-sizing: border-box; margin: 2px 0 4px; padding: 4px 16px; border-radius: 16px;
+    background: var(--felt-fuzz), rgba(30, 14, 4, 0.45); box-shadow: inset 0 3px 7px rgba(0, 0, 0, 0.55), 0 1px 0 rgba(255, 255, 255, 0.12);
+  }
+  .card dt, .card dd { margin: 0; padding: 8px 0 7px; border-bottom: 2px dashed rgba(255, 228, 170, 0.18); font-family: var(--ui-font); }
+  .card dl > :nth-last-child(-n+2) { border-bottom: 0; }
+  .card dt { font-size: 17px; color: #ffe4aa; }
+  .card dd { font-size: 21px; text-align: right; color: #ffd23f; font-variant-numeric: tabular-nums; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45); }
+  .card .felt-btn { font-size: clamp(24px, 7vw, 32px); min-width: 0; width: 100%; padding: 13px 20px 15px; }
+  .card .felt-btn.small { font-size: clamp(15px, 4.2vw, 18px); padding: 11px 8px 12px; letter-spacing: 0.3px; border-radius: 16px; outline-offset: -8px;
+    text-shadow: 0 -1px 0 var(--rim), 1px 0 0 var(--rim), -1px 0 0 var(--rim), 0 3px 0 var(--rim); }
+  .over-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
+  /* one-time Pin explainer (a pause card) */
+  #pins-intro .card { width: min(400px, 100%); gap: 10px; }
+  #pins-intro .pin-diagram { width: 100%; height: auto; border-radius: 14px; border: 3px solid #2a170a; box-sizing: border-box; box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.35); }
+  #pins-intro ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; font: 600 14px/1.35 "Trebuchet MS", system-ui, sans-serif; }
+  #pins-intro li { display: grid; grid-template-columns: 20px 1fr; gap: 8px; align-items: start; }
+  #pins-intro li .dot { width: 16px; height: 16px; margin-top: 1px; border-radius: 50%; background: var(--tc); border: 2px solid #2a170a; box-sizing: border-box; box-shadow: 0 0 8px var(--tc); }
+  #pins-intro li b { font: 400 15.5px var(--ui-font); letter-spacing: 0.3px; color: #ffd23f; }
+  #pins-intro .lead { margin: 0; font: 400 18px/1.2 var(--ui-font); letter-spacing: 0.3px; text-align: center; color: #fff1c2; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45); }
+  @media (max-height: 640px) { #pins-intro .pin-diagram { display: none; } }
+
+  /* weapon select (cards built by src/weaponSelect.js): sunken felt slots; the chosen one gets a gold stitched rim */
+  #select { overflow-y: auto; justify-content: safe center; }
+  #select .card { width: min(760px, 100%); gap: 12px; }
+  #select .card h2 { font-size: clamp(30px, 8.6vw, 50px); margin-top: -58px; }
+  .weapon-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; width: 100%; }
+  @media (min-width: 640px) { .weapon-cards { grid-template-columns: repeat(3, 1fr); } }
+  .weapon-card {
+    display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 10px 12px; cursor: pointer;
+    font: 600 12px "Trebuchet MS", system-ui, sans-serif; color: #fff1c2; text-align: center; border-radius: 18px; touch-action: manipulation;
+    background: var(--felt-fuzz), rgba(30, 14, 4, 0.45); border: 3px solid rgba(42, 23, 10, 0.9);
+    box-shadow: inset 0 3px 7px rgba(0, 0, 0, 0.5), 0 1px 0 rgba(255, 255, 255, 0.1);
+    outline: 2px dashed rgba(255, 228, 170, 0.2); outline-offset: -8px; transition: transform 80ms, background 120ms;
+  }
+  .weapon-card:active { transform: scale(0.98); }
+  .weapon-card[aria-pressed="true"] {
+    background: var(--felt-fuzz), radial-gradient(100% 80% at 50% 30%, rgba(255, 210, 63, 0.3), rgba(255, 210, 63, 0.08));
+    border-color: #ffc93d; outline-color: rgba(255, 230, 150, 0.9); box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.35), 0 0 18px rgba(255, 210, 63, 0.45);
+  }
+  .weapon-card img { height: clamp(80px, 19vh, 180px); aspect-ratio: 4 / 5; object-fit: contain; filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.5)); pointer-events: none; }
+  .wc-name { font: 400 19px/1.1 var(--ui-font); letter-spacing: 0.4px; color: #ffd23f; text-shadow: 0 2px 0 #3a1d08, 1px 0 0 #3a1d08, -1px 0 0 #3a1d08, 0 -1px 0 #3a1d08; }
+  .wc-blurb { font-size: 12px; line-height: 1.35; color: rgba(255, 241, 194, 0.85); min-height: 2.7em; }
+  .wc-stats { display: grid; gap: 4px; width: 100%; }
+  .wc-stat { display: grid; grid-template-columns: 52px 1fr; align-items: center; gap: 6px; font: 400 12px var(--ui-font); letter-spacing: 0.3px; text-align: left; color: #ffe4aa; }
+  .wc-val { font: 400 14px var(--ui-font); color: #ffd23f; font-variant-numeric: tabular-nums; }
+  .wc-bar { height: 9px; border-radius: 5px; background: rgba(0, 0, 0, 0.5); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.6); overflow: hidden; }
+  .wc-bar > span { display: block; height: 100%; border-radius: 5px; background: linear-gradient(#b8f07a, #5fbf3a); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4); }
+  .select-actions { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; width: 100%; }
+  .card .felt-btn.back { font-size: clamp(20px, 5.5vw, 26px); }
+  @media (max-height: 520px) { #select .card { padding: 22px 14px 14px; gap: 8px; } .wc-blurb { display: none; } #select .card h2 { font-size: 28px; margin-top: -50px; } }
+
+  /* debug panel (built by src/debug.js) */
+  #debug {
+    position: fixed; top: calc(56px + env(safe-area-inset-top)); right: calc(10px + env(safe-area-inset-right));
+    width: min(300px, calc(100vw - 20px)); box-sizing: border-box; padding: 10px 12px 12px;
+    display: flex; flex-direction: column; gap: 8px; touch-action: manipulation;
+    font: 12px/1.3 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #dff9ff;
+    background: rgba(6, 18, 30, 0.92); border: 1px solid rgba(160, 240, 255, 0.35); border-radius: 10px;
+    -webkit-user-select: none; user-select: none;
+  }
+  #debug[hidden] { display: none; }
+  #debug .dbg-head { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+  #debug .dbg-fps { flex: 1; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; color: #7dffb0; }
+  #debug .dbg-close { background: none; border: 0; color: #dff9ff; font-size: 20px; line-height: 1; padding: 0 2px; }
+  #debug .dbg-row { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; }
+  #debug .dbg-val { font-variant-numeric: tabular-nums; color: rgba(223, 249, 255, 0.75); }
+  #debug input[type=range] { grid-column: 1 / -1; width: 100%; margin: 0; accent-color: #7ff3ff; height: 26px; }
+  #debug { z-index: 30; }
+  #debug .dbg-info { margin: 0; font: 11px/1.4 ui-monospace, Consolas, monospace; color: rgba(223, 249, 255, 0.8); white-space: pre-wrap; }
+  #debug .dbg-reset, #debug .dbg-export {
+    margin-top: 2px; padding: 8px; font: inherit; font-weight: 600; color: #dff9ff;
+    background: rgba(20, 60, 80, 0.7); border: 1px solid rgba(160, 240, 255, 0.5); border-radius: 8px;
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="topbar">
+  <!-- icon tiles: each shows .ic-on normally and .ic-off while aria-pressed="true" (paused / muted) -->
+  <button id="pause" class="felt brown" type="button" aria-label="Pause" aria-pressed="false" hidden>
+    <svg class="ic-on" viewBox="0 0 24 24"><rect x="5" y="4" width="5" height="16" rx="1.5"/><rect x="14" y="4" width="5" height="16" rx="1.5"/></svg>
+    <svg class="ic-off" viewBox="0 0 24 24"><path d="M7 4.5v15a1 1 0 0 0 1.5.9l12-7.5a1 1 0 0 0 0-1.8l-12-7.5A1 1 0 0 0 7 4.5z"/></svg>
+  </button>
+  <button id="mute" class="felt brown" type="button" aria-label="Mute sound" aria-pressed="false">
+    <svg class="ic-on" viewBox="0 0 24 24"><path d="M3 9v6h4l5 4V5L7 9H3z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="#ffc93d" stroke-width="2.2" stroke-linecap="round"/></svg>
+    <svg class="ic-off" viewBox="0 0 24 24"><path d="M3 9v6h4l5 4V5L7 9H3z"/><path d="M15.5 9.5l5 5M20.5 9.5l-5 5" stroke="#ffc93d" stroke-width="2.4" stroke-linecap="round"/></svg>
+  </button>
+  <button id="reset" class="felt brown" type="button" aria-label="Back to title">
+    <svg class="ic-on" viewBox="0 0 24 24"><path d="M12 3.2 2.5 11.3a1 1 0 0 0 1.3 1.5l.7-.6V20a1 1 0 0 0 1 1h4.5v-6h4v6h4.5a1 1 0 0 0 1-1v-7.8l.7.6a1 1 0 0 0 1.3-1.5L12 3.2z"/></svg>
+  </button>
+</div>
+<div id="hud" hidden>
+  <div class="hud-row">
+    <div class="felt blue hud-wave"><small>WAVE</small><b id="hud-wave">1/6</b></div>
+    <div class="felt dark hud-score"><span class="coin">✕</span><b id="hud-score">0</b></div>
+  </div>
+  <div class="felt dark hud-hearts" id="hud-hearts" aria-label="Workshop health"></div>
+</div>
+<div id="spots" hidden></div>
+<div id="picker" class="felt brown" role="dialog" aria-label="Build a Pin" hidden><div class="tcap">BUILD A PIN</div><div class="tcards"></div></div>
+<div id="tray" hidden>
+  <div class="tgroup">
+    <div class="tcap">PINS</div>
+    <span class="felt dark thread-chip" title="Thread: earned by snip kills, spent on Pins (tap a + beside the road)"><span class="spool"></span><b id="tray-thread">0</b><span class="unit">THREAD</span></span>
+  </div>
+  <div class="tgroup">
+    <div class="tcap">SPECIAL</div>
+    <button id="shred-card" class="felt purple shred" type="button"><span class="ticon">✂</span><span class="tname">SHRED</span><span class="tmeter"><span></span></span><span class="tsub"></span></button>
+  </div>
+</div>
+<div id="tip" hidden><span id="tip-text"></span></div>
+<div id="coach" hidden>
+  <div id="coach-text">Put two fingers on the screen.</div>
+  <div class="coach-links"><button id="coach-skip-all" type="button">skip tutorial</button><button id="coach-skip" type="button">skip ›</button></div>
+</div>
+
+<div id="title" class="screen">
+  <canvas id="title-fx"></canvas>
+  <div class="title-art">
+    <h1 class="sr-only">Battle Scissors: Kitchen Drawer Defense</h1>
+    <!-- --x/--y/--w/--h: sprite rect in the mock; --px/--py: portrait position (default --x/--y);
+         --lx/--ly/--lw/--lh: landscape rect; --r: clip shape. PLAY, How to play and Sound are wired; the rest are placeholders. -->
+    <button id="play" class="art-btn" type="button" style="--x:212;--y:1030;--w:526;--h:192;--lx:616;--ly:640;--lw:440;--lh:161;--r:11% / 31%"><span class="sr-only">Play</span></button>
+    <button class="art-btn" type="button" data-soon="Upgrades" style="--x:291;--y:1244;--w:365;--h:98;--lx:373;--ly:815;--lw:297;--lh:80;--r:5% / 19%"><span class="sr-only">Upgrades</span></button>
+    <button class="art-btn" type="button" data-soon="Shop" style="--x:291;--y:1356;--w:365;--h:98;--lx:688;--ly:815;--lw:297;--lh:80;--r:5% / 19%"><span class="sr-only">Shop</span></button>
+    <button id="how" class="art-btn" type="button" style="--x:291;--y:1467;--w:365;--h:98;--lx:1003;--ly:815;--lw:297;--lh:80;--r:5% / 19%"><span class="sr-only">How to play</span></button>
+    <button class="art-btn icon" type="button" data-soon="Settings" style="--x:699;--y:22;--w:90;--h:80;--px:652;--lx:1282;--ly:18;--lw:80;--lh:71;--r:20%"><span class="sr-only">Settings</span></button>
+    <button id="title-sound" class="art-btn icon" type="button" aria-pressed="false" style="--x:824;--y:22;--w:90;--h:80;--px:754;--lx:1370;--ly:18;--lw:80;--lh:71;--r:20%"><span class="sr-only">Sound</span></button>
+  </div>
+</div>
+<div id="toast" class="toast" hidden></div>
+
+<div id="select" class="screen" hidden>
+  <div class="card">
+    <h2 class="blue" data-text="CHOOSE YOUR SHEARS">CHOOSE YOUR SHEARS</h2>
+    <div id="weapon-cards" class="weapon-cards"></div>
+    <div class="select-actions">
+      <button id="select-back" class="felt-btn back" type="button">BACK</button>
+      <button id="select-start" class="felt-btn" type="button"><span class="tri"></span>START</button>
+    </div>
+  </div>
+</div>
+
+<div id="pins-intro" class="screen" role="dialog" aria-labelledby="pins-intro-title" hidden>
+  <div class="card">
+    <h2 id="pins-intro-title" data-text="BUILDING PINS">BUILDING PINS</h2>
+    <p class="lead">Pins don't cut. They set up your snips, or burn.</p>
+    <svg class="pin-diagram" viewBox="0 0 320 108" aria-hidden="true">
+      <rect width="320" height="108" fill="#4f8a2a"/>
+      <path d="M-10 100 C 90 92, 220 86, 330 96" fill="none" stroke="#b07a45" stroke-width="28"/>
+      <path d="M-10 100 C 90 92, 220 86, 330 96" fill="none" stroke="#f0c9a0" stroke-width="24"/>
+      <ellipse cx="58" cy="48" rx="40" ry="26" fill="#f0c9a0" stroke="#b07a45" stroke-width="2"/>
+      <ellipse cx="58" cy="48" rx="33" ry="20" fill="none" stroke="#b07a45" stroke-width="1.5" stroke-dasharray="4 3"/>
+      <circle cx="58" cy="48" r="13" fill="#3f8f2a" stroke="#1d4a12" stroke-width="2"/>
+      <path d="M58 41 v14 M51 48 h14" stroke="#fff7dc" stroke-width="3.5" stroke-linecap="round"/>
+      <path d="M104 48 l14 -6 v12 z" fill="#1c1107" fill-opacity="0.9"/>
+      <rect x="118" y="12" width="190" height="66" rx="12" fill="#1c1107" fill-opacity="0.9"/>
+      <g font-family="Trebuchet MS, sans-serif" font-size="11" font-weight="700" fill="#fff1c2" text-anchor="middle">
+        <circle cx="152" cy="38" r="10" fill="#8fe8ff"/><text x="152" y="66">Ice</text>
+        <circle cx="213" cy="38" r="10" fill="#ffa04a"/><text x="213" y="66">Fire</text>
+        <circle cx="274" cy="38" r="10" fill="#c79bff"/><text x="274" y="66">Magnet</text>
+      </g>
+    </svg>
+    <ul id="pins-intro-list">
+      <li><span class="dot" style="--tc:#9ff3c8"></span><span>Tap a <b>+</b> on an empty spot beside the road, then pick a Pin. Each spot holds one.</span></li>
+    </ul>
+    <button id="pins-intro-ok" class="felt-btn" type="button"><span class="tri"></span>GOT IT</button>
+  </div>
+</div>
+
+<div id="pause-screen" class="screen" hidden>
+  <div class="card">
+    <h2 data-text="PAUSED">PAUSED</h2>
+    <dl>
+      <dt>Wave</dt><dd id="pause-wave">1 / 6</dd>
+      <dt>Score</dt><dd id="pause-score">0</dd>
+      <dt>Snip accuracy</dt><dd id="pause-acc">—</dd>
+      <dt>Seed</dt><dd id="pause-seed">—</dd>
+    </dl>
+    <button id="resume" class="felt-btn" type="button"><span class="tri"></span>RESUME</button>
+    <div class="over-actions">
+      <button class="felt-btn small" type="button" data-copy-report>Copy run report</button>
+      <button class="felt-btn small" type="button" data-send-feedback>Send feedback</button>
+    </div>
+    <p id="hint"><b>Desktop controls:</b> move = aim point · hold left button to open, release to snip (wider = stronger) · wheel = open/close (flick fast to snip) · A/D or Shift+wheel = rotate · Space = instant snip · E = SHRED · P/Esc = pause · R = title</p>
+  </div>
+</div>
+
+<div id="over" class="screen" hidden>
+  <div class="card">
+    <h2 id="over-title" class="lose" data-text="WORKSHOP OVERRUN">WORKSHOP OVERRUN</h2>
+    <dl>
+      <dt>Score</dt><dd id="over-score">0</dd>
+      <dt>Waves survived</dt><dd id="over-waves">0 / 6</dd>
+      <dt>Snip accuracy</dt><dd id="over-acc">—</dd>
+      <dt>Seed</dt><dd id="over-seed">—</dd>
+    </dl>
+    <button id="again" class="felt-btn" type="button"><span class="tri"></span>PLAY AGAIN</button>
+    <div class="over-actions">
+      <button class="felt-btn small" type="button" data-copy-report>Copy run report</button>
+      <button class="felt-btn small" type="button" data-send-feedback>Send feedback</button>
+    </div>
+  </div>
+</div>
+<script type="module" src="src/main.js"></script>
+<script>
+  // Opened by double-clicking the file? Modules can't load from file://, so explain instead of showing a blank screen.
+  if (location.protocol === 'file:') {
+    document.body.insertAdjacentHTML('beforeend',
+      '<div style="position:fixed;inset:0;z-index:99;display:flex;align-items:center;justify-content:center;padding:24px;' +
+      'background:#1a1008;color:#fff1c2;font:16px/1.5 system-ui,sans-serif;text-align:center">' +
+      '<div style="max-width:420px"><h2 style="color:#ffd23f;margin:0 0 12px">Almost there!</h2>' +
+      '<p>Battle Scissors has to run from its little local server.</p>' +
+      '<p>Double-click <b>Play.bat</b> in the game folder. It opens the game at ' +
+      '<b>http://localhost:8000</b> (it needs Node.js installed).</p></div></div>');
+  }
+</script>
+</body>
+</html>

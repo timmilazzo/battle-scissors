@@ -1,0 +1,469 @@
+// All canvas drawing. draw(state) paints one frame from game state (plus the input pose and the current weapon) and
+// never changes it. sizeCanvas() / prerender() handle resize: canvas size, the static backdrop (the painted level
+// plate), enemy and Pin sprites and weapon art. Art modules it calls: enemyArt.js (enemies), towerArt.js (Pins) and
+// weaponArt.js (weapon layers).
+// Purely visual animation (blade trails, thread pickups, placement rings) runs on this module's
+// own tween group, advanced by the render clock; it never feeds back into the game.
+import { CONFIG as C } from './config.js';
+import { view, TAU, DEG } from './core.js';
+import { input } from './input.js';
+import { cut, scaleFor, weapon } from './scissors.js';
+import { live, visOpen, bladeTheta, towerReach } from './game.js';
+import { buildEnemySprites, drawEnemySprite, drawEnemyGround, drawBruteArmor, drawSeam } from './enemyArt.js';
+import { buildTowerSprites, drawTower } from './towerArt.js';
+import { drawWeapon, rasterizeArt } from './weaponArt.js';
+import { makeTweens, easing } from './tween.js';
+
+const ctx = view.ctx;
+const vfx = makeTweens();                                        // render-only tweens
+let lastClock = -1;
+
+const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+const UI_FONT = '"Lilita One", "Arial Rounded MT Bold", "Trebuchet MS", ' + FONT;   // the felt lettering (index.html --ui-font)
+const LABEL_FONT = '400 32px ' + UI_FONT;
+const NUM_FONT = '700 14px ' + FONT;
+const POP_FONT = '400 20px ' + UI_FONT;
+const PROMPT_FONT = '500 15px ' + FONT;
+const HUD_FONT = '400 17px ' + UI_FONT;
+const BANNER_FONT = '400 48px ' + UI_FONT;
+const BANNER_SUB_FONT = '400 19px ' + UI_FONT;
+
+const PART_COLORS = ['#ffffff', '#8ff7ff', '', '#ffd23f', '#ff8a3d'];   // particle c: 0 white, 1 cyan, 3 gold, 4 ember (2 = alternating 0/1)
+// big floating words, indexed by label kind (LABEL_SNIP / LABEL_NICK / LABEL_CLANG in game.js)
+const LABEL_TEXT = ['SNIP!', 'nick', 'CLANG!'], LABEL_SCALE = [1, 0.6, 0.8];
+const LABEL_FILL = ['#ffffff', '#ffffff', '#e3e9ee'], LABEL_STROKE = ['rgba(0,70,100,0.8)', 'rgba(0,70,100,0.8)', '#39424a'];
+// damage number colour by strike grade: gold = strong (near pivot / seam), white = mid, grey-blue = graze (near tips),
+// orange = a Fire Pin burn tick (g < 0)
+const numColor = g => g < 0 ? '#ff9a4a' : g < 0.35 ? '#ffe27a' : g < 0.7 ? '#ffffff' : '#9fc7d6';
+
+// ======================= resize =======================
+// 1) sizeCanvas() sets view.W/H/dpr and the canvas; 2) game.layout() rebuilds weapon scale + path; 3) prerender().
+export function sizeCanvas() {
+  const cv = view.cv;
+  view.dpr = Math.min(window.devicePixelRatio || 1, C.maxDpr);
+  view.W = window.innerWidth; view.H = window.innerHeight;
+  cv.width = Math.round(view.W * view.dpr); cv.height = Math.round(view.H * view.dpr);
+  cv.style.width = view.W + 'px'; cv.style.height = view.H + 'px';
+}
+export function prerender() {
+  renderBackground();
+  buildEnemySprites(view.dpr);
+  buildTowerSprites(view.dpr);
+  rasterizeArt();
+  if (C.titleWeapon) rasterizeArt(C.titleWeapon);
+}
+
+// Static backdrop, pre-rendered on resize: the painted level plate (road, Pin spots and the heart-pad workshop are
+// part of the art), full height and centred. Wider screens get the plate blurred and darkened as side bars; narrower
+// ones crop its sides. Until the plate loads, a plain felt green.
+const bgCanvas = document.createElement('canvas');
+const plate = new Image();
+plate.onload = () => { if (view.W > 0) renderBackground(); };
+plate.src = C.level.bg;
+function renderBackground() {
+  const W = view.W, H = view.H, dpr = view.dpr, L = view.L, LX = view.LX, pw = C.level.w * L, ph = C.level.h * L;
+  bgCanvas.width = Math.max(1, Math.round(W * dpr)); bgCanvas.height = Math.max(1, Math.round(H * dpr));
+  const g = bgCanvas.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.fillStyle = '#2f5a1c'; g.fillRect(0, 0, W, H);
+  if (!plate.complete || !plate.naturalWidth) return;
+  if (LX > 0) {                                                  // side bars: the plate stretched to cover, blurred
+    const cover = Math.max(W / C.level.w, H / C.level.h), cw = C.level.w * cover, ch = C.level.h * cover;
+    g.save();
+    if ('filter' in g) g.filter = 'blur(16px) brightness(0.55)';
+    g.drawImage(plate, (W - cw) / 2, (H - ch) / 2, cw, ch);
+    g.restore();
+    if (!('filter' in g)) { g.fillStyle = 'rgba(10,6,2,0.5)'; g.fillRect(0, 0, W, H); }
+    const sh = g.createLinearGradient(LX - 24, 0, LX, 0);       // a soft shadow where the plate meets the bars
+    sh.addColorStop(0, 'rgba(0,0,0,0)'); sh.addColorStop(1, 'rgba(0,0,0,0.45)');
+    g.fillStyle = sh; g.fillRect(LX - 24, 0, 24, H);
+    g.save(); g.translate(W, 0); g.scale(-1, 1); g.fillRect(LX - 24, 0, 24, H); g.restore();
+  }
+  g.drawImage(plate, LX, 0, pw, ph);
+}
+
+// ======================= world =======================
+
+function drawWorkshopHit(state) {
+  if (state.workshopHitT <= 0) return;
+  const p = state.path, x = p.x[p.n - 1], y = p.y[p.n - 1];
+  ctx.globalAlpha = state.workshopHitT * 0.55; ctx.fillStyle = '#ff3b3b';
+  ctx.beginPath(); ctx.arc(x, y, C.level.workshopR * view.L * (0.8 + (1 - state.workshopHitT) * 0.3), 0, TAU); ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+// The snip's pie slice, bright near the pivot where hits are strongest. The gradient is rebuilt only for a new zone.
+let cutGrad = null, cutGradVer = -1;
+function drawCutZone(cutT) {
+  if (cutT <= 0) return;
+  if (cutGradVer !== cut.ver) {
+    cutGrad = ctx.createRadialGradient(cut.px, cut.py, 0, cut.px, cut.py, cut.L);
+    cutGrad.addColorStop(0, 'rgba(255,255,255,0.6)');
+    cutGrad.addColorStop(1, 'rgba(120,220,255,0.06)');
+    cutGradVer = cut.ver;
+  }
+  ctx.beginPath();
+  if (cut.slide) ctx.arc(cut.px, cut.py, cut.L, 0, TAU);          // slide weapon: the hole
+  else { ctx.moveTo(cut.px, cut.py); ctx.arc(cut.px, cut.py, cut.L, cut.theta - cut.a - Math.PI / 2, cut.theta + cut.a - Math.PI / 2); ctx.closePath(); }
+  ctx.globalAlpha = cutT; ctx.fillStyle = cutGrad; ctx.fill();
+  ctx.globalAlpha = cutT * 0.6; ctx.lineWidth = 1.5; ctx.strokeStyle = '#e8feff'; ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+
+// Hit flash: any enemy whose hp dropped since the last frame shows solid white for 2 frames.
+let lastHp = null, wasOn = null, flashFrames = null;
+function drawEnemies(state) {
+  const wad = C.waddleDeg * DEG, enemies = state.enemies;
+  if (!lastHp || lastHp.length !== enemies.length) {
+    lastHp = new Float32Array(enemies.length); wasOn = new Uint8Array(enemies.length); flashFrames = new Uint8Array(enemies.length);
+  }
+  for (let i = 0; i < enemies.length; i++) {
+    const e = enemies[i];
+    if (e.on && wasOn[i] && e.hp < lastHp[i] - 1e-6) flashFrames[i] = 2;
+    lastHp[i] = e.hp; wasOn[i] = e.on ? 1 : 0;
+    if (!e.on) { flashFrames[i] = 0; continue; }
+    const t = e.type, step = Math.sin(e.age * 7 + e.phase), rot = t.boss ? 0 : step * wad;
+    drawEnemyGround(ctx, e.name, e.x, e.y, e.pinned ? 0 : 0.55 + 0.35 * Math.abs(step));
+    drawEnemySprite(ctx, e.name, e.x, e.y, rot);
+    if (e.armored) drawBruteArmor(ctx, e, rot);
+    if (t.boss) drawSeam(ctx, e, state.clock);
+    if (flashFrames[i] > 0) {
+      flashFrames[i]--;
+      ctx.beginPath(); ctx.arc(e.x, e.y, e.r * 1.02, 0, TAU);
+      ctx.globalAlpha = 0.95; ctx.fillStyle = '#ffffff'; ctx.fill(); ctx.globalAlpha = 1;
+    } else if (e.hitT > 0) {
+      ctx.beginPath(); ctx.arc(e.x, e.y, e.r * 0.95, 0, TAU);
+      ctx.globalAlpha = e.hitT * 0.6; ctx.fillStyle = '#ffffff'; ctx.fill(); ctx.globalAlpha = 1;
+    }
+    if (e.slowed) {                                            // frosted rim while slowed (Ice Pin / Helicopter)
+      ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 3, 0, TAU);
+      ctx.globalAlpha = 0.7; ctx.strokeStyle = '#bff4ff'; ctx.lineWidth = 2; ctx.stroke(); ctx.globalAlpha = 1;
+    }
+    if (e.burning) drawFlames(e, state.clock);                 // on fire (Fire Pin)
+    if (!t.boss && e.maxHp >= 3) {                             // Bolster and Brute; the boss gets the big bar in the HUD
+      const bw = e.r * 1.6, bx = e.x - bw / 2, by = e.y - e.r * 1.2 - 8;
+      ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(bx - 1, by - 1, bw + 2, 7);
+      ctx.fillStyle = '#7dffb0'; ctx.fillRect(bx, by, bw * Math.max(0, e.hp / e.maxHp), 5);
+    }
+  }
+}
+
+// Flames on a burning enemy: an orange glow over its body plus three flickering flame tongues rising from it.
+// One flame sprite (a teardrop, white-yellow core to red tip), built once, stretched and swayed per tongue.
+const flameCv = document.createElement('canvas');
+(function buildFlame() {
+  flameCv.width = 64; flameCv.height = 128;
+  const g = flameCv.getContext('2d'), p = new Path2D();
+  p.moveTo(32, 2); p.bezierCurveTo(46, 40, 62, 70, 58, 96); p.bezierCurveTo(54, 118, 42, 126, 32, 126);
+  p.bezierCurveTo(22, 126, 10, 118, 6, 96); p.bezierCurveTo(2, 70, 18, 40, 32, 2); p.closePath();
+  const gr = g.createLinearGradient(0, 126, 0, 2);
+  gr.addColorStop(0, '#fff6c8'); gr.addColorStop(0.3, '#ffd23f'); gr.addColorStop(0.65, '#ff7a1f'); gr.addColorStop(1, 'rgba(210,40,20,0.2)');
+  g.fillStyle = gr; g.fill(p);
+})();
+const FLAME_X = [-0.45, 0.05, 0.5], FLAME_H = [0.85, 1.25, 0.95];
+function drawFlames(e, clock) {
+  const r = Math.max(e.r, 20);                                  // small enemies still get readable flames
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalAlpha = 0.28 + 0.1 * Math.sin(clock * 17 + e.phase);
+  ctx.fillStyle = '#ff6a1f'; ctx.beginPath(); ctx.arc(e.x, e.y, r * 1.05, 0, TAU); ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+  for (let k = 0; k < 3; k++) {
+    const f = clock * 13 + e.phase * 3 + k * 2.1, h = r * FLAME_H[k] * (0.8 + 0.25 * Math.sin(f)), w = r * 0.5 * (0.9 + 0.12 * Math.sin(f * 1.7));
+    const bx = e.x + r * FLAME_X[k], by = e.y - r * 0.2;
+    ctx.save(); ctx.translate(bx, by); ctx.rotate(0.12 * Math.sin(f * 0.8));
+    ctx.globalAlpha = 0.9;
+    ctx.drawImage(flameCv, -w / 2, -h, w, h);
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawFragments(state) {
+  const frags = state.frags;
+  for (let i = 0; i < frags.length; i++) {
+    const f = frags[i]; if (!f.on) continue;
+    ctx.save();
+    ctx.translate(f.x, f.y); ctx.rotate(f.rot);
+    ctx.globalAlpha = f.life;
+    ctx.beginPath();
+    ctx.moveTo(f.sz, 0); ctx.lineTo(-f.sz * 0.6, f.sz * 0.7); ctx.lineTo(-f.sz * 0.5, -f.sz * 0.6); ctx.closePath();
+    ctx.fillStyle = f.color; ctx.fill();
+    ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function drawEffects(state) {
+  const { parts, labels, nums, pops, fx } = state;
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.lineCap = 'round';
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i]; if (!p.on) continue;
+    ctx.globalAlpha = p.life;
+    ctx.strokeStyle = PART_COLORS[p.c]; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.vx * 0.035, p.y - p.vy * 0.035); ctx.stroke();
+  }
+  if (fx.ring > 0) {
+    ctx.globalAlpha = fx.ring * 0.8; ctx.strokeStyle = '#bff9ff'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(fx.ringX, fx.ringY, 14 + (1 - fx.ring) * 70, 0, TAU); ctx.stroke();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.font = LABEL_FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (let i = 0; i < labels.length; i++) {
+    const l = labels[i]; if (!l.on) continue;
+    const pop = l.t < 0.08 ? 0.6 + l.t / 0.08 * 0.6 : 1.2 - Math.min(0.2, (l.t - 0.08) * 1.5);
+    ctx.save();
+    ctx.translate(l.x, l.y - 34); ctx.scale(pop, pop);
+    ctx.globalAlpha = 1 - l.t / 0.6;
+    const s = LABEL_SCALE[l.kind], txt = LABEL_TEXT[l.kind];
+    if (s !== 1) ctx.scale(s, s);
+    ctx.lineWidth = 5; ctx.strokeStyle = LABEL_STROKE[l.kind]; ctx.strokeText(txt, 0, 0);
+    ctx.fillStyle = LABEL_FILL[l.kind]; ctx.fillText(txt, 0, 0);
+    ctx.restore();
+  }
+  ctx.font = NUM_FONT;
+  for (let i = 0; i < nums.length; i++) {
+    const n = nums[i]; if (!n.on) continue;
+    ctx.globalAlpha = 1 - n.t / 0.7;
+    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.strokeText(n.text, n.x, n.y);
+    ctx.fillStyle = numColor(n.g); ctx.fillText(n.text, n.x, n.y);
+  }
+  ctx.font = POP_FONT;
+  for (let i = 0; i < pops.length; i++) {
+    const p = pops[i]; if (!p.on) continue;
+    const sc = (p.t < 0.12 ? 0.7 + p.t / 0.12 * 0.5 : 1.2 - Math.min(0.2, (p.t - 0.12))) * (p.multi ? 1.2 : 1);
+    ctx.save();
+    ctx.translate(p.x, p.y); ctx.scale(sc, sc);
+    ctx.globalAlpha = p.t < 0.7 ? 1 : 1 - (p.t - 0.7) / 0.3;
+    ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(60,30,0,0.85)'; ctx.strokeText(p.text, 0, 0);
+    ctx.fillStyle = p.multi ? '#ffd23f' : '#fff1c2'; ctx.fillText(p.text, 0, 0);
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawFingers() {
+  if (!C.showFingers || input.scAlpha <= 0.001) return;
+  const { fAx, fAy, fBx, fBy } = input;
+  ctx.globalAlpha = 0.25 * input.scAlpha;
+  ctx.strokeStyle = '#bff9ff'; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(fAx + 22, fAy); ctx.arc(fAx, fAy, 22, 0, TAU);
+  ctx.moveTo(fBx + 22, fBy); ctx.arc(fBx, fBy, 22, 0, TAU);
+  ctx.moveTo(fAx, fAy); ctx.lineTo(fBx, fBy);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+
+// ======================= towers (Pins) =======================
+// Auras first (under everything), then the Pins themselves (tall art, drawn after the auras so rings never cross them).
+function drawTowers(state) {
+  for (const t of state.towers) {
+    if (!t.on) continue;
+    const def = C.towers[t.type], R = towerReach(t.type);
+    ctx.beginPath(); ctx.arc(t.x, t.y, R, 0, TAU);
+    ctx.globalAlpha = 0.07; ctx.fillStyle = def.color; ctx.fill();
+    ctx.setLineDash(DASH); ctx.globalAlpha = 0.65; ctx.lineWidth = 2; ctx.strokeStyle = def.color; ctx.stroke(); ctx.setLineDash(NO_DASH);
+    if (t.pulse > 0) {                                           // magnet pull: a ring collapsing onto its road point
+      ctx.beginPath(); ctx.arc(t.fx, t.fy, 14 + R * 0.6 * t.pulse, 0, TAU);
+      ctx.globalAlpha = 0.7 * t.pulse; ctx.lineWidth = 3; ctx.stroke();
+    }
+  }
+  ctx.globalAlpha = 1;
+  for (const t of state.towers) if (t.on) drawTower(ctx, t.type, t.x, t.y, state.clock);
+}
+const DASH = [6, 6], NO_DASH = [];
+
+// ======================= one-off event effects =======================
+// Reads new entries of state.events (thread pickups, Pin built) and animates them here.
+let lastEventSeq = null;
+const floaters = [], rings = [];
+for (let i = 0; i < 16; i++) floaters.push({ on: false, x0: 0, y0: 0, p: 0, text: '' });
+for (let i = 0; i < 8; i++) rings.push({ on: false, x: 0, y: 0, p: 0, color: '' });
+const FLY_DONE = { p: 1 }, off = o => { o.on = false; };
+function takeEvents(state) {
+  const ev = state.events;
+  if (lastEventSeq === null) { lastEventSeq = ev.seq - 1; return; }   // don't replay history on the first frame
+  for (const e of ev.list) {
+    if (e.seq <= lastEventSeq || e.seq < 0) continue;
+    if (e.kind === 'thread') {
+      const f = floaters.find(o => !o.on) || floaters[0];
+      f.on = true; f.x0 = e.x; f.y0 = e.y; f.p = 0; f.text = '+' + e.n;
+      vfx.cancel(f); vfx.add(f, FLY_DONE, C.pickupFlyMs, easing.inOutSine, off, f);
+    } else if (e.kind === 'place') {                              // a Pin built: a soft ring pops out of its spot
+      const r = rings.find(o => !o.on) || rings[0];
+      r.on = true; r.x = e.x; r.y = e.y; r.p = 0; r.color = '#fff1c2';
+      vfx.cancel(r); vfx.add(r, FLY_DONE, 380, easing.outCubic, off, r);
+    }
+  }
+  lastEventSeq = ev.seq - 1;
+}
+function drawEventFx() {
+  ctx.font = NUM_FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (const f of floaters) {
+    if (!f.on) continue;
+    const x = f.x0 + (view.pickupX - f.x0) * f.p, y = f.y0 + (view.pickupY - f.y0) * f.p - Math.sin(f.p * Math.PI) * 30;   // to the action bar's thread counter
+    ctx.globalAlpha = f.p < 0.8 ? 1 : (1 - f.p) / 0.2;
+    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(60,30,0,0.8)'; ctx.strokeText(f.text, x, y);
+    ctx.fillStyle = '#9ff3c8'; ctx.fillText(f.text, x, y);
+  }
+  for (const r of rings) {
+    if (!r.on) continue;
+    ctx.globalAlpha = 1 - r.p; ctx.strokeStyle = r.color; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.ellipse(r.x, r.y, 20 + r.p * 50, (20 + r.p * 50) * 0.6, 0, 0, TAU); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ======================= weapon: trails, pose =======================
+// Blade trails: while the blades open, close or turn fast (always during the Helicopter spin), leave fading ghosts.
+const ghosts = [];
+for (let i = 0; i < 12; i++) ghosts.push({ on: false, x: 0, y: 0, theta: 0, open: 0, alpha: 0 });
+const GHOST_GONE = { alpha: 0 };
+const vpose = { x: 0, y: 0, theta: 0 }, gpose = { x: 0, y: 0, theta: 0 };
+let prevA = -1, prevOpen = 0, prevTheta = 0, prevX = 0, prevY = 0;
+// a = the opening as an angle (only its speed matters), open = 0..1 for drawing
+function trackTrails(a, open, theta, dt) {
+  if (prevA >= 0 && dt > 0) {
+    let dth = (theta - prevTheta) % TAU; if (dth > Math.PI) dth -= TAU; else if (dth < -Math.PI) dth += TAU;
+    if (Math.max(Math.abs(a - prevA), Math.abs(dth)) / dt > C.trailMinSpeed) {
+      const g = ghosts.find(o => !o.on) || ghosts[0];
+      g.on = true; g.x = prevX; g.y = prevY; g.theta = prevTheta; g.open = prevOpen; g.alpha = 0.35;
+      vfx.cancel(g); vfx.add(g, GHOST_GONE, C.trailFadeMs, easing.linear, off, g);
+    }
+  }
+  prevA = a; prevOpen = open; prevTheta = theta; prevX = vpose.x; prevY = vpose.y;
+}
+function drawWeaponWithTrails(state, dt) {
+  const open = visOpen();
+  vpose.x = input.pose.x; vpose.y = input.pose.y; vpose.theta = bladeTheta();
+  trackTrails(open * (weapon.def.maxOpenDeg || 35) * DEG, open, vpose.theta, dt);
+  for (const g of ghosts) {
+    if (!g.on) continue;
+    gpose.x = g.x; gpose.y = g.y; gpose.theta = g.theta;
+    drawWeapon(ctx, gpose, g.open, g.alpha * input.scAlpha, 0, 0);
+  }
+  drawWeapon(ctx, vpose, open, input.scAlpha, state.fx.flash, state.fx.tooSlow);
+}
+
+// ======================= Helicopter banner (its charge meter is the SHRED card in the DOM action bar) =======================
+const SHRED_FONT = '900 64px ' + FONT;
+function drawShredBanner(state) {
+  const t = state.heli.bannerT; if (t <= 0) return;
+  const p = 1 - t, sc = p < 0.15 ? 0.6 + p / 0.15 * 0.6 : 1.2 - Math.min(0.2, (p - 0.15) * 0.5);
+  ctx.save();
+  ctx.translate(view.W / 2, view.H * 0.3); ctx.scale(sc, sc);
+  ctx.globalAlpha = Math.min(1, t * 3);
+  ctx.font = SHRED_FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.lineWidth = 9; ctx.strokeStyle = '#3b1060'; ctx.strokeText('SHRED', 0, 0);
+  ctx.fillStyle = '#ffd23f'; ctx.fillText('SHRED', 0, 0);
+  ctx.restore();
+}
+
+// ======================= title screen scissors =======================
+// Real scissors (CONFIG.titleWeapon, at their in-game size) follow the pointer over the title: the pointer is the
+// finger midpoint, so the pivot sits pivotOffsetPx above it like in play. They tilt with sideways motion, rest
+// titleOpenFrac open, and snap shut while pressed. Drawn on #title-fx (above the art, click-through).
+const titleCv = document.getElementById('title-fx'), tctx = titleCv ? titleCv.getContext('2d') : null;
+const tsc = { x: -1, y: 0, theta: 0, open: 0, lastX: 0 };
+function drawTitle(dt) {
+  const def = C.weapons[C.titleWeapon];
+  if (!tctx || !def || titleCv.clientWidth === 0) return;
+  const w = titleCv.clientWidth, h = titleCv.clientHeight, dpr = view.dpr, p = input.title;
+  if (titleCv.width !== Math.round(w * dpr) || titleCv.height !== Math.round(h * dpr)) { titleCv.width = Math.round(w * dpr); titleCv.height = Math.round(h * dpr); }
+  const gx = p.seen ? p.x : w / 2, gy = (p.seen ? p.y : h * 0.62 + C.pivotOffsetPx) - C.pivotOffsetPx;
+  if (tsc.x < 0) { tsc.x = gx; tsc.y = gy; tsc.lastX = gx; }
+  const kp = 1 - Math.exp(-dt * 16);
+  tsc.x += (gx - tsc.x) * kp; tsc.y += (gy - tsc.y) * kp;
+  const vx = dt > 0 ? (tsc.x - tsc.lastX) / dt : 0; tsc.lastX = tsc.x;
+  const tilt = Math.max(-0.35, Math.min(0.35, vx * 0.0005));   // lean into sideways motion
+  tsc.theta += (tilt - tsc.theta) * (1 - Math.exp(-dt * 8));
+  const want = p.down ? 0 : C.titleOpenFrac;
+  tsc.open += (want - tsc.open) * (1 - Math.exp(-dt * (want < tsc.open ? 45 : 9)));   // snap shut, ease open
+  tctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  tctx.clearRect(0, 0, w, h);
+  drawWeapon(tctx, tsc, tsc.open, 1, 0, 0, scaleFor(def), C.titleWeapon);
+}
+
+// ======================= banners & prompts (the HUD itself is DOM: src/hud.js) =======================
+// Banner strings are rebuilt only when the wave changes.
+const hud = { wave: -1, bannerWave: '', bannerClear: '' };
+function refreshHudText(state) {
+  if (hud.wave !== state.wave) {
+    hud.wave = state.wave;
+    hud.bannerWave = 'WAVE ' + state.wave; hud.bannerClear = 'WAVE ' + state.wave + ' CLEARED';
+  }
+}
+
+function drawBanner(state) {
+  let main = '', sub = '', a = 0;
+  if (state.mode === 'PLAYING' && state.bannerT > 0) {
+    main = hud.bannerWave; a = Math.min(1, state.bannerT * 3);
+  } else if (state.mode === 'WAVE_CLEAR') {
+    main = hud.bannerClear; sub = state.wave >= C.waves.length ? 'The drawer is safe!' : 'Next wave incoming…';
+    a = Math.min(1, state.modeT * 4, (C.waveClearMs / 1000 - state.modeT) * 4);
+  }
+  if (!main || a <= 0) return;
+  // title-style lettering: cream fill, thick brown outline, a dark drop under it
+  const x = view.W / 2, y = view.H * 0.36;
+  ctx.globalAlpha = a; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+  ctx.font = BANNER_FONT;
+  ctx.lineWidth = 10; ctx.strokeStyle = '#2a170a'; ctx.strokeText(main, x, y + 4);
+  ctx.strokeStyle = '#5a3418'; ctx.strokeText(main, x, y);
+  ctx.fillStyle = '#ffc93d'; ctx.fillText(main, x, y);
+  if (sub) {
+    ctx.font = BANNER_SUB_FONT; ctx.lineWidth = 6; ctx.strokeStyle = '#2a170a'; ctx.strokeText(sub, x, y + 40);
+    ctx.fillStyle = '#fff4dc'; ctx.fillText(sub, x, y + 40);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawPrompt(state) {
+  if (state.mode === 'PLAYING' && input.touchCapable && !input.mouse.used && !input.gripping && input.scAlpha === 0) {
+    ctx.font = PROMPT_FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(255,241,194,0.8)';
+    ctx.fillText('Put two fingers down — they are the handles', view.W / 2, view.H * 0.5);
+  }
+}
+
+function drawBossBar(state) {
+  let boss = null;
+  for (let i = 0; i < state.enemies.length; i++) if (state.enemies[i].on && state.enemies[i].type.boss) { boss = state.enemies[i]; break; }
+  if (!boss) return;
+  const w = Math.min(view.W - 40, 340), x = (view.W - w) / 2, y = 150;         // below the DOM HUD
+  ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.font = HUD_FONT;
+  ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.strokeText('THE SEAM RIPPER', view.W / 2, y - 4);
+  ctx.fillStyle = '#e0b8ff'; ctx.fillText('THE SEAM RIPPER', view.W / 2, y - 4);
+  ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(x - 2, y - 2, w + 4, 14);
+  ctx.fillStyle = '#b36bff'; ctx.fillRect(x, y, w * Math.max(0, boss.hp / boss.maxHp), 10);
+}
+
+// ======================= frame =======================
+export function draw(state) {
+  const dpr = view.dpr, fx = state.fx;
+  const dt = lastClock < 0 ? 0 : Math.max(0, Math.min(0.1, state.clock - lastClock)); lastClock = state.clock;
+  vfx.update(dt);
+  if (state.mode === 'TITLE') { prevA = -1; drawTitle(dt); return; }         // the title is DOM + its own canvas
+  takeEvents(state);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+  if (fx.camShake > 0) ctx.translate(Math.sin(state.clock * 83) * fx.camShake, Math.cos(state.clock * 71) * fx.camShake);   // kill shake moves the whole world
+  ctx.drawImage(bgCanvas, 0, 0, view.W, view.H);
+  drawWorkshopHit(state);
+  drawTowers(state);
+  if (fx.kick > 0) ctx.translate(-input.aimX * C.snipKickPx * fx.kick, -input.aimY * C.snipKickPx * fx.kick);
+  drawCutZone(fx.cut);
+  drawEnemies(state);
+  drawFragments(state);
+  if (live()) {
+    drawFingers();
+    drawWeaponWithTrails(state, dt);
+  } else prevA = -1;                                             // no trail from wherever the blades were last shown
+  drawEffects(state);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  refreshHudText(state);
+  drawBanner(state);
+  if (state.mode === 'PLAYING' || state.mode === 'WAVE_CLEAR' || state.mode === 'GAME_OVER') { drawPrompt(state); drawBossBar(state); }
+  drawEventFx();
+  drawShredBanner(state);
+}

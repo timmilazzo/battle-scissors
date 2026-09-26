@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<!--
+  snip-demo.html — core shearing-mechanic prototype. Open directly in a mobile browser.
+
+  TOUCH: two fingers = the scissor HANDLES. Blades extend up/away from your fingers.
+    - Spread fingers = open blades. Rotate hand = aim.
+    - Pinch FAST = SNIP, medium = weak "nick", slow = nothing (scissors shake). Graded by average closing speed.
+    - Wider opening before the close = more power. Hits near the pivot hit hardest; near the tips they graze and shove.
+
+  DESKTOP FALLBACK (mouse + keyboard):
+    - Move mouse ............ virtual finger midpoint (pivot sits above the cursor)
+    - Mouse wheel ........... finger spread (flick the wheel toward you fast to snip, scroll slowly to see "too slow")
+    - Shift+wheel or Q / E .. rotate
+    - Hold left button ...... blades open over ~0.5s; release = snap shut (release early = weaker strike)
+    - Space ................. instant snip at the current pose (tests cut-zone logic directly)
+    - R ..................... reset
+
+  ART: loads ./scissors.svg, splits #blade-left / #blade-right / #pivot into separate images.
+  Browsers block fetch/XHR of local files on file://, so opened straight from disk this usually
+  falls back to Path2D scissors built from the same path data. Serve the folder over http to get the SVG art.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Snip Demo</title>
+<style>
+  html, body {
+    margin: 0; height: 100%; overflow: hidden; background: #070d16;
+    touch-action: none; overscroll-behavior: none;
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  canvas { position: fixed; left: 0; top: 0; display: block; touch-action: none; }
+  #reset {
+    position: fixed; top: calc(10px + env(safe-area-inset-top)); right: calc(10px + env(safe-area-inset-right));
+    font: 600 14px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #dff9ff;
+    background: rgba(20, 60, 80, 0.55); border: 1px solid rgba(160, 240, 255, 0.5); border-radius: 8px;
+    padding: 8px 14px; touch-action: manipulation;
+  }
+  #reset:active { background: rgba(60, 140, 170, 0.7); }
+  #hint {
+    position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); display: none;
+    max-width: calc(100vw - 32px); box-sizing: border-box; text-align: center;
+    font: 12px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: rgba(210, 245, 255, 0.8);
+    background: rgba(0, 0, 0, 0.4); border-radius: 8px; padding: 6px 12px; pointer-events: none;
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<button id="reset" type="button">Reset</button>
+<div id="hint">Desktop: move = finger midpoint · wheel = spread (flick fast to snip) · Shift+wheel or Q/E = rotate · hold left button to open, release to snip (wider = stronger) · Space = instant snip · R = reset</div>
+<script>
+'use strict';
+
+// ======================= CONFIG — all tunables live here =======================
+const CONFIG = {
+  // --- pose / control mapping ---
+  pivotOffsetPx: 120,        // pivot sits this many px ABOVE the finger midpoint
+  offsetAlongAim: false,     // false = offset straight up in screen space (spec); true = offset along the scissors' aim
+  closedDistPx: 40,          // finger distance that reads as fully closed (0%)
+  openDistPx: 260,           // finger distance that reads as fully open (100%)
+  maxBladeDeg: 45,           // each blade's angle from center at 100% open
+  spreadLerp: 0.55,          // rendered-spread smoothing per 60fps frame (1 = raw, lower = smoother/laggier)
+  poseLerp: 0.5,             // pivot position + rotation smoothing per 60fps frame
+  scissorsHeightFrac: 0.4125, // full scissors art height (600 art units) as a fraction of screen height
+
+  // --- snip detection (uses RAW finger spread, not the smoothed one) ---
+  // Speed = average closing speed from where the close began (near its widest) to where it lands,
+  // in spread units per second (1.0 = the full closed..open range in one second).
+  snipOpenFrom: 0.25,        // the close must start from at least this spread
+  snipCloseTo: 0.15,         // the close "lands" when spread drops to this (fingers needn't fully touch)
+  snipMinSpeed: 1.2,         // at or above this speed = full SNIP
+  weakMinSpeed: 0.6,         // between this and snipMinSpeed = weak "nick"; below = too slow (nothing)
+  closeStartTol: 0.05,       // jitter tolerated at the open pose when finding where the close began
+  slowLookbackMs: 1500,      // how far back to look for the start of a close
+  cutZoneScale: 1.0,         // multiplier on blade length for the cut triangle (1 = exact blade tips)
+  hitPadPx: 12,              // extra reach: a target is hit if its circle comes within this of the triangle
+
+  // --- strike grading: g = 0 at the pivot .. 1 at the blade tips' starting points ---
+  damageAtPivot: 1.6,        // damage dealt right at the pivot
+  damageAtTip: 0.7,          // damage dealt out at the tips (small enemies have 1 hp)
+  gradeCurve: 1.0,           // exponent on g: >1 keeps hits strong further out, <1 weakens them sooner
+  pushChanceAtPivot: 0.0,    // chance a hit at the pivot shoves the target
+  pushChanceAtTip: 0.85,     // chance a hit at the tips shoves the target
+  pushSpeed: 220,            // px/s shove at the tips (scaled by g), along the closing blade's edge motion
+  pushDrag: 4,               // how fast a shove dies out (per second)
+  powerAtMinOpen: 0.4,       // damage+shove multiplier for a close that began at snipOpenFrom; ramps to 1.0 at fully open
+  weakDamageMult: 0.5,       // weak "nick": damage multiplier
+  weakPushMult: 1.5,         // weak "nick": shove multiplier
+
+  // --- blade contact: while the visible blades are CLOSING they shove anything in front of their cutting edge ---
+  contactMinCloseSpeed: 0.3, // blades must be closing at least this fast (spread units/s) to push; otherwise they pass through
+  bladeHalfWidthBase: 18,    // blade half-thickness near the pivot, in art units (scissors.svg is ~38 wide there)
+  bladeHalfWidthTip: 3,      // blade half-thickness at the tip, in art units
+  contactPushSpeed: 140,     // px/s a touched ball is shoved away from the blade
+  contactSlide: 0.5,         // extra shove outward along the blade (scissors squeeze things toward the tips)
+
+  // --- feedback ---
+  hapticMs: 30,              // navigator.vibrate duration on snip
+  weakHapticMs: 12,          // vibrate duration on a weak nick
+  flashMs: 140,              // white flash along the blades
+  cutZoneShowMs: 220,        // how long the graded cut-zone ghost stays visible (0 = never draw it)
+  snipKickPx: 4,             // tiny world punch on snip
+  shakeMs: 220,              // "too slow" wobble duration
+  shakePx: 4,                // "too slow" wobble amplitude
+  fadeOutMs: 200,            // scissors fade when a finger lifts
+  fadeInMs: 80,              // scissors fade-in when two fingers land
+  spacePulseMs: 220,         // Space-key snip: visual snap-shut-and-reopen duration
+  snipParticles: 26,         // spark count in the pivot burst
+  showFingers: true,         // draw faint markers at the finger/handle points (debug)
+
+  // --- enemies ---
+  spawnMs: 900,              // one spawn attempt every N ms
+  maxEnemies: 12,            // on-screen cap (also the pool size)
+  sizes: [                   // r = radius px, hp = snips to kill, w = spawn weight
+    { r: 14, hp: 1, w: 5, color: '#ff6fa8' },
+    { r: 24, hp: 2, w: 3, color: '#ffae4f' },
+    { r: 40, hp: 3, w: 2, color: '#a98bff' },
+  ],
+  driftMin: 35,              // px/s downward, slowest
+  driftMax: 70,              // px/s downward, fastest
+  wobblePx: 18,              // sideways sine drift amplitude
+  fragmentsPerKill: 6,       // shards per kill
+  fragmentSpeed: 260,        // px/s shard launch speed
+  fragmentLifeMs: 650,       // shard fade time
+
+  // --- desktop fallback ---
+  mouseOpenMs: 500,          // holding left button opens closed->full over this long; release snaps shut
+  wheelDistStep: 0.35,       // px of virtual finger distance per wheel delta unit
+  wheelRotStep: 0.004,       // radians per wheel delta unit with Shift held
+  keyRotStep: 0.08,          // radians per Q/E press
+  maxDpr: 2,                 // cap devicePixelRatio (fill-rate on high-dpi phones)
+};
+const C = CONFIG;
+
+// ======================= constants & helpers =======================
+const TAU = Math.PI * 2, DEG = Math.PI / 180;
+const ART_W = 400, ART_H = 600, PIV_X = 200, PIV_Y = 400, BLADE_LEN = 320; // scissors.svg geometry
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+const lerpK = (k, frames) => 1 - Math.pow(1 - k, frames);          // frame-rate independent lerp factor
+function lerpAngle(a, b, t) { let d = (b - a) % TAU; if (d > Math.PI) d -= TAU; else if (d < -Math.PI) d += TAU; return a + d * t; }
+function segDistSq(px, py, ax, ay, bx, by) {
+  const vx = bx - ax, vy = by - ay, len = vx * vx + vy * vy;
+  const t = len > 0 ? clamp(((px - ax) * vx + (py - ay) * vy) / len, 0, 1) : 0;
+  const dx = px - (ax + vx * t), dy = py - (ay + vy * t);
+  return dx * dx + dy * dy;
+}
+
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+const hintEl = document.getElementById('hint');
+let W = 0, H = 0, dpr = 1, S = 1;   // S = art units -> CSS px
+let bgGrad = null;
+
+// ======================= scissors art =======================
+// Same path data as scissors.svg — used for the fallback renderer and for the white snip flash.
+function circlePath(x, y, r) { const p = new Path2D(); p.arc(x, y, r, 0, TAU); return p; }
+const HALF = [
+  { blade: 'M206 404C208 310 206 190 200 80C188 150 170 250 168 340C167 370 176 395 190 408Z',
+    fuller: 'M186 380C184 300 188 200 199 120',
+    shank: 'M188 404C196 430 214 460 226 488L252 487C236 456 222 424 212 396Z',
+    ring: 'M204 532a36 48 0 1 0 72 0a36 48 0 1 0-72 0ZM216 532a24 35 0 1 0 48 0a24 35 0 1 0-48 0Z', runeR: 15, dash: [2, 5] },
+  { blade: 'M194 404C192 310 194 190 200 80C212 150 230 250 232 340C233 370 224 395 210 408Z',
+    fuller: 'M214 380C216 300 212 200 201 120',
+    shank: 'M212 404C204 430 186 460 174 488L148 487C164 456 178 424 188 396Z',
+    ring: 'M124 532a36 48 0 1 0 72 0a36 48 0 1 0-72 0ZM136 532a24 35 0 1 0 48 0a24 35 0 1 0-48 0Z', runeR: 12, dash: [5, 3] },
+].map(p => ({ blade: new Path2D(p.blade), fuller: new Path2D(p.fuller), shank: new Path2D(p.shank), ring: new Path2D(p.ring),
+              hub: circlePath(PIV_X, PIV_Y, 20), rune: circlePath(PIV_X, PIV_Y, p.runeR), dash: p.dash }));
+const GEM_PATH = circlePath(PIV_X, PIV_Y, 7);
+const NO_DASH = [];
+const bladeGrad = ctx.createLinearGradient(0, 80, 0, 410);
+bladeGrad.addColorStop(0, 'rgba(143,247,255,0.5)');
+bladeGrad.addColorStop(1, 'rgba(26,167,201,0.18)');
+const gemGrad = ctx.createRadialGradient(197, 397, 0, PIV_X, PIV_Y, 8);
+gemGrad.addColorStop(0, '#ffffff'); gemGrad.addColorStop(0.45, '#7ff3ff'); gemGrad.addColorStop(1, '#0a6f9a');
+
+const art = { state: 'loading', parts: null, halves: [null, null], pivot: null, ready: false, gen: 0 };
+const PIVOT_CROP = 60; // art units, square region around the pivot kept for the gem image
+
+function fetchText(url) {
+  return fetch(url).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+    .catch(() => new Promise((res, rej) => {
+      const x = new XMLHttpRequest();
+      x.open('GET', url);
+      x.onload = () => (x.status === 200 || (x.status === 0 && x.responseText)) ? res(x.responseText) : rej(new Error('XHR ' + x.status));
+      x.onerror = () => rej(new Error('XHR blocked'));
+      x.send();
+    }));
+}
+
+function loadArt() {
+  fetchText('scissors.svg').then(text => {
+    const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
+    if (doc.getElementsByTagName('parsererror').length) throw new Error('SVG parse error');
+    const ser = new XMLSerializer();
+    const defs = doc.querySelector('defs');
+    const defsStr = defs ? ser.serializeToString(defs) : '';
+    const pick = id => {
+      const el = doc.querySelector('[id="' + id + '"]');
+      if (!el) throw new Error('missing #' + id);
+      el.removeAttribute('transform');
+      return ser.serializeToString(el);
+    };
+    art.parts = [pick('blade-left'), pick('blade-right'), pick('pivot')].map(body => defsStr + body);
+    rasterizeArt();
+  }).catch(err => {
+    console.warn('scissors.svg unavailable, using Path2D fallback:', err.message);
+    art.state = 'fallback';
+  });
+}
+
+// Rasterize each extracted group once per resize into an offscreen canvas at the exact on-screen size.
+function rasterizeArt() {
+  if (!art.parts) return;
+  const gen = ++art.gen;
+  const pw = Math.max(1, Math.round(ART_W * S * dpr)), ph = Math.max(1, Math.round(ART_H * S * dpr));
+  const out = [];
+  let pending = art.parts.length;
+  art.parts.forEach((inner, i) => {
+    const src = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 600" width="' + pw + '" height="' + ph + '">' + inner + '</svg>';
+    const img = new Image();
+    img.onload = () => {
+      if (gen !== art.gen) return;
+      const c = document.createElement('canvas');
+      if (i < 2) {
+        c.width = pw; c.height = ph;
+        c.getContext('2d').drawImage(img, 0, 0, pw, ph);
+      } else { // gem: keep only a small square around the pivot
+        const k = pw / ART_W, side = Math.max(1, Math.round(PIVOT_CROP * k));
+        c.width = side; c.height = side;
+        c.getContext('2d').drawImage(img, (PIV_X - PIVOT_CROP / 2) * k, (PIV_Y - PIVOT_CROP / 2) * k, PIVOT_CROP * k, PIVOT_CROP * k, 0, 0, side, side);
+      }
+      out[i] = c;
+      if (--pending === 0) { art.halves[0] = out[0]; art.halves[1] = out[1]; art.pivot = out[2]; art.ready = true; art.state = 'svg'; }
+    };
+    img.onerror = () => { if (gen === art.gen && !art.ready) { art.state = 'fallback'; console.warn('SVG part failed to rasterize'); } };
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(src);
+  });
+}
+
+function drawFallbackHalf(h) {
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  ctx.fillStyle = 'rgba(111,243,255,0.22)';
+  ctx.fill(h.shank); ctx.fill(h.ring, 'evenodd');
+  ctx.fillStyle = bladeGrad; ctx.fill(h.blade);
+  ctx.fillStyle = 'rgba(14,95,122,0.45)'; ctx.fill(h.hub);
+  ctx.strokeStyle = 'rgba(90,230,255,0.22)'; ctx.lineWidth = 9;           // glow pass
+  ctx.stroke(h.blade); ctx.stroke(h.shank); ctx.stroke(h.ring);
+  ctx.strokeStyle = '#c4faff'; ctx.lineWidth = 2.5;                        // core outline
+  ctx.stroke(h.blade); ctx.stroke(h.shank); ctx.stroke(h.ring); ctx.stroke(h.hub);
+  ctx.lineWidth = 1.2;
+  ctx.strokeStyle = 'rgba(234,255,255,0.55)'; ctx.stroke(h.fuller);
+  ctx.setLineDash(h.dash); ctx.strokeStyle = '#c4faff'; ctx.stroke(h.rune); ctx.setLineDash(NO_DASH);
+}
+
+// ======================= input state =======================
+const tp = { id: [-1, -1], x: [0, 0], y: [0, 0] };                 // two tracked touches
+const mouse = { x: 0, y: 0, inside: false, dist: 150, rot: 0, used: false, held: false };
+let usingTouch = false;
+const touchCapable = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+let fAx = 0, fAy = 0, fBx = 0, fBy = 0;                             // current finger (handle) points
+
+// ======================= pose / snip state =======================
+const pose = { x: 0, y: 0, theta: 0, spread: 0 };                  // smoothed, rendered pose
+let rawSpread = 0, prevRaw = 0, aimX = 0, aimY = -1;
+let gripping = false, needSnap = true, scAlpha = 0;
+let flashT = 0, shakeT = 0, cutT = 0, kickT = 0, spaceT = 0;
+const cut = { px: 0, py: 0, lx: 0, ly: 0, rx: 0, ry: 0, theta: 0, a: 0, L: 0, grad: null };
+const stats = { snips: 0, kills: 0 };
+let lastCloseMs = -1, lastCloseSpeed = 0, lastClosePower = 1, lastCloseKind = '', lastCloseVer = 0;
+
+// ring buffer of recent samples (no per-frame allocation)
+const BUF = 256;
+const bT = new Float64Array(BUF), bS = new Float32Array(BUF), bX = new Float32Array(BUF), bY = new Float32Array(BUF), bA = new Float32Array(BUF);
+let bHead = 0, bCount = 0;
+function pushSample(now) {
+  bHead = (bHead + 1) % BUF;
+  bT[bHead] = now; bS[bHead] = rawSpread; bX[bHead] = pose.x; bY[bHead] = pose.y; bA[bHead] = pose.theta;
+  if (bCount < BUF) bCount++;
+}
+
+// Fires only on the frame the raw spread crosses down through snipCloseTo, then grades the
+// AVERAGE closing speed of the whole close (human pinches decelerate at the end, so the tail alone reads slow).
+function detectSnip(now) {
+  if (!(prevRaw > C.snipCloseTo && rawSpread <= C.snipCloseTo)) return;
+  let peak = -1, peakIdx = -1, n = 0;
+  for (let k = 1; k < bCount; k++) {
+    const i = (bHead - k + BUF) % BUF;
+    if (now - bT[i] > C.slowLookbackMs) break;
+    const s = bS[i];
+    if (s > peak) { peak = s; peakIdx = i; }                     // widest point of this close
+    else if (peak - s > 0.15) break;                             // walked back past the start of this close
+    n = k;
+  }
+  if (peak < C.snipOpenFrom) return;                             // never opened enough: ignore
+  // the close began at the most recent sample still near the peak (so holding open doesn't count against you)
+  let startT = bT[peakIdx], startS = peak;
+  for (let k = 1; k <= n; k++) {
+    const i = (bHead - k + BUF) % BUF;
+    if (bS[i] >= peak - C.closeStartTol) { startT = bT[i]; startS = bS[i]; break; }
+  }
+  const dur = Math.max(1, now - startT);
+  const speed = (startS - rawSpread) * 1000 / dur;
+  lastCloseMs = dur; lastCloseSpeed = speed; lastCloseVer++;
+  if (speed >= C.snipMinSpeed) {
+    lastCloseKind = 'SNIP';
+    doSnip(bX[peakIdx], bY[peakIdx], bA[peakIdx], peak, true);
+  } else if (speed >= C.weakMinSpeed) {
+    lastCloseKind = 'nick';
+    doSnip(bX[peakIdx], bY[peakIdx], bA[peakIdx], peak, false);
+  } else {
+    lastCloseKind = 'too slow';
+    shakeT = 1;
+  }
+  bCount = 0; // re-arm: the next snip needs a fresh open
+}
+
+function doSnip(px, py, theta, spread, strong) {
+  const a = spread * C.maxBladeDeg * DEG, L = BLADE_LEN * S * C.cutZoneScale;
+  cut.px = px; cut.py = py;
+  cut.lx = px + L * Math.sin(theta - a); cut.ly = py - L * Math.cos(theta - a);
+  cut.rx = px + L * Math.sin(theta + a); cut.ry = py - L * Math.cos(theta + a);
+  cut.grad = ctx.createRadialGradient(px, py, 0, px, py, L);   // shows the grading: bright = strong
+  cut.grad.addColorStop(0, 'rgba(255,255,255,0.6)');
+  cut.grad.addColorStop(1, 'rgba(120,220,255,0.06)');
+  // wider opening = more closing power
+  const power = C.powerAtMinOpen + (1 - C.powerAtMinOpen) * clamp((spread - C.snipOpenFrom) / (1 - C.snipOpenFrom), 0, 1);
+  lastClosePower = power;
+  cut.theta = theta; cut.a = a; cut.L = L;
+  cutT = 1; flashT = (strong ? 1 : 0.5) * (0.5 + 0.5 * power); kickT = (strong ? 1 : 0.4) * power;
+  stats.snips++;
+  if (usingTouch && navigator.vibrate) { try { navigator.vibrate(strong ? C.hapticMs : C.weakHapticMs); } catch (e) { /* ignore */ } }
+  burst(pose.x, pose.y, strong);
+  spawnLabel(pose.x, pose.y, strong);
+  // Cut zone = the pie slice the blades actually sweep (tips travel on an arc, not a straight line),
+  // plus anything touching either blade edge.
+  const ax = Math.sin(theta), ay = -Math.cos(theta), pad = C.hitPadPx;
+  for (let i = 0; i < enemies.length; i++) {
+    const e = enemies[i]; if (!e.on) continue;
+    const rx = e.x - px, ry = e.y - py, reach = e.r + pad;
+    const inSector = Math.hypot(rx, ry) <= L + reach && Math.abs(Math.atan2(ax * ry - ay * rx, ax * rx + ay * ry)) <= a;
+    if (inSector ||
+        segDistSq(e.x, e.y, px, py, cut.lx, cut.ly) <= reach * reach ||
+        segDistSq(e.x, e.y, px, py, cut.rx, cut.ry) <= reach * reach) strike(e, px, py, ax, ay, L, strong, power);
+  }
+}
+
+// Rendered blade opening in radians (includes the Space-key snap-shut pulse).
+function visBladeAngle() {
+  let sp = pose.spread;
+  if (spaceT > 0) sp *= spaceT > 0.5 ? 0 : 1 - spaceT * 2;
+  return sp * C.maxBladeDeg * DEG;
+}
+
+// Closing blades push: while the visible blades are closing, each blade (a tapered capsule from pivot to tip)
+// shoves any ball in front of its cutting edge out of the way (and a little toward the tips). A ball the blade
+// jumped past this frame is caught too. Opening, idle, or just moving the scissors: blades pass through.
+let prevBladeA = -1;
+function bladeContacts(dt) {
+  const a = visBladeAngle(), aPrev = prevBladeA;
+  prevBladeA = a;
+  if (aPrev < 0 || scAlpha < 0.5 || S <= 0) return;
+  if ((aPrev - a) / (C.maxBladeDeg * DEG) / dt < C.contactMinCloseSpeed) return;
+  const len = BLADE_LEN * S, w0 = C.bladeHalfWidthBase * S, w1 = C.bladeHalfWidthTip * S;
+  const ax = Math.sin(pose.theta), ay = -Math.cos(pose.theta);
+  for (let b = 0; b < 2; b++) {
+    const sgn = b === 0 ? -1 : 1;
+    const ang = pose.theta + sgn * a, dx = Math.sin(ang), dy = -Math.cos(ang);
+    const cdx = b === 0 ? -dy : dy, cdy = b === 0 ? dx : -dx;   // the way this blade's edge moves as it closes
+    for (let i = 0; i < enemies.length; i++) {
+      const e = enemies[i]; if (!e.on) continue;
+      const rx = e.x - pose.x, ry = e.y - pose.y;
+      const along = rx * dx + ry * dy, across = rx * cdx + ry * cdy;   // across > 0: in front of the edge
+      const t = clamp(along / len, 0, 1), reach = e.r + w0 + (w1 - w0) * t;
+      if (along < -reach || along > len + reach) continue;
+      let nx, ny, shift;
+      if (across < 0) {
+        // behind the edge: only matters if the blade swept past the ball's center this frame
+        const psi = Math.atan2(ax * ry - ay * rx, ax * rx + ay * ry) * sgn;   // angle out from center, on this side
+        if (psi > aPrev) continue;
+        nx = cdx; ny = cdy; shift = reach - across;
+      } else {
+        nx = rx - dx * len * t; ny = ry - dy * len * t;
+        const dist = Math.hypot(nx, ny);
+        if (dist >= reach) continue;
+        if (dist > 0.001) { nx /= dist; ny /= dist; } else { nx = cdx; ny = cdy; }
+        shift = reach - dist;
+      }
+      e.baseX += nx * shift; e.x += nx * shift; e.y += ny * shift;   // keep the ball in front of the closing blade
+      const vn = e.pvx * nx + e.pvy * ny;
+      if (vn < C.contactPushSpeed) { e.pvx += nx * (C.contactPushSpeed - vn); e.pvy += ny * (C.contactPushSpeed - vn); }
+      const vs = e.pvx * dx + e.pvy * dy, slide = C.contactPushSpeed * C.contactSlide;
+      if (vs < slide) { e.pvx += dx * (slide - vs); e.pvy += dy * (slide - vs); }
+    }
+  }
+}
+
+// Graded hit: near the pivot = full damage, no shove; toward the tips = less damage, likely shoved
+// in the direction that side's cutting edge sweeps as it closes.
+function strike(e, px, py, ax, ay, L, strong, power) {
+  const rx = e.x - px, ry = e.y - py, d = Math.hypot(rx, ry) || 1;
+  const g = Math.pow(clamp(d / L, 0, 1), C.gradeCurve);
+  let dmg = (C.damageAtPivot + (C.damageAtTip - C.damageAtPivot) * g) * power;
+  let push = C.pushSpeed * g * power;
+  if (!strong) { dmg *= C.weakDamageMult; push *= C.weakPushMult; }
+  e.hp -= dmg;
+  spawnNumber(e.x, e.y - e.r, dmg, g);
+  if (e.hp <= 0.001) { e.on = false; stats.kills++; shatter(e); return; }
+  e.hitT = Math.min(1, 0.35 + dmg * 0.4);
+  sparks(e.x, e.y, 3 + Math.round(7 * (1 - g)), 1);
+  if (Math.random() < C.pushChanceAtPivot + (C.pushChanceAtTip - C.pushChanceAtPivot) * g) {
+    // right of the aim line: right blade closes counter-clockwise; left: left blade closes clockwise
+    const side = ax * ry - ay * rx;
+    const tx = side > 0 ? ry / d : -ry / d, ty = side > 0 ? -rx / d : rx / d;
+    e.pvx += tx * push; e.pvy += ty * push;
+  }
+}
+
+// ======================= enemies & effects (pooled) =======================
+const enemies = [];
+for (let i = 0; i < C.maxEnemies; i++) enemies.push({ on: false, x: 0, y: 0, baseX: 0, r: 0, hp: 0, maxHp: 0, color: '', vy: 0, pvx: 0, pvy: 0, phase: 0, age: 0, hitT: 0 });
+let totalWeight = 0; for (const s of C.sizes) totalWeight += s.w;
+let spawnAcc = 0;
+
+function spawnEnemy() {
+  let e = null;
+  for (let i = 0; i < enemies.length; i++) if (!enemies[i].on) { e = enemies[i]; break; }
+  if (!e) return;
+  let pick = Math.random() * totalWeight, sz = C.sizes[0];
+  for (const s of C.sizes) { if ((pick -= s.w) <= 0) { sz = s; break; } }
+  e.on = true; e.r = sz.r; e.hp = e.maxHp = sz.hp; e.color = sz.color;
+  e.baseX = e.r + 8 + Math.random() * Math.max(1, W - 2 * (e.r + 8));
+  e.x = e.baseX; e.y = -e.r; e.age = 0; e.hitT = 0; e.pvx = 0; e.pvy = 0;
+  e.vy = C.driftMin + Math.random() * (C.driftMax - C.driftMin);
+  e.phase = Math.random() * TAU;
+}
+
+const FRAG_N = C.maxEnemies * C.fragmentsPerKill + 12;
+const frags = [];
+for (let i = 0; i < FRAG_N; i++) frags.push({ on: false, x: 0, y: 0, vx: 0, vy: 0, rot: 0, vr: 0, sz: 0, life: 0, color: '' });
+function shatter(e) {
+  let made = 0;
+  for (let i = 0; i < frags.length && made < C.fragmentsPerKill; i++) {
+    const f = frags[i]; if (f.on) continue;
+    const ang = (made / C.fragmentsPerKill) * TAU + Math.random() * 0.6, sp = C.fragmentSpeed * (0.6 + Math.random() * 0.6);
+    f.on = true; f.x = e.x + Math.cos(ang) * e.r * 0.3; f.y = e.y + Math.sin(ang) * e.r * 0.3;
+    f.vx = Math.cos(ang) * sp; f.vy = Math.sin(ang) * sp - 40;
+    f.rot = ang; f.vr = (Math.random() - 0.5) * 14; f.sz = e.r * 0.55; f.life = 1; f.color = e.color;
+    made++;
+  }
+  sparks(e.x, e.y, 10, 0);
+}
+
+const PART_N = 240;
+const PART_COLORS = ['#ffffff', '#8ff7ff'];
+const parts = [];
+for (let i = 0; i < PART_N; i++) parts.push({ on: false, x: 0, y: 0, vx: 0, vy: 0, life: 0, decay: 0, c: 0 });
+function sparks(x, y, n, colorIdx) {
+  for (let i = 0; i < parts.length && n > 0; i++) {
+    const p = parts[i]; if (p.on) continue;
+    const ang = Math.random() * TAU, sp = 120 + Math.random() * 320;
+    p.on = true; p.x = x; p.y = y; p.vx = Math.cos(ang) * sp; p.vy = Math.sin(ang) * sp;
+    p.life = 1; p.decay = 2.2 + Math.random() * 1.8; p.c = colorIdx === 2 ? (i & 1) : colorIdx;
+    n--;
+  }
+}
+function burst(x, y, strong) { sparks(x, y, strong ? C.snipParticles : C.snipParticles >> 1, 2); ringT = strong ? 1 : 0.6; ringX = x; ringY = y; }
+let ringT = 0, ringX = 0, ringY = 0;
+
+const labels = [];
+for (let i = 0; i < 4; i++) labels.push({ on: false, x: 0, y: 0, t: 0, strong: true });
+function spawnLabel(x, y, strong) {
+  let l = labels[0];
+  for (let i = 0; i < labels.length; i++) { if (!labels[i].on) { l = labels[i]; break; } if (labels[i].t > l.t) l = labels[i]; }
+  l.on = true; l.x = x; l.y = y; l.t = 0; l.strong = strong;
+}
+
+// floating damage numbers: gold = strong (near pivot), white = mid, grey-blue = graze (near tips)
+const nums = [];
+for (let i = 0; i < 16; i++) nums.push({ on: false, x: 0, y: 0, t: 0, text: '', color: '' });
+function spawnNumber(x, y, dmg, g) {
+  let n = nums[0];
+  for (let i = 0; i < nums.length; i++) { if (!nums[i].on) { n = nums[i]; break; } if (nums[i].t > n.t) n = nums[i]; }
+  n.on = true; n.x = x; n.y = y; n.t = 0; n.text = dmg.toFixed(1);
+  n.color = g < 0.35 ? '#ffe27a' : g < 0.7 ? '#ffffff' : '#9fc7d6';
+}
+
+function resetAll() {
+  for (const e of enemies) e.on = false;
+  for (const f of frags) f.on = false;
+  for (const p of parts) p.on = false;
+  for (const l of labels) l.on = false;
+  for (const n of nums) n.on = false;
+  stats.snips = 0; stats.kills = 0; lastCloseMs = -1; lastCloseKind = ''; lastCloseVer++;
+  spawnAcc = 0; cutT = flashT = shakeT = kickT = ringT = spaceT = 0; bCount = 0;
+}
+
+function spaceSnip() {
+  if (!gripping || scAlpha < 0.5) return;
+  lastCloseMs = 0; lastCloseSpeed = 0; lastCloseKind = 'Space'; lastCloseVer++;
+  doSnip(pose.x, pose.y, pose.theta, pose.spread, true);
+  spaceT = 1; bCount = 0;
+}
+
+// ======================= update =======================
+function beginGrip() {
+  gripping = true; bCount = 0; prevBladeA = -1;
+  needSnap = scAlpha < 0.3;
+  if (needSnap) { aimX = 0; aimY = -1; }
+}
+function endGrip() { gripping = false; bCount = 0; }
+
+function update(now, dt) {
+  const frames = dt * 60;
+
+  // --- raw finger points ---
+  let have = false;
+  if (usingTouch) {
+    if (tp.id[0] !== -1 && tp.id[1] !== -1) { fAx = tp.x[0]; fAy = tp.y[0]; fBx = tp.x[1]; fBy = tp.y[1]; have = true; }
+  } else if (mouse.inside) {
+    if (mouse.held) mouse.dist = Math.min(C.openDistPx, mouse.dist + (C.openDistPx - C.closedDistPx) * dt * 1000 / C.mouseOpenMs);
+    const hx = Math.cos(mouse.rot) * mouse.dist * 0.5, hy = Math.sin(mouse.rot) * mouse.dist * 0.5;
+    fAx = mouse.x - hx; fAy = mouse.y - hy; fBx = mouse.x + hx; fBy = mouse.y + hy; have = true;
+  }
+  if (have && !gripping) beginGrip(); else if (!have && gripping) endGrip();
+
+  // --- pose ---
+  if (gripping) {
+    const dx = fBx - fAx, dy = fBy - fAy, dist = Math.hypot(dx, dy);
+    rawSpread = clamp((dist - C.closedDistPx) / (C.openDistPx - C.closedDistPx), 0, 1);
+    if (dist > 1) {                               // perpendicular to the finger line; keep the side closest to last frame's aim
+      let nx = dy / dist, ny = -dx / dist;
+      if (nx * aimX + ny * aimY < 0) { nx = -nx; ny = -ny; }
+      aimX = nx; aimY = ny;
+    }
+    const theta = Math.atan2(aimX, -aimY);
+    const mx = (fAx + fBx) * 0.5, my = (fAy + fBy) * 0.5;
+    const px = C.offsetAlongAim ? mx + aimX * C.pivotOffsetPx : mx;
+    const py = C.offsetAlongAim ? my + aimY * C.pivotOffsetPx : my - C.pivotOffsetPx;
+    if (needSnap) {
+      pose.x = px; pose.y = py; pose.theta = theta; pose.spread = rawSpread; prevRaw = rawSpread; needSnap = false;
+    } else {
+      const kp = lerpK(C.poseLerp, frames), ks = lerpK(C.spreadLerp, frames);
+      pose.x += (px - pose.x) * kp; pose.y += (py - pose.y) * kp;
+      pose.theta = lerpAngle(pose.theta, theta, kp);
+      pose.spread += (rawSpread - pose.spread) * ks;
+    }
+    scAlpha = Math.min(1, scAlpha + dt * 1000 / C.fadeInMs);
+    pushSample(now);
+    detectSnip(now);
+    prevRaw = rawSpread;
+  } else {
+    scAlpha = Math.max(0, scAlpha - dt * 1000 / C.fadeOutMs);   // freeze pose, fade out
+  }
+
+  // --- timers ---
+  const ms = dt * 1000;
+  flashT = Math.max(0, flashT - ms / C.flashMs);
+  shakeT = Math.max(0, shakeT - ms / C.shakeMs);
+  cutT = C.cutZoneShowMs > 0 ? Math.max(0, cutT - ms / C.cutZoneShowMs) : 0;
+  kickT = Math.max(0, kickT - ms / 120);
+  spaceT = Math.max(0, spaceT - ms / C.spacePulseMs);
+  ringT = Math.max(0, ringT - ms / 300);
+
+  // --- enemies ---
+  spawnAcc += ms;
+  if (spawnAcc >= C.spawnMs) { spawnAcc -= C.spawnMs; if (spawnAcc > C.spawnMs) spawnAcc = 0; spawnEnemy(); }
+  const pushKeep = Math.exp(-C.pushDrag * dt);
+  for (let i = 0; i < enemies.length; i++) {
+    const e = enemies[i]; if (!e.on) continue;
+    e.age += dt;
+    e.baseX += e.pvx * dt; e.y += (e.vy + e.pvy) * dt;
+    e.pvx *= pushKeep; e.pvy *= pushKeep;
+    e.x = e.baseX + Math.sin(e.phase + e.age * 0.9) * C.wobblePx;
+    if (e.hitT > 0) e.hitT = Math.max(0, e.hitT - dt * 5);
+    if (e.y - e.r > H || e.x < -e.r - 60 || e.x > W + e.r + 60) e.on = false;
+  }
+  bladeContacts(dt);
+  for (let i = 0; i < nums.length; i++) {
+    const n = nums[i]; if (!n.on) continue;
+    n.t += dt; n.y -= 40 * dt; if (n.t > 0.7) n.on = false;
+  }
+  const fDecay = ms / C.fragmentLifeMs;
+  for (let i = 0; i < frags.length; i++) {
+    const f = frags[i]; if (!f.on) continue;
+    f.x += f.vx * dt; f.y += f.vy * dt; f.vy += 420 * dt; f.vx *= 0.985; f.rot += f.vr * dt;
+    f.life -= fDecay; if (f.life <= 0) f.on = false;
+  }
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i]; if (!p.on) continue;
+    p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.93; p.vy *= 0.93;
+    p.life -= p.decay * dt; if (p.life <= 0) p.on = false;
+  }
+  for (let i = 0; i < labels.length; i++) {
+    const l = labels[i]; if (!l.on) continue;
+    l.t += dt; l.y -= 60 * dt; if (l.t > 0.6) l.on = false;
+  }
+}
+
+// ======================= render =======================
+const HUD_FONT = '600 13px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+const LABEL_FONT = '900 30px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+const NUM_FONT = '700 14px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+const PROMPT_FONT ='500 15px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+const hud = { s: -1, k: -1, p: -1, v: -1, a: '', l1: '', l2: '', l3: '', l4: '' };
+
+function drawScissors() {
+  if (scAlpha <= 0.001) return;
+  const a = visBladeAngle();
+  let px = pose.x, py = pose.y;
+  if (shakeT > 0) {                                             // "too slow": wobble across the aim
+    const o = Math.sin(shakeT * Math.PI * 7) * C.shakePx * shakeT;
+    px += Math.cos(pose.theta) * o; py += Math.sin(pose.theta) * o;
+  }
+  ctx.save();
+  ctx.translate(px, py);
+  for (let i = 0; i < 2; i++) {
+    ctx.save();
+    ctx.globalAlpha = scAlpha;
+    ctx.rotate(pose.theta + (i === 0 ? -a : a));               // blade-left opens negative, blade-right positive
+    ctx.scale(S, S);
+    ctx.translate(-PIV_X, -PIV_Y);
+    if (art.ready) ctx.drawImage(art.halves[i], 0, 0, ART_W, ART_H);
+    else drawFallbackHalf(HALF[i]);
+    if (flashT > 0) {
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = scAlpha * flashT;
+      ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.fill(HALF[i].blade);
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 5; ctx.lineJoin = 'round'; ctx.stroke(HALF[i].blade);
+    }
+    ctx.restore();
+  }
+  ctx.globalAlpha = scAlpha;
+  ctx.scale(S, S);
+  if (art.ready) {
+    ctx.drawImage(art.pivot, -PIVOT_CROP / 2, -PIVOT_CROP / 2, PIVOT_CROP, PIVOT_CROP);
+  } else {
+    ctx.translate(-PIV_X, -PIV_Y);
+    ctx.fillStyle = gemGrad; ctx.fill(GEM_PATH);
+    ctx.strokeStyle = '#f0ffff'; ctx.lineWidth = 1.5; ctx.stroke(GEM_PATH);
+  }
+  ctx.restore();
+}
+
+function drawEnemies() {
+  for (let i = 0; i < enemies.length; i++) {
+    const e = enemies[i]; if (!e.on) continue;
+    ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, TAU);
+    ctx.globalAlpha = 0.85; ctx.fillStyle = e.color; ctx.fill();
+    ctx.globalAlpha = 1; ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.stroke();
+    ctx.beginPath(); ctx.arc(e.x - e.r * 0.3, e.y - e.r * 0.3, e.r * 0.3, 0, TAU);
+    ctx.fillStyle = 'rgba(255,255,255,0.25)'; ctx.fill();
+    const cracks = e.hp < e.maxHp ? Math.min(3, Math.ceil((1 - e.hp / e.maxHp) * 3)) : 0;
+    if (cracks > 0) {                                           // cracks show damage taken
+      ctx.beginPath();
+      for (let c = 0; c < cracks; c++) {
+        const ang = e.phase + c * 2.1, ca = Math.cos(ang), sa = Math.sin(ang);
+        ctx.moveTo(e.x + ca * e.r * 0.1, e.y + sa * e.r * 0.1);
+        ctx.lineTo(e.x + ca * e.r * 0.5 - sa * e.r * 0.15, e.y + sa * e.r * 0.5 + ca * e.r * 0.15);
+        ctx.lineTo(e.x + ca * e.r * 0.95, e.y + sa * e.r * 0.95);
+      }
+      ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(20,10,30,0.8)'; ctx.stroke();
+    }
+    if (e.hitT > 0) {
+      ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, TAU);
+      ctx.globalAlpha = e.hitT * 0.7; ctx.fillStyle = '#ffffff'; ctx.fill(); ctx.globalAlpha = 1;
+    }
+    if (e.maxHp >= 3 || e.hp < e.maxHp) {                      // large always, others once damaged
+      const bw = e.r * 1.6, bx = e.x - bw / 2, by = e.y - e.r - 11;
+      ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(bx - 1, by - 1, bw + 2, 7);
+      ctx.fillStyle = '#7dffb0'; ctx.fillRect(bx, by, bw * Math.max(0, e.hp / e.maxHp), 5);
+    }
+  }
+}
+
+function drawFragments() {
+  for (let i = 0; i < frags.length; i++) {
+    const f = frags[i]; if (!f.on) continue;
+    ctx.save();
+    ctx.translate(f.x, f.y); ctx.rotate(f.rot);
+    ctx.globalAlpha = f.life;
+    ctx.beginPath();
+    ctx.moveTo(f.sz, 0); ctx.lineTo(-f.sz * 0.6, f.sz * 0.7); ctx.lineTo(-f.sz * 0.5, -f.sz * 0.6); ctx.closePath();
+    ctx.fillStyle = f.color; ctx.fill();
+    ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function drawEffects() {
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.lineCap = 'round';
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i]; if (!p.on) continue;
+    ctx.globalAlpha = p.life;
+    ctx.strokeStyle = PART_COLORS[p.c]; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.vx * 0.035, p.y - p.vy * 0.035); ctx.stroke();
+  }
+  if (ringT > 0) {
+    ctx.globalAlpha = ringT * 0.8; ctx.strokeStyle = '#bff9ff'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(ringX, ringY, 14 + (1 - ringT) * 70, 0, TAU); ctx.stroke();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.font = LABEL_FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (let i = 0; i < labels.length; i++) {
+    const l = labels[i]; if (!l.on) continue;
+    const pop = l.t < 0.08 ? 0.6 + l.t / 0.08 * 0.6 : 1.2 - Math.min(0.2, (l.t - 0.08) * 1.5);
+    ctx.save();
+    ctx.translate(l.x, l.y - 34); ctx.scale(pop, pop);
+    ctx.globalAlpha = 1 - l.t / 0.6;
+    if (!l.strong) ctx.scale(0.6, 0.6);
+    const txt = l.strong ? 'SNIP!' : 'nick';
+    ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(0,70,100,0.8)'; ctx.strokeText(txt, 0, 0);
+    ctx.fillStyle = '#ffffff'; ctx.fillText(txt, 0, 0);
+    ctx.restore();
+  }
+  ctx.font = NUM_FONT;
+  for (let i = 0; i < nums.length; i++) {
+    const n = nums[i]; if (!n.on) continue;
+    ctx.globalAlpha = 1 - n.t / 0.7;
+    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.strokeText(n.text, n.x, n.y);
+    ctx.fillStyle = n.color; ctx.fillText(n.text, n.x, n.y);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawCutZone() {
+  if (cutT <= 0) return;
+  ctx.beginPath(); ctx.moveTo(cut.px, cut.py);
+  ctx.arc(cut.px, cut.py, cut.L, cut.theta - cut.a - Math.PI / 2, cut.theta + cut.a - Math.PI / 2); ctx.closePath();
+  ctx.globalAlpha = cutT; ctx.fillStyle = cut.grad; ctx.fill();
+  ctx.globalAlpha = cutT * 0.6; ctx.lineWidth = 1.5; ctx.strokeStyle = '#e8feff'; ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+
+function drawFingers() {
+  if (!C.showFingers || scAlpha <= 0.001) return;
+  ctx.globalAlpha = 0.25 * scAlpha;
+  ctx.strokeStyle = '#bff9ff'; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(fAx + 22, fAy); ctx.arc(fAx, fAy, 22, 0, TAU);
+  ctx.moveTo(fBx + 22, fBy); ctx.arc(fBx, fBy, 22, 0, TAU);
+  ctx.moveTo(fAx, fAy); ctx.lineTo(fBx, fBy);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+
+function drawHud() {
+  const sp = Math.round(rawSpread * 100);
+  if (hud.s !== stats.snips || hud.k !== stats.kills || hud.p !== sp || hud.v !== lastCloseVer || hud.a !== art.state) {
+    hud.s = stats.snips; hud.k = stats.kills; hud.p = sp; hud.v = lastCloseVer; hud.a = art.state;
+    hud.l1 = 'Snips: ' + stats.snips + '   Kills: ' + stats.kills;
+    hud.l2 = 'Spread: ' + sp + '%';
+    hud.l3 = lastCloseMs < 0 ? 'Last close: —' : 'Last: ' + lastCloseKind + '  ' + lastCloseSpeed.toFixed(1) + '/s  ' +
+      Math.round(lastCloseMs) + 'ms' + (lastCloseKind === 'too slow' ? '' : '  pow ' + Math.round(lastClosePower * 100) + '%');
+    hud.l4 = 'Art: ' + (art.state === 'fallback' ? 'fallback (serve over http for SVG)' : art.state);
+  }
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(8, 8, 290, 82);
+  ctx.font = HUD_FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  ctx.fillStyle = '#dff9ff';
+  ctx.fillText(hud.l1, 16, 15); ctx.fillText(hud.l2, 16, 33); ctx.fillText(hud.l3, 16, 51);
+  ctx.fillStyle = 'rgba(223,249,255,0.55)'; ctx.fillText(hud.l4, 16, 69);
+  if (touchCapable && !mouse.used && !gripping && scAlpha === 0) {
+    ctx.font = PROMPT_FONT; ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(223,249,255,0.7)';
+    ctx.fillText('Put two fingers down — they are the handles', W / 2, H * 0.72);
+  }
+}
+
+function render() {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = bgGrad; ctx.fillRect(0, 0, W, H);
+  if (kickT > 0) ctx.translate(-aimX * C.snipKickPx * kickT, -aimY * C.snipKickPx * kickT);
+  drawCutZone();
+  drawEnemies();
+  drawFragments();
+  drawFingers();
+  drawScissors();
+  drawEffects();
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  drawHud();
+}
+
+// ======================= loop / resize =======================
+let lastT = 0;
+function frame(now) {
+  requestAnimationFrame(frame);
+  let dt = lastT ? (now - lastT) / 1000 : 1 / 60;
+  lastT = now;
+  if (dt > 0.05) dt = 0.05;
+  update(now, dt);
+  render();
+}
+
+function resize() {
+  dpr = Math.min(window.devicePixelRatio || 1, C.maxDpr);
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  cv.style.width = W + 'px'; cv.style.height = H + 'px';
+  S = C.scissorsHeightFrac * H / ART_H;
+  bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+  bgGrad.addColorStop(0, '#0b1a2b'); bgGrad.addColorStop(1, '#05080f');
+  rasterizeArt();
+}
+
+// ======================= input wiring =======================
+function onTouch(e) {
+  e.preventDefault();
+  if (!usingTouch) { usingTouch = true; hintEl.style.display = 'none'; }
+  // drop slots whose touch is no longer on screen (lost events)
+  for (let s = 0; s < 2; s++) {
+    if (tp.id[s] === -1) continue;
+    let alive = false;
+    for (let i = 0; i < e.touches.length; i++) if (e.touches[i].identifier === tp.id[s]) { alive = true; break; }
+    if (!alive) tp.id[s] = -1;
+  }
+  const ct = e.changedTouches;
+  if (e.type === 'touchstart' || e.type === 'touchmove') {
+    for (let i = 0; i < ct.length; i++) {
+      const t = ct[i];
+      let slot = tp.id[0] === t.identifier ? 0 : tp.id[1] === t.identifier ? 1 : -1;
+      if (slot === -1 && e.type === 'touchstart') slot = tp.id[0] === -1 ? 0 : tp.id[1] === -1 ? 1 : -1;
+      if (slot === -1) continue;
+      tp.id[slot] = t.identifier; tp.x[slot] = t.clientX; tp.y[slot] = t.clientY;
+    }
+  }
+}
+for (const type of ['touchstart', 'touchmove', 'touchend', 'touchcancel']) cv.addEventListener(type, onTouch, { passive: false });
+document.addEventListener('gesturestart', e => e.preventDefault()); // iOS pinch-zoom
+document.addEventListener('dblclick', e => e.preventDefault());
+
+function mouseActive() {
+  if (usingTouch) return false;
+  if (!mouse.used) { mouse.used = true; hintEl.style.display = 'block'; }
+  return true;
+}
+window.addEventListener('mousemove', e => { if (!mouseActive()) return; mouse.x = e.clientX; mouse.y = e.clientY; mouse.inside = true; });
+document.addEventListener('mouseleave', () => { mouse.inside = false; });
+cv.addEventListener('mousedown', e => { if (!mouseActive() || e.button !== 0) return; mouse.held = true; });
+window.addEventListener('mouseup', e => {
+  if (usingTouch || e.button !== 0 || !mouse.held) return;
+  mouse.held = false; mouse.dist = C.closedDistPx;          // snap shut: power depends on how far it opened
+});
+cv.addEventListener('contextmenu', e => e.preventDefault());
+cv.addEventListener('wheel', e => {
+  e.preventDefault();
+  if (!mouseActive()) return;
+  const d = e.deltaY || e.deltaX;
+  if (e.shiftKey) mouse.rot += d * C.wheelRotStep;
+  else mouse.dist = clamp(mouse.dist - d * C.wheelDistStep, C.closedDistPx, C.openDistPx);
+}, { passive: false });
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) spaceSnip(); }
+  else if (e.code === 'KeyQ') mouse.rot -= C.keyRotStep;
+  else if (e.code === 'KeyE') mouse.rot += C.keyRotStep;
+  else if (e.code === 'KeyR') resetAll();
+});
+document.getElementById('reset').addEventListener('click', e => { e.stopPropagation(); resetAll(); });
+
+if (!touchCapable) hintEl.style.display = 'block';
+window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', () => setTimeout(resize, 150));
+resize();
+loadArt();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
