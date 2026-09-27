@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1000" viewBox="0 0 800 1000" data-pivot-x="400" data-pivot-y="440" data-max-open-angle="26" data-open-amount="0" role="img" aria-labelledby="safety-title safety-desc">
+<title id="safety-title">Safety Firsts</title><desc id="safety-desc">Kindergarten safety scissors: short stubby steel blades with round blunt tips, chunky glossy plastic loop handles (a big red oval and a small blue ring), a gold star rivet at the pivot. Two rigid moving halves; transparent background.</desc>
+<!-- CLOSED POSE. Coordinates are SVG user units. Blade tips face up.
+     Each rotating group includes its own blade AND opposite-side handle; it turns by data-open-sign x 26 degrees
+     about (400, 440). Static layers stay fixed. -->
+<defs>
+  <linearGradient id="safety-steel" x1="0%" y1="0%" x2="100%" y2="10%"><stop offset="0" stop-color="#6d7f8c"/><stop offset=".3" stop-color="#dfe7ea"/><stop offset=".55" stop-color="#a9b8bf"/><stop offset=".8" stop-color="#eef3f2"/><stop offset="1" stop-color="#8697a2"/></linearGradient>
+  <linearGradient id="safety-red" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0" stop-color="#ff7a5c"/><stop offset=".45" stop-color="#e2402f"/><stop offset="1" stop-color="#a8231a"/></linearGradient>
+  <linearGradient id="safety-blue" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0" stop-color="#6fb4ff"/><stop offset=".45" stop-color="#2f74d9"/><stop offset="1" stop-color="#1b4a99"/></linearGradient>
+  <radialGradient id="safety-gold" cx="38%" cy="32%" r="70%"><stop offset="0" stop-color="#fff3b0"/><stop offset=".5" stop-color="#ffc93d"/><stop offset="1" stop-color="#c98a12"/></radialGradient>
+</defs>
+<g id="blade-left" data-role="rotating" data-pivot-x="400" data-pivot-y="440" data-open-sign="-1" transform="rotate(0 400 440)" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M350 460C342 384 350 292 372 222A30 30 0 0 1 428 212C420 284 412 364 412 460Z" fill="url(#safety-steel)" stroke="#2a2f3a" stroke-width="6"/>
+  <path d="M366 420C361 350 368 284 384 232" fill="none" stroke="#ffffff" stroke-opacity="0.55" stroke-width="5"/>
+  <path d="M400 440C422 500 448 556 470 604" fill="none" stroke="#2a2f3a" stroke-width="66"/>
+  <path d="M400 440C422 500 448 556 470 604" fill="none" stroke="url(#safety-red)" stroke-width="54"/>
+  <ellipse cx="512" cy="724" rx="96" ry="118" transform="rotate(-18 512 724)" fill="none" stroke="#2a2f3a" stroke-width="58"/>
+  <ellipse cx="512" cy="724" rx="96" ry="118" transform="rotate(-18 512 724)" fill="none" stroke="url(#safety-red)" stroke-width="46"/>
+  <path d="M430 660C446 628 474 606 506 600" fill="none" stroke="#ffffff" stroke-opacity="0.5" stroke-width="9"/>
+  <path d="M412 470C426 510 440 540 452 566" fill="none" stroke="#ffffff" stroke-opacity="0.4" stroke-width="8"/>
+</g>
+<g id="blade-right" data-role="rotating" data-pivot-x="400" data-pivot-y="440" data-open-sign="1" transform="rotate(0 400 440)" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M450 460C458 384 450 292 428 222A30 30 0 0 0 372 212C380 284 388 364 388 460Z" fill="url(#safety-steel)" stroke="#2a2f3a" stroke-width="6"/>
+  <path d="M434 420C439 350 432 284 416 232" fill="none" stroke="#ffffff" stroke-opacity="0.45" stroke-width="5"/>
+  <path d="M400 440C382 498 360 552 342 598" fill="none" stroke="#2a2f3a" stroke-width="66"/>
+  <path d="M400 440C382 498 360 552 342 598" fill="none" stroke="url(#safety-blue)" stroke-width="54"/>
+  <circle cx="304" cy="700" r="80" fill="none" stroke="#2a2f3a" stroke-width="56"/>
+  <circle cx="304" cy="700" r="80" fill="none" stroke="url(#safety-blue)" stroke-width="44"/>
+  <path d="M238 668C248 640 270 622 296 616" fill="none" stroke="#ffffff" stroke-opacity="0.5" stroke-width="9"/>
+  <path d="M384 474C374 506 364 532 356 552" fill="none" stroke="#ffffff" stroke-opacity="0.4" stroke-width="8"/>
+</g>
+<g id="pivot" data-role="fixed" data-pivot-x="400" data-pivot-y="440">
+  <circle cx="400" cy="440" r="30" fill="url(#safety-gold)" stroke="#2a2f3a" stroke-width="5"/>
+  <path d="M400 422L405.3 432.7 417.1 434.4 408.6 442.7 410.6 454.4 400 448.9 389.4 454.4 391.4 442.7 382.9 434.4 394.7 432.7Z" fill="#fff6d0" stroke="#c98a12" stroke-width="2"/>
+</g>
+</svg>

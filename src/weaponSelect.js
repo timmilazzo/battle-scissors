@@ -1,6 +1,7 @@
 // Weapon select screen (between the MAP and PLAYING): one card per CONFIG.weapons entry showing its art and stats.
-// The pick is remembered in the save (Save.equippedScissors). A weapon that is some level's reward (its unlockOnClear)
-// stays locked until that level is cleared (Save.unlocks.scissors); the default weapon never is.
+// The pick is remembered in the save (Save.equippedScissors). Only the default weapon starts unlocked; the rest are a
+// map level's reward (its unlockOnClear) or bought in the Shop (CONFIG.weapons[id].shop, once shopAfter is cleared),
+// and either way join Save.unlocks.scissors.
 import { CONFIG as C } from './config.js';
 import { Save, persist } from './save.js';
 import { rewardLevelOf } from './levels/index.js';
@@ -18,7 +19,17 @@ const STATS = [
   { label: () => 'Speed', bar: w => 1 / w.openMs },
 ];
 
-export const weaponLocked = id => id !== C.defaultWeapon && !!rewardLevelOf(id) && !Save.unlocks.scissors.includes(id);
+// (a save from before a weapon got its reward level counts that level's clear)
+export const weaponLocked = id => id !== C.defaultWeapon && !Save.unlocks.scissors.includes(id) && !Save.levels[rewardLevelOf(id)]?.cleared;
+// Shop weapons: on sale once their shopAfter level is cleared.
+export const shopOpen = id => !!C.weapons[id].shop && !!Save.levels[C.weapons[id].shopAfter]?.cleared;
+const levelNum = id => C.map.nodes.findIndex(n => n[0] === id);
+// How a locked weapon is won, in words.
+export function unlockHint(id) {
+  const w = C.weapons[id];
+  if (w.shop) return shopOpen(id) ? 'In the Shop' : 'Shop, after Level ' + levelNum(w.shopAfter);
+  return 'Clear Level ' + levelNum(rewardLevelOf(id));
+}
 export function savedWeapon() {
   return C.weapons[Save.equippedScissors] && !weaponLocked(Save.equippedScissors) ? Save.equippedScissors : C.defaultWeapon;
 }
@@ -33,8 +44,6 @@ export function initWeaponSelect({ onPick, onStart, onBack }) {
     const card = document.createElement('button');
     card.type = 'button'; card.className = 'weapon-card';
     card.innerHTML = '<img alt=""><span class="wc-name"></span><span class="wc-lock"></span><span class="wc-blurb"></span><span class="wc-stats"></span>';
-    const at = C.map.nodes.findIndex(n => n[0] === rewardLevelOf(id));
-    if (at >= 0) card.querySelector('.wc-lock').textContent = '🔒 Clear Level ' + at + ' to unlock';
     card.querySelector('img').src = w.svg;
     card.querySelector('.wc-name').textContent = w.name;
     card.querySelector('.wc-blurb').textContent = w.blurb;
@@ -52,7 +61,10 @@ export function initWeaponSelect({ onPick, onStart, onBack }) {
   document.getElementById('select-back').addEventListener('click', () => onBack());
   select(savedWeapon());
   refreshLocks = () => {
-    for (const k in cards) { cards[k].classList.toggle('locked', weaponLocked(k)); cards[k].disabled = weaponLocked(k); fillStats(cards[k], k, best); }
+    for (const k in cards) {
+      cards[k].classList.toggle('locked', weaponLocked(k)); cards[k].disabled = weaponLocked(k); fillStats(cards[k], k, best);
+      cards[k].querySelector('.wc-lock').textContent = weaponLocked(k) ? '🔒 ' + unlockHint(k) : '';
+    }
     select(savedWeapon());
   };
   refreshLocks();

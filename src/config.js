@@ -8,7 +8,7 @@
 export const FEEDBACK_URL = 'mailto:tim@saltandwisdom.com';
 
 // Shown small at the bottom of Settings and recorded in every run report. Bump it with each published change.
-export const VERSION = '0.2.1';
+export const VERSION = '0.2.3';
 
 export const CONFIG = {
   // --- pose / control mapping ---
@@ -33,7 +33,12 @@ export const CONFIG = {
   // critMult, 'hold' holdSec, 'ring' ringScale, 'all' every stat a little. critZone + critMult (Scrap Snippers): a hit
   // this close to the pivot (0 pivot .. 1 tips) does critMult x damage. holdSec (Ratchet Pruners): the hooked jaw holds
   // every regular enemy it hits in place this long. ringScale (Cigar Cutter): the hole's cut radius x this.
+  // How each is won: defaultWeapon is held from the start; one that is some map level's unlockOnClear is won there;
+  // shop = its price in Buttons, buyable in the Shop once level shopAfter has been cleared (never for anything else).
   weapons: {
+    safety:  { name: 'Safety Firsts', blurb: 'Round tips, crayon-box grip. Every hero starts somewhere.',
+               svg: 'assets/weapons/safety-firsts.svg', viewW: 800, viewH: 1000, pivotX: 400, pivotY: 440,
+               bladeLen: 250, maxOpenDeg: 26, reachFrac: 0.105, damageMult: 0.85, openMs: 560, signature: 'all' },
     dagger:  { name: 'Dagger Shears', blurb: 'Long engraved blades that reach deep into the road.',
                svg: 'assets/weapons/dagger-shears.svg', viewW: 800, viewH: 1000, pivotX: 400, pivotY: 440,
                bladeLen: 370, maxOpenDeg: 32, reachFrac: 0.132, damageMult: 1, openMs: 500, signature: 'all' },
@@ -42,25 +47,26 @@ export const CONFIG = {
                bladeLen: 242, maxOpenDeg: 28, reachFrac: 0.088, damageMult: 1.3, openMs: 380, signature: 'damage' },
     barber:  { name: 'Split Enders', blurb: 'Opens wide enough to take a whole crowd, but cuts light.',
                svg: 'assets/weapons/barber-scissors.svg', viewX: -80, viewW: 960, viewH: 1000, pivotX: 400, pivotY: 440,
-               bladeLen: 404, maxOpenDeg: 60, reachFrac: 0.12, damageMult: 0.85, openMs: 650, signature: 'angle' },
+               bladeLen: 404, maxOpenDeg: 60, reachFrac: 0.12, damageMult: 0.85, openMs: 650, signature: 'angle',
+               shop: 200, shopAfter: 'fork' },
     scrap:   { name: 'Scrap Snippers', blurb: 'Long heavy blades with a narrow bite. Aim true.',
                svg: 'assets/weapons/scrap-shears.svg', viewW: 800, viewH: 1000, pivotX: 400, pivotY: 440,
                bladeLen: 408, maxOpenDeg: 24, reachFrac: 0.144, damageMult: 1.25, openMs: 580,
-               signature: 'crit', critZone: 0.25, critMult: 1.5 },
+               signature: 'crit', critZone: 0.25, critMult: 1.5, shop: 300, shopAfter: 'blanket' },
     // hooked jaw -12deg, blade +76deg, handle +12deg (per-layer data-open-angle). Closed, the blade tip points 41deg
     // left of the art's axis; fully open, the gap spans -40..+22deg (centre -9deg, 62deg wide). The aim offset turns
     // the art 41deg -> 9deg as it opens so the tip, then the gap's centre, lines up with the aim.
     pruners: { name: 'Ratchet Pruners', blurb: 'A hooked jaw holds, one heavy blade bites down. Big hits up close.',
                svg: 'assets/weapons/ratchet-pruners.svg', viewW: 800, viewH: 1000, pivotX: 400, pivotY: 320,
                bladeLen: 240, maxOpenDeg: 31, aimOffsetDeg: 41, aimOffsetOpenDeg: -32, reachFrac: 0.1, damageMult: 1.4, openMs: 620,
-               signature: 'hold', holdSec: 0.5 },
+               signature: 'hold', holdSec: 0.5, shop: 400, shopAfter: 'cross' },
     // blades slide 155 units each way inside a 131-unit round window; the finger rings sit about 426 units out
     cigar:   { name: 'Cigar Cutter', blurb: 'No blades to swing: fit them in the hole and slam it shut.',
                svg: 'assets/weapons/cigar-cutter.svg', viewW: 1300, viewH: 640, pivotX: 650, pivotY: 320, kind: 'slide',
                bladeLen: 131, maxOpenDeg: 0, spinLen: 426, reachFrac: 0.036, damageMult: 2.2, openMs: 440,
-               signature: 'ring', ringScale: 1 },
+               signature: 'ring', ringScale: 1, shop: 500, shopAfter: 'bias' },
   },
-  defaultWeapon: 'dagger',   // weapon picked on first launch (afterwards the last choice is remembered)
+  defaultWeapon: 'safety',   // the one weapon held from the start (level 0 reveals it); the rest are won or bought
   statDrawerHeightIn: 24,    // the play area's height in "story" inches; converts reach to inches on the weapon screen
 
   // --- snip detection (uses RAW finger spread, not the smoothed one) ---
@@ -176,8 +182,8 @@ export const CONFIG = {
   // opens only once the one before it is cleared (false keeps every level open for playtesting).
   map: {
     img: 'assets/level-map.webp', w: 936, h: 1681,
-    // 'first' (level 0) has no patch in the art: the map sews a felt one on there
-    nodes: [['first', 640, 1478], ['meadow', 468, 1330], ['fork', 486, 1196], ['hem', 579, 1076], ['running', 410, 978], ['double', 466, 858],
+    // patch 0 is smaller than the rest (its tap area is the same)
+    nodes: [['first', 650, 1442], ['meadow', 468, 1330], ['fork', 486, 1196], ['hem', 579, 1076], ['running', 410, 978], ['double', 466, 858],
       ['blanket', 597, 770], ['loop', 494, 666], ['hemline', 354, 574], ['cross', 488, 478], ['bias', 586, 390],
       ['selvage', 422, 300], ['whip', 527, 212], ['lair', 540, 96]],
     hitW: 170, hitH: 110,    // tap area per patch (art px)
@@ -331,11 +337,7 @@ export const CONFIG = {
   tutHoldOpen: 0.5,          // ...with the blades at least this open (the next lift then moves on)
   tutScrapHp: 0.2,           // tutorial Scraps: any snip that touches one cuts it
   tutWalkInPxPerSec: 200,    // step 3: Scraps walk into the player's empty blades this fast
-  tutWideMin: 3,             // step 4: a wide cut cuts at least this many at once...
-  tutWideSpread: 0.75,       // ...and opened at least this far (a quick tap can graze 3+ of the row: that isn't the lesson)
-  tutShortSpread: 0.6,       // step 4: a short cut opened less than this
-  tutRespawnMs: 700,         // a used-up practice setup comes back after this
-  tutFinishCount: 6,         // step 5: this many Scraps walk in; the level ends when all are cut
+  tutFinishCount: 3,         // step 5: this many Scraps walk in; the level ends once each is cut or through
   tutFinishGapMs: 900,       // step 5: spacing between them
   tutWalkMult: 0.7,          // step 5: they walk at this fraction of normal Scrap speed
   tutWinMs: 1800,            // the win celebration before the level map
@@ -344,8 +346,6 @@ export const CONFIG = {
   trailMinSpeed: 2.5,        // blade trails appear when the blades open/close/turn faster than this (rad/s)
   trailFadeMs: 140,          // how long each trail ghost takes to fade
   pickupFlyMs: 650,          // "+8" thread pickup flight time to the HUD counter
-  titleWeapon: 'nippers',    // the real scissors that follow the pointer on the title screen
-  titleOpenFrac: 0.6,        // title scissors rest this far open; pressing snaps them shut
 
   // --- meta economy: Buttons (src/meta.js). Earned only from performance and achievements; nothing waits on a clock and
   // no reward is random. Thread (in-level) and Buttons (meta) are never converted. Scissors, Pins and stars are never sold.

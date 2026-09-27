@@ -25,14 +25,6 @@ const spotsEl = document.getElementById('spots'), picker = document.getElementBy
 const spotBtns = [], pickCards = [];
 const touchy = () => input.usingTouch || (input.touchCapable && !input.mouse.used);
 
-// What each Pin does, for the explainer (numbers come from config so the copy stays true).
-const PIN_TEXT = {
-  needle: d => 'shoots a sewing needle at one enemy in its ring (' + d.damage + ' damage), then reloads for ' + d.cooldownSec + 's. Armor stops the first needle.',
-  ice: d => 'enemies in its ring move slower, and a slowed Brute’s armor won’t stop your snip.',
-  fire: d => 'sets enemies in its ring on fire: they burn ' + d.burnDps + ' HP a second, armor or not, and keep burning ' + d.burnSec + 's after they leave it.',
-  magnet: d => 'every ' + d.periodSec + 's it pulls enemies in its ring into a clump on the road: hard right beside it, gently near the edge. Snip the clump for a multi-snip.',
-};
-
 // Picker icons (cream on the Pin's felt): threaded needle, snowflake, flame, horseshoe magnet.
 const PIN_ICON = {
   needle: '<svg viewBox="0 0 24 24" fill="none" stroke-linecap="round"><path d="M4 20 18.5 5.5" stroke="#fff4dc" stroke-width="2.6"/><path d="M20.5 3.5 18.5 5.5" stroke="#fff4dc" stroke-width="4"/><path d="M19.3 4.7l.01-.01" stroke="#3e8f5a" stroke-width="1.4"/><path d="M19.5 4.5c2 3-1 5-4 7s-6 3-9 1" stroke="#f2c230" stroke-width="1.6"/></svg>',
@@ -64,20 +56,16 @@ export function initActionBar(opts) {
   document.addEventListener('pointerdown', e => {
     if (pick.spot >= 0 && !picker.contains(e.target) && e.target !== spotBtns[pick.spot] && !spotBtns[pick.spot].contains(e.target)) closePicker();
   }, true);
-  // the explainer
+  // the explainer: one short line per Pin (its picker blurb)
   const list = document.getElementById('pins-intro-list');
   for (const type in C.towers) {
     const def = C.towers[type], li = document.createElement('li');
-    li.innerHTML = '<span class="dot"></span><span><b></b> (' + def.cost + ' thread): </span>';
+    li.innerHTML = '<span class="dot"></span><span><b></b>: </span>';
     li.querySelector('.dot').style.setProperty('--tc', def.color);
     li.querySelector('b').textContent = def.name;
-    li.lastChild.appendChild(document.createTextNode(PIN_TEXT[type] ? PIN_TEXT[type](def) : def.blurb));
+    li.lastChild.appendChild(document.createTextNode(def.blurb));
     list.appendChild(li);
   }
-  const li = document.createElement('li');
-  li.innerHTML = '<span class="dot" style="--tc:#d9a55a"></span><span><b>Thread</b> pays for Pins: every kill earns some, a squished silverfish +' +
-    C.critters.silverfish.thread + ', and +' + C.threadPerLeak + ' when an enemy reaches the workshop.</span>';
-  list.appendChild(li);
   document.getElementById('pins-intro-ok').addEventListener('click', closePinIntro);
   // SHRED meter: listen for the touch itself too (a tap while other fingers are down rarely produces a click)
   shredCard.addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); shredPressed(); }, { passive: false });

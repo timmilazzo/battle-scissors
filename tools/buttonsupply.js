@@ -25,6 +25,7 @@ const supply = stars + achievements + score + chests;
 
 const upgrades = Object.keys(C.weapons).length * sum(M.upgradeCosts);
 const cosmetics = sum(Object.values(M.cosmetics).map(c => c.price || 0));
+const shopScissors = sum(Object.values(C.weapons).map(w => w.shop || 0));
 
 console.log('Button supply (' + levels.length + ' levels, ' + worlds.length + ' worlds, ' + ACHIEVEMENTS.length + ' achievements)');
 console.log('  stars         ' + String(stars).padStart(5) + '  (' + levels.length + ' x ' + perLevelStars + ')');
@@ -34,7 +35,7 @@ console.log('  world chests  ' + String(chests).padStart(5));
 console.log('  TOTAL         ' + String(supply).padStart(5));
 console.log('');
 console.log('Spending: upgrade tree ' + upgrades + ' (' + Object.keys(C.weapons).length + ' weapons x ' + sum(M.upgradeCosts) +
-  '), cosmetics ' + cosmetics + ', Sharpening ' + M.sharpenCost + ' each');
+  '), Shop scissors ' + shopScissors + ', cosmetics ' + cosmetics + ', Sharpening ' + M.sharpenCost + ' each');
 
 // A full playthrough averaging 2.2 stars per level: 40% of levels three-starred, 40% two, 20% one. Three-starring
 // is spread evenly, so a world's chest and its "three-star a world" achievement only come if a whole world is

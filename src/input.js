@@ -173,19 +173,8 @@ export function updateInput(now, dt) {
 }
 
 // ======================= event wiring =======================
-// Title screen: where the pointer (mouse or finger) is, for the scissors that follow it there. seen = moved at least once.
-input.title = { x: 0, y: 0, down: false, seen: false };
-function initTitlePointer() {
-  const el = document.getElementById('title'), t = input.title;
-  const at = e => { t.x = e.clientX; t.y = e.clientY; t.seen = true; };
-  el.addEventListener('pointermove', at);
-  el.addEventListener('pointerdown', e => { at(e); t.down = true; });
-  window.addEventListener('pointerup', () => { t.down = false; });
-  window.addEventListener('pointercancel', () => { t.down = false; });
-}
 
 export function initInput(h) {
-  initTitlePointer();
   Object.assign(hooks, h);
   const cv = view.cv, tp = input.tp, mouse = input.mouse;
   const hintEl = document.getElementById('hint');

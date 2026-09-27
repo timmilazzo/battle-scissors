@@ -19,7 +19,7 @@ export default {
     [['bolster', 5, 2], ['runner', 6, 6], ['runner', 6, 16]],
     [['runner', 8, 2], ['bolster', 4, 6], ['runner', 8, 14], ['bolster', 3, 22]],
   ],
-  unlockOnClear: { scissors: 'cigar' },   // added to the save on the first win; the map shows the reveal
+  unlockOnClear: null,       // e.g. { scissors: 'cigar' } or { pin: 'magnet' }: added to the save's unlocks on a first win
   signText: '',              // a line for this level's sign (not shown yet)
   starRules: { noDamage: true, noSpecial: true },   // each rule met on a win adds a star to the one for clearing
 };

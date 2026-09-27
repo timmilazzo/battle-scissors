@@ -6,13 +6,14 @@
 //   achievements  src/achievements.js, once each
 //   world chests  three-star every level of a world: chestButtons + that world's cosmetic, once
 // Only the numbered map levels earn (not level 0, Random Quilt or a ?recipe= road), so the total supply is a fixed
-// number: tools/buttonsupply.js prints it. Buttons buy scissors upgrades, Sharpening and cosmetics (shop.js); scissors,
-// Pins and stars are never for sale. Nothing here waits on a clock or rolls a die. No DOM.
+// number: tools/buttonsupply.js prints it. Buttons buy the Shop's scissors (CONFIG.weapons[id].shop), scissors
+// upgrades, Sharpening and cosmetics (shop.js); Pins and stars are never for sale. Nothing here waits on a clock or rolls a die. No DOM.
 import { CONFIG as C } from './config.js';
 import { Save, persist, levelRecord } from './save.js';
 import { levelInfo } from './levels/index.js';
 import { ACHIEVEMENTS } from './achievements.js';
 import { upgradeTier } from './scissors.js';
+import { weaponLocked, shopOpen } from './weaponSelect.js';
 
 // The levels that pay Buttons: every map level but level 0, in map order.
 export const earningLevels = () => C.map.nodes.map(n => n[0]).filter(id => id !== C.tutLevel);
@@ -82,6 +83,15 @@ export function buyUpgrade(id) {
   if (!cost) return 'max';
   if (Save.buttons < cost) return 'buttons';
   Save.buttons -= cost; Save.upgrades[id] = upgradeTier(id) + 1; persist();
+  return '';
+}
+// A Shop weapon: joins Save.unlocks.scissors, and the map shows its reveal like a won one.
+export function buyWeapon(id) {
+  const price = C.weapons[id].shop;
+  if (!weaponLocked(id)) return 'owned';
+  if (!shopOpen(id)) return 'not yet';
+  if (Save.buttons < price) return 'buttons';
+  Save.buttons -= price; Save.unlocks.scissors.push(id); Save.reveals.push({ scissors: id }); persist();
   return '';
 }
 export function buySharpen() {

@@ -39,12 +39,12 @@ export const state = {
   heli: { charge: 0, active: false, phase: '', spread: 0, rot: 0, theta0: 0, tick: 0, bannerT: 0, armed: false, go: false },
   // level 0 (see the tutorial section): step 1..5, rep = ghost repeats this step (it grows more obvious), cyc = seconds
   // into the ghost's demo, vis = ghost fade, away = seconds until it comes back after the player lets go, holdT = the
-  // player's current hold, meter = step 2's hold ring (0..1), ok = step 2 passed (the next lift moves on), phase = step 4's
-  // part (0 the row, 1 the pair), wide/short = step 4's cuts done, cuts = step 5 kills, winT = celebration left.
+  // player's current hold, meter = step 2's hold ring (0..1), ok = step 2 passed (the next lift moves on), cuts = step 5
+  // Scraps done (cut or through), winT = celebration left.
   // ghost = the hand for render.js: x, y fingertip, a alpha, down press 0..1, sc scissors risen 0..1, open 0..1, meter hold
   // ring 0..1, scale / alpha emphasis, cutT / cx / cy / cutOpen = the fading cut zone of its last snip.
   tut: { step: 0, t: 0, rep: 0, cyc: 0, prevCyc: 0, cycLen: 4, vis: 0, away: 0, holdT: 0, meter: 0, ok: false, wasGrip: false,
-    phase: 0, wide: false, short: false, cuts: 0, next: 0, spawnLeft: 0, spawnT: 0, respawnT: 0, advanceT: 0, walkIn: false, winT: 0, burstT: 0,
+    cuts: 0, next: 0, spawnLeft: 0, spawnT: 0, advanceT: 0, walkIn: false, winT: 0, burstT: 0,
     taps: [], ghost: { x: 0, y: 0, a: 0, down: 0, sc: 0, open: 0, meter: 0, scale: 1, alpha: 0.6, cutT: 0, cx: 0, cy: 0, cutOpen: 0 } },
   // run = report counters: bestSnipKills = most kills by one snip, beetleExecutes = Button Beetles executed in the Cigar
   // Cutter's ring, prunerBite = a Ratchet Pruners armor-down bite ended a boss's armored phase (achievements.js)
@@ -363,14 +363,13 @@ export const reportNow = () => buildReport(true);
 // further along, so a player who only taps sees ever longer, bigger holds).
 //   1 touch anywhere. 2 hold until the blades open (tutHoldSec; a ring round the finger fills), then lift.
 //   3 three frozen Scraps: press below them, hold, lift. If the player's blades are out but none of them is inside,
-//     they walk into the blades. 4 a row of six (one wide cut: tutWideMin+ at once, opened tutWideSpread+), then two Scraps far apart (one
-//     short cut, opened less than tutShortSpread). 5 no ghost: tutFinishCount Scraps walk the road; all cut = cleared.
-// No Pins, thread or SHRED, and the heart can't be hurt: a Scrap that reaches it goes back to the top. Each step has a
-// small skip arrow (#tut-skip) for adults.
+//     they walk into the blades. 4 a row of six: the ghost shows one wide cut; the step passes once the row is gone,
+//     however it was cut. 5 no ghost: tutFinishCount Scraps walk the road; once each is cut or through, it's cleared.
+// Every step ends on the player's first success: nothing makes them repeat it. No Pins, thread or SHRED, and the heart
+// can't be hurt. Each step has a small skip arrow (#tut-skip) for adults.
 export const isTutorial = () => view.levelId === C.tutLevel;
 const ghost = tut.ghost;
 const ENTER = 0.45, PRESS = 0.15, REL = 0.12, MOVE = 0.4, EXIT = 0.4;   // ghost demo timing (s): arrive, press, release, glide, leave
-const SHORT_HOLD = 0.3;                                                 // the ghost's short taps (step 4)
 const easeOut = k => 1 - (1 - k) * (1 - k), easeInOut = k => k < 0.5 ? 2 * k * k : 1 - 2 * (1 - k) * (1 - k);
 
 // Where things go: the road's x at a screen y (level 0's road is straight, but ask the path anyway), the ghost's first
@@ -419,17 +418,11 @@ function setupRow() {                                                    // six 
   for (let i = 0; i < 6; i++) tutScrap(fx + (i - 2.5) * gap, y, i);
   sfx('pinPop', 0);
 }
-function setupPair() {                                                   // one behind the other, too far apart for one cut
-  const fx = fingerX(), fy = fingerY(), L = bladeReachPx(), y1 = fy - C.pivotOffsetPx - 0.55 * L;
-  const y2 = Math.max(C.pivotOffsetPx * 0.6, y1 - 2.4 * L);
-  tutScrap(fx, y1, 0); tutScrap(fx, y2, 1);
-  sfx('pinPop', 0);
-}
 
 function tutEnter(step) {
   clearPractice();
   tut.step = step; tut.t = 0; tut.rep = 0; tut.cyc = tut.prevCyc = 0; tut.away = 0; tut.ok = false; tut.meter = 0;
-  tut.phase = 0; tut.wide = tut.short = false; tut.walkIn = false; tut.respawnT = tut.advanceT = 0;
+  tut.walkIn = false; tut.advanceT = 0;
   if (step === 3) setupThree();
   else if (step === 4) setupRow();
   else if (step === 5) { tut.cuts = 0; tut.spawnLeft = C.tutFinishCount; tut.spawnT = 0.6; }
@@ -446,11 +439,9 @@ function planGhost() {
   const fx = fingerX(), fy = fingerY();
   if (tut.step === 1) taps.push({ x: fx, y: fy, hold: 0.35 + 0.1 * Math.min(tut.rep, 4), open: false });
   else if (tut.step === 2) taps.push({ x: fx, y: fy, hold, open: true });
-  else if (tut.step === 3 || (tut.step === 4 && tut.phase === 0)) {
+  else if (tut.step === 3 || tut.step === 4) {
     const list = practice();
     if (list.length) { const [x, y] = fingerFor(list, tut.step === 3 ? 0.62 : 0.8); taps.push({ x, y, hold: Math.max(hold, 1.1), open: true }); }
-  } else if (tut.step === 4) {
-    for (const e of practice().sort((a, b) => b.y - a.y)) { const [x, y] = fingerFor([e], 0.55); taps.push({ x, y, hold: SHORT_HOLD, open: true }); }
   }
   let t = ENTER;
   taps.forEach((p, i) => { t += PRESS + p.hold; p.rel = t; t += REL + (i < taps.length - 1 ? MOVE : EXIT); });
@@ -507,12 +498,6 @@ function inBlades(e, a) {
   return Math.abs(off) <= a + Math.atan2(reach, Math.max(d, 1));
 }
 
-// A snip in level 0 (from doSnip): spread = how far it opened, kills = Scraps it cut.
-function tutOnSnip(spread, kills) {
-  if (tut.step !== 4 || !kills) return;
-  if (kills >= C.tutWideMin && spread >= C.tutWideSpread) tut.wide = true;
-  if (spread < C.tutShortSpread) tut.short = true;
-}
 function tutUpdate(dt) {
   tut.t += dt;
   if (tut.winT > 0) { tutCelebrate(dt); return; }
@@ -574,11 +559,7 @@ function tutUpdate(dt) {
       break;
     }
     case 4:
-      if (practice().length) break;
-      if (tut.respawnT > 0) { if ((tut.respawnT -= dt) <= 0) { if (tut.phase === 0) setupRow(); else setupPair(); planGhost(); } break; }
-      if (tut.phase === 0 && tut.wide) { tut.phase = 1; setupPair(); tut.rep = 0; tut.cyc = tut.prevCyc = 0; planGhost(); }
-      else if (tut.phase === 1 && tut.short && tut.wide) tutPass(5);
-      else tut.respawnT = C.tutRespawnMs / 1000;                      // used up without the cut it wanted: set it up again
+      if (!practice().length) tutPass(5);                              // the row is gone, however it was cut
       break;
     case 5:
       if (tut.spawnLeft > 0 && (tut.spawnT -= dt) <= 0) {
@@ -662,7 +643,6 @@ function doSnip(px, py, theta, spread, strong) {
   }
   if (snipKills > state.run.bestSnipKills) state.run.bestSnipKills = snipKills;
   if (!shredSnap && !isTutorial()) snipCritters(pad, critterSquished);   // SHRED's final snap isn't a manual snip
-  if (state.mode === 'TUTORIAL') tutOnSnip(spread, snipKills);
 }
 
 // A critter squished by a manual snip: its fixed Thread (never Buttons), a wet crunch, the +n flying to the counter.
@@ -941,7 +921,7 @@ const shredReady = () => live() && state.mode !== 'TUTORIAL' && !heli.active && 
 export function trySpecial() {
   if (!shredReady() || !input.gripping || input.scAlpha < 0.5) return;
   heli.armed = heli.go = false;
-  heli.charge = 0; heli.active = true; heli.phase = 'open'; heli.spread = input.pose.spread; heli.rot = 0;
+  heli.charge = 0; heli.active = true; heli.phase = 'open'; input.scAlpha = 1; heli.spread = input.pose.spread; heli.rot = 0;
   heli.theta0 = input.pose.theta; heli.tick = 0; heli.bannerT = 1; state.run.specials++;
   tween(heli, HELI_OPEN, C.heliOpenMs, easing.outBack, heliSpin, 'heli');
 }
@@ -1134,10 +1114,10 @@ function keepOnRoad(e) {
   if (vn > 0) { e.pvx -= nx * vn; e.pvy -= ny * vn; }
 }
 
-// Level 0: nothing hurts the heart; the Scrap just pops and goes back to the top of the road.
+// Level 0: nothing hurts the heart; the Scrap just pops and counts as done (no do-overs).
 function reachWorkshop(e) {
   e.on = false; tweens.cancel(e); e.pulling = false;
-  if (state.mode === 'TUTORIAL') { sparks(e.x, e.y, 8, 2); state.run.leaks++; tut.spawnLeft++; return; }
+  if (state.mode === 'TUTORIAL') { sparks(e.x, e.y, 8, 2); state.run.leaks++; tut.cuts++; return; }
   state.hp = Math.max(0, state.hp - e.type.tier); state.workshopHitT = 1;
   state.thread += C.threadPerLeak; state.run.leaks++; emit('thread', e.x, e.y, C.threadPerLeak);
   sparks(e.x, e.y, 8, 0);
@@ -1237,6 +1217,7 @@ function critterTick(dt, onScreen, seam) {
 export function update(now, dt) {
   if (state.paused) return;                                      // frozen: no input, timers, tweens or clock
   updateInput(now, dt);                                          // input keeps running through hit-stop so no gesture is lost
+  if (heli.active) input.scAlpha = 1;                            // a spinning SHRED never fades, even with the hand lifted
   if (heli.armed) {                                              // armed SHRED: starts once the pressed hand has the scissors
     if (!shredReady()) heli.armed = heli.go = false;
     else if (heli.go) trySpecial();

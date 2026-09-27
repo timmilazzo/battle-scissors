@@ -1,14 +1,14 @@
 // The Shop and Trophies screens (DOM only), both opened from the level map and closed back to it.
-// Shop: scissors upgrades (3 tiers each; a locked weapon shows the level that unlocks it, never a price), Sharpening,
+// Shop: scissors (a Shop weapon's price once it's on sale; a level-reward one shows the level that wins it), their
+// upgrades (3 tiers each), Sharpening,
 // cosmetics (chest-only ones say which chest). Trophies: every achievement, earned or not, with its reward, so the
 // total is knowable; then the world chests with their fixed contents and progress. Prices and rewards: CONFIG.meta.
 import { CONFIG as C } from './config.js';
 import { Save } from './save.js';
 import { upgradeTier } from './scissors.js';
-import { weaponLocked } from './weaponSelect.js';
-import { rewardLevelOf } from './levels/index.js';
+import { weaponLocked, shopOpen, unlockHint } from './weaponSelect.js';
 import { ACHIEVEMENTS } from './achievements.js';
-import { upgradeCost, buyUpgrade, buySharpen, buyCosmetic, equipCosmetic, worldIds, worldLevels, chestState } from './meta.js';
+import { upgradeCost, buyUpgrade, buyWeapon, buySharpen, buyCosmetic, equipCosmetic, worldIds, worldLevels, chestState } from './meta.js';
 import { sfx, unlockAudio } from './audio.js';
 
 const shopEl = document.getElementById('shop'), shopBody = document.getElementById('shop-body'), shopBal = document.getElementById('shop-buttons');
@@ -41,23 +41,25 @@ function priceBtn(n, enabled, onBuy) {
   b.addEventListener('click', onBuy);
   return b;
 }
-const failText = { buttons: 'Not enough Buttons', max: 'Already maxed', owned: 'Already owned' };
+const failText = { buttons: 'Not enough Buttons', max: 'Already maxed', owned: 'Already owned', 'not yet': 'Not on sale yet' };
 function buy(fn) { unlockAudio(); const why = fn(); if (why) toast(failText[why] || why); else { sfx('pinPop', 0); onChange(); } refresh(); }
 
 function renderShop() {
   shopBal.textContent = Save.buttons;
   shopBody.textContent = '';
   const M = C.meta;
-  shopBody.append(el('h3', '', 'Scissors upgrades'), el('p', 'hint', 'Tier 1: ' + pct(M.reachUp) + ' reach. Tier 2: ' + pct(M.speedUp) +
+  shopBody.append(el('h3', '', 'Scissors & upgrades'), el('p', 'hint', 'Tier 1: ' + pct(M.reachUp) + ' reach. Tier 2: ' + pct(M.speedUp) +
     ' close speed. Tier 3: each weapon’s signature stat ' + pct(M.signatureUp) + '.'));
   for (const id in C.weapons) {
     const w = C.weapons[id], img = el('img'); img.src = w.svg; img.alt = '';
     const tier = upgradeTier(id), pips = el('span', 'pips');
     for (let i = 1; i <= 3; i++) pips.append(i <= tier ? '●' : el('i', '', '○'));
     let action, lines;
-    if (weaponLocked(id)) {
-      const n = C.map.nodes.findIndex(nd => nd[0] === rewardLevelOf(id));
-      action = el('span', 'tag', 'Clear Level ' + n); lines = [pips];
+    if (weaponLocked(id) && shopOpen(id)) {
+      action = priceBtn(w.shop, Save.buttons >= w.shop, () => buy(() => buyWeapon(id)));
+      lines = [w.blurb];
+    } else if (weaponLocked(id)) {
+      action = el('span', 'tag', unlockHint(id)); lines = [pips];
     } else if (tier >= 3) {
       action = el('span', 'tag', 'Maxed'); lines = [pips];
     } else {

@@ -32,7 +32,7 @@ export function preloadWeapons() {
       if (doc.getElementsByTagName('parsererror').length) throw new Error('SVG parse error');
       a.layers = splitLayers(doc);
       if (!a.layers.length) throw new Error('no layers');
-      if (id === weapon.id || id === C.titleWeapon) rasterizeArt(id);
+      if (id === weapon.id) rasterizeArt(id);
     }).catch(err => {
       console.warn(C.weapons[id].svg + ' unavailable, using line-drawn fallback:', err.message);
       a.state = 'fallback';

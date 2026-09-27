@@ -26,13 +26,12 @@ export function initLevelMap(opts) {
   document.getElementById('map').style.setProperty('--plate', 'url(' + M.img + ')');
   M.nodes.forEach(([id, x, y], i) => {
     const b = document.createElement('button');
-    b.type = 'button'; b.className = 'map-node' + (id === C.tutLevel ? ' sewn' : '');
+    b.type = 'button'; b.className = 'map-node';
     b.style.setProperty('--x', x - M.hitW / 2); b.style.setProperty('--y', y - M.hitH / 2);
     b.style.setProperty('--w', M.hitW); b.style.setProperty('--h', M.hitH);
     b.innerHTML = '<span class="sr-only"></span><span class="check" aria-hidden="true">✓</span><span class="lock" aria-hidden="true"></span>' +
       '<span class="stars" aria-hidden="true"><i></i><i></i><i></i></span>';   // best stars (kit stars, index.html CSS)
     b.firstChild.textContent = 'Level ' + i + ': ' + (levelInfo(id) ? levelInfo(id).name : id);
-    if (id === C.tutLevel) b.insertAdjacentHTML('beforeend', '<span class="num" aria-hidden="true">' + i + '</span>');
     b.addEventListener('click', () => {
       if (b.classList.contains('locked')) { toast('Clear level ' + (i - 1) + ' first'); return; }
       opts.onPick(id);

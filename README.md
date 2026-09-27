@@ -46,7 +46,7 @@ Segments run top to bottom: `straight`, `bend left|right|center`, `s left|right`
 Thread buys Pins inside a level and is gone when it ends. **Buttons** are what you keep. They are never converted into each other.
 
 - **Earned** only from performance and achievements, with no randomness: 10 / 15 / 25 for the first time you earn each star of a level; a score bonus of floor(score / 100) Buttons, capped at 10 per level (a replay pays only what beats your best bonus there); 16 one-time achievements (two for squishing silverfish) (listed on the map's Trophies screen, locked ones included); and a chest per world (three-star every level in it: 100 Buttons and a cosmetic, contents shown up front).
-- **Spent** in the Shop (on the map): three upgrade tiers per pair of scissors (150 / 300 / 600), Sharpening (40, +50% snip damage for your next level, hold up to 3) and cosmetics (handle colours, blade glows, 100 each). Scissors, Pins and stars are never for sale.
+- **Spent** in the Shop (on the map): four pairs of scissors that are only sold there (200 to 500, each on sale after a set level), three upgrade tiers per pair (150 / 300 / 600), Sharpening (40, +50% snip damage for your next level, hold up to 3) and cosmetics (handle colours, blade glows, 100 each). Pins and stars are never for sale.
 - **Total supply: 2,135 Buttons** (stars 650, achievements 1,055, score bonus 130, world chests 300). `node tools/buttonsupply.js` recomputes it from the game data.
 
 Nothing waits on a clock: no timers, energy, daily rewards or streaks.

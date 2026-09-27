@@ -19,7 +19,7 @@ export default {
     [['bolster', 3, 2], ['runner', 5, 10], ['scrap', 7, 18]],
     [['seamRipper', 1, 0]],
   ],
-  unlockOnClear: { scissors: 'nippers' },   // added to the save on the first win; the map shows the reveal
+  unlockOnClear: { scissors: 'dagger' },   // added to the save on the first win; the map shows the reveal
   signText: '',              // a line for this level's sign (not shown yet)
   starRules: { noDamage: true, noSpecial: true },   // each rule met on a win adds a star to the one for clearing
 };

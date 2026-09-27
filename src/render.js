@@ -7,7 +7,7 @@
 import { CONFIG as C } from './config.js';
 import { view, level, TAU, DEG } from './core.js';
 import { input, holdTouch } from './input.js';
-import { cut, scaleFor, weapon } from './scissors.js';
+import { cut, weapon } from './scissors.js';
 import { live, visOpen, bladeTheta, towerReach, levelWaves, bossMode } from './game.js';
 import { buildEnemySprites, drawEnemySprite, drawEnemyGround, drawBruteArmor, drawSeam, drawArmorSeams } from './enemyArt.js';
 import { buildTowerSprites, drawTower, drawNeedle, towerUnit } from './towerArt.js';
@@ -53,7 +53,6 @@ export function prerender() {
   buildTowerSprites(view.dpr);
   setHandleTint(cosmeticColor('handle'));                         // handle cosmetic (Shop): baked into the weapon art
   rasterizeArt();
-  if (C.titleWeapon) rasterizeArt(C.titleWeapon);
   buildHand(view.dpr);
 }
 
@@ -498,31 +497,6 @@ function drawShredBanner(state) {
   ctx.restore();
 }
 
-// ======================= title screen scissors =======================
-// Real scissors (CONFIG.titleWeapon, at their in-game size) follow the pointer over the title: the pointer is the
-// finger midpoint, so the pivot sits pivotOffsetPx above it like in play. They tilt with sideways motion, rest
-// titleOpenFrac open, and snap shut while pressed. Drawn on #title-fx (above the art, click-through).
-const titleCv = document.getElementById('title-fx'), tctx = titleCv ? titleCv.getContext('2d') : null;
-const tsc = { x: -1, y: 0, theta: 0, open: 0, lastX: 0 };
-function drawTitle(dt) {
-  const def = C.weapons[C.titleWeapon];
-  if (!tctx || !def || titleCv.clientWidth === 0) return;
-  const w = titleCv.clientWidth, h = titleCv.clientHeight, dpr = view.dpr, p = input.title;
-  if (titleCv.width !== Math.round(w * dpr) || titleCv.height !== Math.round(h * dpr)) { titleCv.width = Math.round(w * dpr); titleCv.height = Math.round(h * dpr); }
-  const gx = p.seen ? p.x : w / 2, gy = (p.seen ? p.y : h * 0.62 + C.pivotOffsetPx) - C.pivotOffsetPx;
-  if (tsc.x < 0) { tsc.x = gx; tsc.y = gy; tsc.lastX = gx; }
-  const kp = 1 - Math.exp(-dt * 16);
-  tsc.x += (gx - tsc.x) * kp; tsc.y += (gy - tsc.y) * kp;
-  const vx = dt > 0 ? (tsc.x - tsc.lastX) / dt : 0; tsc.lastX = tsc.x;
-  const tilt = Math.max(-0.35, Math.min(0.35, vx * 0.0005));   // lean into sideways motion
-  tsc.theta += (tilt - tsc.theta) * (1 - Math.exp(-dt * 8));
-  const want = p.down ? 0 : C.titleOpenFrac;
-  tsc.open += (want - tsc.open) * (1 - Math.exp(-dt * (want < tsc.open ? 45 : 9)));   // snap shut, ease open
-  tctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  tctx.clearRect(0, 0, w, h);
-  drawWeapon(tctx, tsc, tsc.open, 1, 0, 0, scaleFor(def), C.titleWeapon);
-}
-
 // ======================= level 0: the ghost hand =======================
 // A translucent one-finger hand, drawn from its fingertip (g.x, g.y) with the hand coming up from below-right. It
 // presses (g.down: it drops onto the point and a ripple spreads), a gold ring fills round the fingertip while it holds
@@ -659,7 +633,7 @@ export function draw(state) {
   const dpr = view.dpr, fx = state.fx;
   const dt = lastClock < 0 ? 0 : Math.max(0, Math.min(0.1, state.clock - lastClock)); lastClock = state.clock;
   vfx.update(dt);
-  if (state.mode === 'TITLE') { prevA = -1; drawTitle(dt); return; }         // the title is DOM + its own canvas
+  if (state.mode === 'TITLE') { prevA = -1; return; }                       // the title is all DOM
   takeEvents(state);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';

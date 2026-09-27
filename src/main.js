@@ -14,7 +14,7 @@ import { savedLevel, rememberLevel, levelLabel } from './levelSelect.js';
 import { levelIds, levelInfo } from './levels/index.js';
 import { Save, persist, wipeSave, unlockAll } from './save.js';
 import { initLevelMap, refreshLevelMap } from './levelMap.js';
-import { isMuted, setMuted, unlockAudio, sfx } from './audio.js';
+import { isMuted, setMuted, unlockAudio } from './audio.js';
 import { loadRuns, copyText, downloadJson } from './runlog.js';
 import { initActionBar, refreshActionBar, measureActionBar, buildSpotButtons } from './actionBar.js';
 import { refreshHud } from './hud.js';
@@ -93,8 +93,8 @@ selectLevel.textContent = levelLabel(view.levelId);
 // Win card: NEXT LEVEL plays the next level on the map with the same weapon; "Level map" opens the map.
 on('next', () => { const id = nextLevelId(); if (!id) return; rememberLevel(id); switchLevel(id); selectLevel.textContent = levelLabel(id); play(); });
 on('over-select', () => { unlockAudio(); toast.hidden = true; openMap(); });
-// Pressing anywhere on the title snaps its scissors shut (render.js) with a snip; it's also a gesture that unlocks audio.
-document.getElementById('title').addEventListener('pointerdown', () => { unlockAudio(); sfx('snip'); });
+// Pressing anywhere on the title is a gesture that unlocks audio.
+document.getElementById('title').addEventListener('pointerdown', () => unlockAudio());
 for (const b of document.querySelectorAll('[data-soon]')) b.addEventListener('click', () => showToast(b.dataset.soon + ': coming soon'));
 
 // Mute: the top-bar button (game-over only), the pause and settings cards' Sound buttons and the title's Sound icon; persisted by audio.js.
