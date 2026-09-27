@@ -88,9 +88,9 @@ function roadClear(x, y, paths, need2) {
 }
 const lane = { sx: 0, sy: 0, ex: 0, ey: 0, hits: 0 };            // hits = samples of the chosen line on the road (0 = clear)
 function pickLane(rnd, paths) {
-  const F = C.critters.silverfish, W = view.W, H = view.H, m = F.len * 0.8;
+  const F = C.critters.silverfish, W = view.W, H = view.H, m = F.len * 0.8 * view.Z;
   const yTop = H * F.laneYMin, yLow = H * F.laneYMax;                   // side-to-side lanes: below the HUD, above the action bar
-  const need = level().roadHalfWidth * view.L + F.laneClearPx + F.wobblePx, need2 = need * need;
+  const need = level().roadHalfWidth * view.L + (F.laneClearPx + F.wobblePx) * view.Z, need2 = need * need;
   let best = Infinity;
   for (let i = 0; i < F.laneTries; i++) {
     const edge = Math.floor(rnd() * 4), t0 = rnd(), t1 = clamp(t0 + (rnd() - 0.5) * 0.3, 0, 1);
@@ -119,7 +119,7 @@ function spawnSilverfish(rnd, paths, intro) {
   const F = C.critters.silverfish;
   pickLane(rnd, paths);
   const len = Math.hypot(lane.ex - lane.sx, lane.ey - lane.sy) || 1;
-  c.on = true; c.kind = 'silverfish'; c.intro = intro; c.r = F.r; c.onRoad = lane.hits;
+  c.on = true; c.kind = 'silverfish'; c.intro = intro; c.r = F.r * view.Z; c.onRoad = lane.hits;
   c.bx = c.x = lane.sx; c.by = c.y = lane.sy;
   c.dx = c.vx = (lane.ex - lane.sx) / len; c.dy = c.vy = (lane.ey - lane.sy) / len;
   c.speed = len / F.crossSec * (intro ? F.introSpeedMult : 1);
@@ -160,7 +160,7 @@ export function updateCritters(dt, env) {
   for (const c of critters) {
     if (!c.on) continue;
     c.age += dt;
-    if (!c.skittered && env.shown && env.opening && env.open >= F.skitterOpen && bladeDist(c.x, c.y, env) <= F.skitterPx) {
+    if (!c.skittered && env.shown && env.opening && env.open >= F.skitterOpen && bladeDist(c.x, c.y, env) <= F.skitterPx * view.Z) {
       // 90 degrees off its line, on the side away from the blades' middle
       const mx = env.bx + Math.sin(env.theta) * env.L * 0.5, my = env.by - Math.cos(env.theta) * env.L * 0.5;
       const s = (-c.dy) * (c.x - mx) + c.dx * (c.y - my) >= 0 ? 1 : -1;
@@ -169,7 +169,7 @@ export function updateCritters(dt, env) {
     let v = c.speed;
     if (c.skT > 0) { v *= F.skitterMult; if ((c.skT -= dt) <= 0) { c.skT = 0; c.vx = c.dx; c.vy = c.dy; } }
     c.bx += c.vx * v * dt; c.by += c.vy * v * dt;
-    const w = F.wobblePx * Math.sin(TAU * F.wobbleHz * c.age + c.ph);
+    const w = F.wobblePx * view.Z * Math.sin(TAU * F.wobbleHz * c.age + c.ph);
     const nx = c.bx - c.dy * w, ny = c.by + c.dx * w;
     const mvx = nx - c.x, mvy = ny - c.y;
     if (mvx * mvx + mvy * mvy > 1e-4) {

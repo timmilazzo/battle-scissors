@@ -129,7 +129,7 @@ function drawEnemies(state) {
     if (!e.on) { flashFrames[i] = 0; continue; }
     const t = e.type, step = Math.sin(e.age * 7 + e.phase), rot = t.boss ? 0 : step * wad;
     drawEnemyGround(ctx, e.name, e.x, e.y, e.pinned && !e.walking ? 0 : 0.55 + 0.35 * Math.abs(step));
-    const shake = e.windup ? C.bossTremblePx * Math.sin(state.clock * 70) : 0;   // winding up for a charge: it trembles
+    const shake = e.windup ? C.bossTremblePx * view.Z * Math.sin(state.clock * 70) : 0;   // winding up for a charge: it trembles
     if (shake) ctx.translate(shake, 0);
     drawEnemySprite(ctx, e.name, e.x, e.y, rot);
     if (e.armored) drawBruteArmor(ctx, e, rot);
@@ -180,7 +180,7 @@ const flameCv = document.createElement('canvas');
 })();
 const FLAME_X = [-0.45, 0.05, 0.5], FLAME_H = [0.85, 1.25, 0.95];
 function drawFlames(e, clock) {
-  const r = Math.max(e.r, 20);                                  // small enemies still get readable flames
+  const r = Math.max(e.r, 20 * view.Z);                                  // small enemies still get readable flames
   ctx.globalCompositeOperation = 'lighter';
   ctx.globalAlpha = 0.28 + 0.1 * Math.sin(clock * 17 + e.phase);
   ctx.fillStyle = '#ff6a1f'; ctx.beginPath(); ctx.arc(e.x, e.y, r * 1.05, 0, TAU); ctx.fill();
@@ -205,7 +205,7 @@ function drawCritters(state) {
 const SF_SEGS = 9;
 const sfWave = (t, i) => Math.sin(t * 20 - i * 0.8) * 1.4;           // the body's crawling wriggle, head (0) to tail
 function drawSilverfish(x, y, ang, t, fast) {
-  const L = C.critters.silverfish.len, seg = L / SF_SEGS, maxW = L * 0.13, legRate = fast ? 75 : 45;
+  const L = C.critters.silverfish.len * view.Z, seg = L / SF_SEGS, maxW = L * 0.13, legRate = fast ? 75 : 45;
   ctx.save(); ctx.translate(x, y); ctx.rotate(ang);                  // local +x = forward
   ctx.globalAlpha = 0.28; ctx.fillStyle = '#000';
   ctx.beginPath(); ctx.ellipse(-L * 0.05, 3, L * 0.5, maxW * 1.3, 0, 0, TAU); ctx.fill();

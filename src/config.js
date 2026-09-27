@@ -8,7 +8,7 @@
 export const FEEDBACK_URL = 'mailto:tim@saltandwisdom.com';
 
 // Shown small at the bottom of Settings and recorded in every run report. Bump it with each published change.
-export const VERSION = '0.2.8';
+export const VERSION = '0.2.9';
 
 export const CONFIG = {
   // --- pose / control mapping ---
@@ -227,6 +227,18 @@ export const CONFIG = {
     maxRoutes: 4,            // at most this many routes (each fork doubles them)
     props: 34,               // kit props tried per plate (src/kit.js: each zone's mix); fewer land if there's no room
     patches: 7,              // fabric patches sewn under the road
+  },
+  // --- bigger maps past the first 13: a generated level's plate grows in steps, so the camera "pulls back" ---
+  // Map scale s (1 = the standard plate): the plate is s x wider and taller and the road's layout (bands, swings,
+  // heart, pad band) spreads out with it, while the road's width, pads and heart keep their plate size. The plate is
+  // still drawn full height, so on screen the road, pads, Pins, enemies, critters and the weapon all shrink to 1 / s
+  // (view.Z) and more road fits; the HUD, action bar and other DOM UI keep their size. A level file's `mapScale`
+  // overrides this.
+  mapGrowth: {
+    fromLevel: 14,           // the first map level (numbered from 0) with a bigger plate...
+    everyLevels: 3,          // ...then it grows again every this many levels...
+    step: 0.15,              // ...by this much map scale per step (14-16 = 1.15, 17-19 = 1.3, ...)...
+    max: 1.6,                // ...up to this (weapon and enemies at 1 / 1.6 = 62% size)
   },
   pathSmoothSteps: 16,       // Catmull-Rom samples per path segment (road smoothness)
   workshopHp: 10,            // workshop hit points; an enemy that arrives deals its size tier

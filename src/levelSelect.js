@@ -1,13 +1,13 @@
 // Which level is picked and how each has gone: both kept in the save (Save.lastLevel, Save.levels). No DOM: the level
 // map (levelMap.js) shows them. ?level=id in the URL wins (the run report's replay link carries it); otherwise the
-// last pick. ?recipe=... adds a "Custom Road" level built from that recipe (and ?seed=, if given) and picks it: the
+// last pick. ?recipe=... adds a "Custom Road" level built from that recipe (and ?seed= / ?scale= (its map scale), if given) and picks it: the
 // level lab's "Play it" link.
 import { CONFIG as C } from './config.js';
 import { Save, persist, levelRecord } from './save.js';
 import { hasLevel, levelInfo, addCustomLevel } from './levels/index.js';
 
 const q = new URLSearchParams(location.search), urlLevel = q.get('level'), urlRecipe = q.get('recipe');
-if (urlRecipe) addCustomLevel(urlRecipe, /^\d+$/.test(q.get('seed') || '') ? +q.get('seed') : 1);
+if (urlRecipe) addCustomLevel(urlRecipe, /^\d+$/.test(q.get('seed') || '') ? +q.get('seed') : 1, Math.max(1, +q.get('scale') || 1));
 
 export function savedLevel() {
   if (urlRecipe) return 'custom';

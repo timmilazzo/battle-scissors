@@ -4,7 +4,7 @@
 // Each type is drawn once per resize into a small offscreen canvas, plus a ground shadow and a dust-puff sprite
 // drawn under it while it walks. Live overlays on top: the Brute's thimble armor and the Seam Ripper's glowing seam.
 import { CONFIG as C } from './config.js';
-import { TAU, DEG } from './core.js';
+import { view, TAU, DEG } from './core.js';
 
 const THREAD = '#3a2414', LIGHT_THREAD = '#fff3d6', OUTLINE = '#2b1a10';
 const sprites = {}, grounds = {}, dusts = {};
@@ -365,7 +365,7 @@ export function buildEnemySprites(dpr) {
   for (const name in C.enemyTypes) {
     const t = C.enemyTypes[name], art = ART[name];
     if (!art) { console.warn('no art for enemy type', name); continue; }
-    const r = t.r;
+    const r = t.r * view.Z;                                    // enemies shrink on a bigger map (e.r matches)
     art.draw(canvasFor(sprites, name, Math.ceil(r * art.extent) + 4, dpr), r, t);
     // contact shadow under the feet
     let g = canvasFor(grounds, name, Math.ceil(r * 1.3) + 2, dpr);

@@ -77,7 +77,7 @@ export function paintLevel(def) {
   const G = C.levelGen, W = def.w, H = def.h, c = canvas(W, H), g = c.getContext('2d'), rng = makeRng((def.seed | 0) ^ 0x6A09E6);
   const Z = ZONES[zoneOf(def)], pat = t => g.createPattern(images['tex:' + t], 'repeat');
   const polys = def.paths.map(p => curve(p, 12));
-  const roadOuter = G.roadHalf + G.roadBorder;
+  const roadOuter = G.roadHalf + G.roadBorder, area = (def.mapScale || 1) ** 2;   // a bigger map (CONFIG.mapGrowth) gets more patches and props
 
   // 1. ground; denim is a quilt: squares in slightly different tones, dark seams with a pale running stitch
   g.fillStyle = pat(Z.ground); g.fillRect(0, 0, W, H);
@@ -93,7 +93,7 @@ export function paintLevel(def) {
   }
 
   // 2. fabric patches sewn on the ground (under the road)
-  for (let i = 0; i < G.patches; i++) {
+  for (let i = 0; i < Math.round(G.patches * area); i++) {
     const fabric = Z.patches[Math.floor(rng() * Z.patches.length)];
     patch(g, rng() * W, rng() * H, 130 + rng() * 150, 110 + rng() * 130, (rng() - 0.5) * 0.4, pat(fabric));
   }
@@ -134,7 +134,7 @@ export function paintLevel(def) {
   // the pads, the heart, the fork buttons and each other (props may hang off the plate's edges)
   const taken = def.spots.map(([x, y]) => [x, y, def.spotR + 6]).concat([[def.heart[0], def.heart[1], def.workshopR + 6]], def.deco.map(d => [d.x, d.y, d.r + 10]));
   const picks = [];
-  for (let i = 0; i < G.props; i++) {
+  for (let i = 0; i < Math.round(G.props * area); i++) {
     let r = rng(), set = Z.sets[0][0];
     for (const [s, share] of Z.sets) { if ((r -= share) <= 0) { set = s; break; } }
     const total = set.reduce((a, p) => a + p[1], 0);

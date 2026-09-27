@@ -17,11 +17,14 @@ export function segDistSq(px, py, ax, ay, bx, by) {
 
 // W/H in CSS px, dpr = capped devicePixelRatio, S = current weapon's SVG units -> CSS px. Written by game.resize().
 // L = level units (the painted plate's pixels) -> CSS px, LX = screen x of the plate's left edge (its top is y = 0).
+// Z = world zoom: 1 on a standard plate, 1 / mapScale on a bigger one (CONFIG.mapGrowth). Everything in the world that
+// is sized in screen px (enemy radii, the weapon, critters, shove speeds, boss distances) is multiplied by it, so a
+// bigger map reads as the camera pulling back. Finger geometry (pivotOffsetPx, closed/openDistPx) and UI don't use it.
 const cv = document.getElementById('c');
 // pickupX/Y: where "+8 thread" pickups fly to (the action bar's thread counter; set by actionBar.js)
 // levelId: the CONFIG.levels key being played; levelDef: that level as played (the CONFIG entry itself for a painted
 // level, the generated level for a recipe / random one). Both set by game.setLevel.
-export const view = { cv, ctx: cv.getContext('2d'), W: 0, H: 0, dpr: 1, S: 1, L: 1, LX: 0, pickupX: 40, pickupY: 40,
+export const view = { cv, ctx: cv.getContext('2d'), W: 0, H: 0, dpr: 1, S: 1, L: 1, LX: 0, Z: 1, pickupX: 40, pickupY: 40,
   levelId: C.defaultLevel, levelDef: null };
 // The current level, as src/levels/index.js loadLevel() returned it.
 export const level = () => view.levelDef;

@@ -108,7 +108,7 @@ function tintHandles(g, def, pw, ph) {
 export function rasterizeArt(id = weapon.id) {
   const def = id === weapon.id ? weapon.def : C.weapons[id], a = arts[id];
   if (!def || !a || !a.layers) return;
-  const gen = ++a.gen, S = scaleFor(def);
+  const gen = ++a.gen, S = id === weapon.id ? view.S : scaleFor(def);   // the current one at its in-game size (view.Z)
   const pw = Math.max(1, Math.round(def.viewW * S * view.dpr)), ph = Math.max(1, Math.round(def.viewH * S * view.dpr));
   const out = [];
   let pending = a.layers.length;

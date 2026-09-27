@@ -109,14 +109,14 @@ function showScreens() {
 
 // ======================= layout (weapon scale + level) =======================
 // Called on resize (after view.W/H are set) and on weapon change.
-export function layout() { applyWeaponScale(); placeLevel(); buildPath(); placeSpots(); }
-function applyWeaponScale() { view.S = scaleFor(weapon.def); }
+export function layout() { placeLevel(); applyWeaponScale(); buildPath(); placeSpots(); }
+function applyWeaponScale() { view.S = scaleFor(weapon.def) * view.Z; }   // smaller on a bigger map
 
 // Switch weapons: size it for this screen (the caller then re-rasterizes its art).
 export function selectWeapon(id) { setWeapon(id); applyWeaponScale(); }
 
-// The plate is drawn full height, centred: level units -> screen px.
-function placeLevel() { const lv = level(); view.L = view.H / lv.h; view.LX = (view.W - lv.w * view.L) / 2; }
+// The plate is drawn full height, centred: level units -> screen px. A bigger map (mapScale > 1) zooms the world out.
+function placeLevel() { const lv = level(); view.L = view.H / lv.h; view.LX = (view.W - lv.w * view.L) / 2; view.Z = 1 / (lv.mapScale || 1); }
 export const levelX = x => view.LX + x * view.L, levelY = y => y * view.L;
 
 // Switch levels (select screen): one tower slot per spot of the new level. The caller then re-runs the resize chain
@@ -320,14 +320,14 @@ function buildReport(inProgress = false) {
   const s = state.stats, r = state.run, cfg = {};
   for (const k of KNOB_KEYS) cfg[k] = C[k];
   return {
-    version: VERSION, seed: state.seed, level: view.levelId, ...(level().gen ? { recipe: level().recipe } : {}), weapon: weapon.id, won: state.won, wavesReached: state.wave, score: state.score,
+    version: VERSION, seed: state.seed, level: view.levelId, ...(level().gen ? { recipe: level().recipe, mapScale: level().mapScale } : {}), weapon: weapon.id, won: state.won, wavesReached: state.wave, score: state.score,
     snips: s.snips, kills: s.kills, accuracy: s.snips ? +(s.kills / s.snips).toFixed(3) : 0, multiSnips: r.multiSnips,
     towers: { ...r.towers }, specialUses: r.specials, deathsAtWorkshop: r.leaks, stars: r.stars,
     boss: levelWaves().some(w => w.some(([n]) => C.enemyTypes[n] && C.enemyTypes[n].boss)), bestSnipKills: r.bestSnipKills,
     beetleExecutes: r.beetleExecutes, prunerBite: r.prunerBite, critterKills: r.critterKills, critterSpawns: critterPlan.spawned, upgradeTier: weapon.def.tier | 0, sharpened: state.sharpened,
     durationSec: Math.round((Date.now() - r.t0) / 1000), device: navigator.userAgent, config: cfg,
     replay: location.origin + location.pathname + '?seed=' + state.seed + '&level=' + view.levelId +
-      (view.levelId === 'custom' ? '&recipe=' + encodeURIComponent(level().recipe) : ''), endedAt: new Date().toISOString(),
+      (view.levelId === 'custom' ? '&recipe=' + encodeURIComponent(level().recipe) + (level().mapScale > 1 ? '&scale=' + level().mapScale : '') : ''), endedAt: new Date().toISOString(),
     ...(inProgress ? { inProgress: true } : {}),
   };
 }
@@ -631,7 +631,7 @@ function doSnip(px, py, theta, spread, strong) {
   if (input.usingTouch && Save.settings.haptics && navigator.vibrate) { try { navigator.vibrate(strong ? C.hapticMs : C.weakHapticMs); } catch (e) { /* ignore */ } }
   burst(input.pose.x, input.pose.y, strong);
   if (!isTutorial()) spawnLabel(input.pose.x, input.pose.y, strong ? LABEL_SNIP : LABEL_NICK);   // level 0 has no words
-  const ax = Math.sin(theta), ay = -Math.cos(theta), pad = C.hitPadPx;
+  const ax = Math.sin(theta), ay = -Math.cos(theta), pad = C.hitPadPx * view.Z;
   let inZone = 0;
   for (let i = 0; i < enemies.length; i++) { const e = enemies[i]; if (e.on && cutZoneHits(e.x, e.y, e.r, pad)) inZone++; }
   snipMulti = inZone >= C.multiSnipMin; snipInZone = inZone; snipKills = 0;
@@ -705,7 +705,7 @@ function bladeContacts(dt) {
         shift = reach - dist;
       }
       e.ox += nx * shift; e.oy += ny * shift; e.x += nx * shift; e.y += ny * shift;   // keep the ball in front of the closing blade
-      const push = C.contactPushSpeed * e.type.pushScale, vn = e.pvx * nx + e.pvy * ny;
+      const push = C.contactPushSpeed * view.Z * e.type.pushScale, vn = e.pvx * nx + e.pvy * ny;
       if (vn < push) { e.pvx += nx * (push - vn); e.pvy += ny * (push - vn); }
       const vs = e.pvx * dx + e.pvy * dy, slide = push * C.contactSlide;
       if (vs < slide) { e.pvx += dx * (slide - vs); e.pvy += dy * (slide - vs); }
@@ -737,7 +737,7 @@ function strike(e, px, py, ax, ay, L, strong, power) {
   const gd = t.flat ? 1 : g, crit = !!weapon.def.critMult && gd <= weapon.def.critZone;
   const dmg = gradedDamage(gd, strong, power) * (crit ? weapon.def.critMult : 1), numG = crit ? 0 : gd;
   if (weapon.def.holdSec) e.holdT = Math.max(e.holdT, weapon.def.holdSec);
-  let push = C.pushSpeed * g * power * t.pushScale;
+  let push = C.pushSpeed * view.Z * g * power * t.pushScale;
   if (!strong) push *= C.weakPushMult;
   e.hp -= dmg;
   if (e.hp <= 0.001) { killEnemy(e); return; }
@@ -789,7 +789,7 @@ function awardKill(e, bySnip = true) {
 
 // On-seam = the closed-blade line (pivot along the aim, length L) passes within seamHitTolPx of the glowing seam arc.
 function seamHit(e, px, py, ax, ay, L) {
-  const half = C.seamArcDeg * DEG, tol2 = C.seamHitTolPx * C.seamHitTolPx, ex = px + ax * L, ey = py + ay * L;
+  const half = C.seamArcDeg * DEG, tol2 = (C.seamHitTolPx * view.Z) ** 2, ex = px + ax * L, ey = py + ay * L;
   for (let k = -2; k <= 2; k++) {
     const a = e.seamA + k / 2 * half;
     if (segDistSq(e.x + Math.cos(a) * e.r, e.y + Math.sin(a) * e.r, px, py, ex, ey) <= tol2) return true;
@@ -878,7 +878,7 @@ function bossMove(e, dt, step) {
       // the lunge: a burst of speed that swells and fades (sine-shaped) so it covers chargePx in chargeSec. chargeT
       // counts the lunge's own time here.
       const T = def.chargeSec, t = Math.min(T, e.chargeT + dt);
-      e.u = Math.min(1, e.u + def.chargePx / state.paths[e.route].len * (Math.cos(Math.PI * e.chargeT / T) - Math.cos(Math.PI * t / T)) / 2);
+      e.u = Math.min(1, e.u + def.chargePx * view.Z / state.paths[e.route].len * (Math.cos(Math.PI * e.chargeT / T) - Math.cos(Math.PI * t / T)) / 2);
       e.chargeT = t;
       if (t >= T) { e.chargeT = 0; chargeDone(e); }
       return;
@@ -911,7 +911,7 @@ function bossMove(e, dt, step) {
     for (let i = 0; i < def.swarmSize; i++) {
       const s = spawnEnemy('scrap'); if (!s) break;
       s.route = e.route; s.seg = 0; s.escortOf = e; s.escortGen = e.gen;
-      s.escortOff = (i < half ? -(1 + i) : 1 + i - half) * def.swarmGapPx / state.paths[e.route].len;
+      s.escortOff = (i < half ? -(1 + i) : 1 + i - half) * def.swarmGapPx * view.Z / state.paths[e.route].len;
       s.u = clamp(e.u + s.escortOff, 0, 0.999); pathPoint(s); s.x = s.px; s.y = s.py;
     }
     sfx('pinPop', 0); sparks(e.x, e.y, 10, 2);
@@ -1097,7 +1097,7 @@ function spawnEnemy(name) {
   for (let i = 0; i < enemies.length; i++) if (!enemies[i].on) { e = enemies[i]; break; }
   if (!e) return null;
   const t = C.enemyTypes[name];
-  e.on = true; e.type = t; e.name = name; e.r = t.r; e.hp = e.maxHp = t.boss ? t.hp : t.hp * (1 + C.hpPerWave * Math.max(0, state.wave - 1));
+  e.on = true; e.type = t; e.name = name; e.r = t.r * view.Z; e.hp = e.maxHp = t.boss ? t.hp : t.hp * (1 + C.hpPerWave * Math.max(0, state.wave - 1));
   e.armored = !!t.armor; e.slowed = false; e.slowT = 0; e.burning = false; e.burnLeft = 0; e.burnT = 0; e.leg = 0; e.seamA = rng.spawn() * TAU; e.age = 0;
   e.speed = 1 / t.traverseSec; e.u = 0; e.seg = 0; e.ox = 0; e.oy = 0; e.pvx = 0; e.pvy = 0; e.hitT = 0;
   e.pulling = false; e.pinned = false; e.walking = false; e.escortOf = null; e.holdT = 0; e.gen++;
@@ -1144,7 +1144,7 @@ function shatter(e) {
   let made = 0;
   for (let i = 0; i < frags.length && made < C.fragmentsPerKill; i++) {
     const f = frags[i]; if (f.on) continue;
-    const ang = (made / C.fragmentsPerKill) * TAU + rng.fx() * 0.6, sp = C.fragmentSpeed * (0.6 + rng.fx() * 0.6);
+    const ang = (made / C.fragmentsPerKill) * TAU + rng.fx() * 0.6, sp = C.fragmentSpeed * view.Z * (0.6 + rng.fx() * 0.6);
     f.on = true; f.x = e.x + Math.cos(ang) * e.r * 0.3; f.y = e.y + Math.sin(ang) * e.r * 0.3;
     f.vx = Math.cos(ang) * sp; f.vy = Math.sin(ang) * sp - 40;
     f.rot = ang; f.vr = (rng.fx() - 0.5) * 14; f.sz = e.r * 0.55; f.life = 1; f.color = made & 1 ? e.type.patch : e.type.color;
@@ -1160,7 +1160,7 @@ for (let i = 0; i < 240; i++) parts.push({ on: false, x: 0, y: 0, vx: 0, vy: 0, 
 function sparks(x, y, n, colorIdx) {
   for (let i = 0; i < parts.length && n > 0; i++) {
     const p = parts[i]; if (p.on) continue;
-    const ang = Math.random() * TAU, sp = 120 + Math.random() * 320;
+    const ang = Math.random() * TAU, sp = (120 + Math.random() * 320) * view.Z;
     p.on = true; p.x = x; p.y = y; p.vx = Math.cos(ang) * sp; p.vy = Math.sin(ang) * sp;
     p.life = 1; p.decay = 2.2 + Math.random() * 1.8; p.c = colorIdx === 2 ? (i & 1) : colorIdx;
     n--;

@@ -22,6 +22,19 @@ const sideOf = (args, rng) => { for (const a of args) if (a in SIDES) return SID
 const numOf = (args, def) => { for (const a of args) if (a !== '' && !isNaN(+a)) return +a; return def; };
 const outer = () => C.levelGen.roadHalf + C.levelGen.roadBorder;   // painted road half-width incl. its brown edge
 
+// The generator's geometry for map scale k (CONFIG.mapGrowth): the plate and the road's layout (bands, swings, fork
+// arms, the heart, the pad band) spread out by k, while the road's width, pads, heart pad and segment heights keep
+// their size, so a bigger map holds more road. Numbers written in a recipe ("s 150") stay plain plate units.
+const SPREAD = ['w', 'h', 'startX', 'startY', 'endY', 'heartX', 'heartY', 'xMin', 'xMax', 'spotXMin', 'spotXMax', 'spotYMin', 'spotYMax',
+  'sAmp', 'waveAmp', 'wiggleAmp', 'forkHalfW'];
+export function geometry(k = 1) {
+  const g = { ...C.levelGen, k };
+  for (const key of SPREAD) g[key] = C.levelGen[key] * k;
+  g.spotsMax = Math.round(C.levelGen.spotsMax * k);               // more road, room for more pads
+  return g;
+}
+let G = geometry();                                               // set by buildLevel / randomRecipe for their scale
+
 // Catmull-Rom through the control points P (the same curve game.js walks), as [[x, y], ...].
 export function curve(P, steps = 12) {
   const out = [], n = P.length;
@@ -45,7 +58,7 @@ const SEG = {
   bend: {
     min: () => 200, weight: () => 1,
     build(s) {
-      const G = C.levelGen, mid = (G.xMin + G.xMax) / 2;
+      const mid = (G.xMin + G.xMax) / 2;
       const t = s.args.includes('center') ? mid : s.args.includes('left') ? G.xMin + 30 : s.args.includes('right') ? G.xMax - 30
         : s.x0 < mid ? G.xMax - 30 : G.xMin + 30;
       return { pts: [[(s.x0 + t) / 2, (s.y0 + s.y1) / 2], [t, s.y1]], x: t };
@@ -54,23 +67,23 @@ const SEG = {
   s: {
     min: () => 340, weight: () => 1.4,
     build(s) {
-      const G = C.levelGen, A = numOf(s.args, G.sAmp), side = sideOf(s.args, s.rng), h = s.y1 - s.y0;
+      const A = numOf(s.args, G.sAmp), side = sideOf(s.args, s.rng), h = s.y1 - s.y0;
       const xc = clamp(s.x0, G.xMin + A, G.xMax - A);
       return { pts: [[xc + side * A, s.y0 + h * 0.25], [xc - side * A, s.y0 + h * 0.75], [xc, s.y1]], x: xc };
     },
   },
   wave: {
     min: a => clamp(numOf(a, 3), 1, 8) * 150 + 60, weight: a => 0.45 * clamp(numOf(a, 3), 1, 8),
-    build(s) { return swings(s, clamp(numOf(s.args, 3), 1, 8), C.levelGen.waveAmp); },
+    build(s) { return swings(s, clamp(numOf(s.args, 3), 1, 8), G.waveAmp); },
   },
   wiggle: {
     min: a => clamp(numOf(a, 4), 1, 10) * 115 + 40, weight: a => 0.3 * clamp(numOf(a, 4), 1, 10),
-    build(s) { return swings(s, clamp(numOf(s.args, 4), 1, 10), C.levelGen.wiggleAmp); },
+    build(s) { return swings(s, clamp(numOf(s.args, 4), 1, 10), G.wiggleAmp); },
   },
   zigzag: {
     min: a => clamp(numOf(a, 2), 1, 5) * C.levelGen.zigRowMin + 40, weight: a => 0.9 * clamp(numOf(a, 2), 1, 5),
     build(s) {
-      const G = C.levelGen, n = clamp(numOf(s.args, 2), 1, 5), h = s.y1 - s.y0, g = h / n, mid = (G.xMin + G.xMax) / 2;
+      const n = clamp(numOf(s.args, 2), 1, 5), h = s.y1 - s.y0, g = h / n, mid = (G.xMin + G.xMax) / 2;
       const X = side => (side < 0 ? G.xMin + 10 : G.xMax - 10);
       // the first row turns off the incoming road and heads for the far side (or the side asked for); rows alternate,
       // joined by U-turns at the edges, and the road leaves from the last row's end, straight down
@@ -89,7 +102,7 @@ const SEG = {
   fork: {
     min: () => 480, weight: () => 1.6,
     build(s) {
-      const G = C.levelGen, W = numOf(s.args, s.args.includes('wide') ? 305 : s.args.includes('narrow') ? 220 : G.forkHalfW);
+      const W = numOf(s.args, s.args.includes('wide') ? 305 * G.k : s.args.includes('narrow') ? 220 * G.k : G.forkHalfW);
       // coming in off-centre, the lead-in is longer so the arm on that side doesn't double back under the incoming road
       const xc = clamp(s.x0, G.xMin + W, G.xMax - W), ya = s.y0 + G.forkLead + Math.min(160, Math.abs(s.x0 - xc) * 0.6), h = s.y1 - ya;
       const arm = side => [[xc + side * W * 0.35, ya + h * 0.1], [xc + side * W * 0.85, ya + h * 0.28], [xc + side * W, ya + h * 0.5],
@@ -103,7 +116,7 @@ const SEG = {
   },
 };
 function swings(s, n, A0) {
-  const G = C.levelGen, A = numOf(s.args.filter(a => a !== String(n)), A0), side = sideOf(s.args, s.rng), h = s.y1 - s.y0;
+  const A = numOf(s.args.filter(a => a !== String(n)), A0), side = sideOf(s.args, s.rng), h = s.y1 - s.y0;
   const xc = clamp(s.x0, G.xMin + A, G.xMax - A), pts = [];
   for (let k = 0; k < n; k++) pts.push([xc + (k % 2 ? -side : side) * A, s.y0 + h * (k + 0.5) / n]);
   pts.push([xc, s.y1]);
@@ -126,9 +139,11 @@ export function parseRecipe(text, warnings = []) {
 
 // ======================= build =======================
 // recipe + seed -> a level: { name, blurb, gen: true, recipe, seed, w, h, paths, spots, spotR, roadHalfWidth,
-// workshopR, heart, deco, warnings }. `base` supplies name / blurb, and pads: 0 for a level with no Pin pads.
-export function buildLevel(recipe, seed = 1, base = {}) {
-  const G = C.levelGen, rng = makeRng(seed ^ 0x2F6B1D), warnings = [];
+// workshopR, heart, deco, warnings, mapScale }. `base` supplies name / blurb, and pads: 0 for a level with no Pin pads.
+// scale = map scale (CONFIG.mapGrowth; 1 = the standard 941 x 1672 plate).
+export function buildLevel(recipe, seed = 1, base = {}, scale = 1) {
+  G = geometry(scale);
+  const rng = makeRng(seed ^ 0x2F6B1D), warnings = [];
   const items = parseRecipe(recipe, warnings);
   let xs = G.startX;
   const segs = [];
@@ -166,7 +181,7 @@ export function buildLevel(recipe, seed = 1, base = {}) {
   else if (placeSpots(polys, spots, deco, rng) < G.spotsMin) warnings.push('only ' + spots.length + ' Pin pads fit');
   return {
     name: base.name || 'Custom Road', blurb: base.blurb || recipe, gen: true, recipe, seed,
-    w: G.w, h: G.h, paths, spots, spotR: G.spotR, roadHalfWidth: G.roadHalfWidth, workshopR: G.workshopR,
+    w: G.w, h: G.h, mapScale: G.k, paths, spots, spotR: G.spotR, roadHalfWidth: G.roadHalfWidth, workshopR: G.workshopR,
     heart: [G.heartX, G.heartY], deco, warnings,
   };
 }
@@ -184,7 +199,7 @@ function distToRoads(polys, x, y) {
 
 // Warn where a route passes too close to an earlier stretch of itself (the painted roads would touch).
 function checkClearance(polys, warnings) {
-  const G = C.levelGen, need = 2 * outer() + G.roadGap * 0.5;
+  const need = 2 * outer() + G.roadGap * 0.5;
   polys.forEach(P => {
     const cum = [0];
     for (let i = 1; i < P.length; i++) cum.push(cum[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
@@ -203,7 +218,7 @@ function checkClearance(polys, warnings) {
 // Pin pads: candidates just off the road on both sides, clear of every road, the fork buttons and the heart; then
 // spread out by farthest-point picking (a little seeded jitter so different seeds pick differently).
 function placeSpots(polys, spots, deco, rng) {
-  const G = C.levelGen, R = G.spotR, off = outer() + G.spotGap + R, heartClear = G.workshopR + R + 30;
+  const R = G.spotR, off = outer() + G.spotGap + R, heartClear = G.workshopR + R + 30;
   const cands = [];
   for (const P of polys) {
     let acc = 0;
@@ -242,8 +257,9 @@ function placeSpots(polys, spots, deco, rng) {
 // ======================= random recipes =======================
 // A recipe for "Random Quilt": segments drawn by weight until the road is about full; at most one fork (two if room).
 const POOL = [['s', 3], ['zigzag', 2], ['fork', 2.2], ['bend', 1.2], ['wave', 1.2], ['wiggle', 0.7], ['straight', 0.4]];
-export function randomRecipe(seed) {
-  const G = C.levelGen, rng = makeRng(seed ^ 0x51ED27), span = G.endY - G.startY, items = [];
+export function randomRecipe(seed, scale = 1) {
+  G = geometry(scale);
+  const rng = makeRng(seed ^ 0x51ED27), span = G.endY - G.startY, items = [];
   let used = 0, forks = 0, last = '';
   const total = POOL.reduce((a, p) => a + p[1], 0);
   for (let tries = 0; tries < 30 && used < span * 0.8; tries++) {

@@ -27,6 +27,7 @@
 <header>
   <input id="recipe" type="text" value="zigzag 2, fork pin, s" spellcheck="false" aria-label="Recipe">
   <label>seed <input id="seed" type="number" value="1"></label>
+  <label>map scale <input id="scale" type="number" value="1" min="1" max="2" step="0.05" style="width:4em"></label>
   <label>zone <select id="zone"><option>meadow</option><option selected>denim</option><option>lair</option></select></label>
   <button id="build">Build</button>
   <button id="random">Random recipe</button>
@@ -55,29 +56,32 @@
       g.strokeStyle = 'rgba(255,255,255,0.8)'; g.setLineDash([8, 8]); g.lineWidth = 2;
       for (const [x, y] of def.spots) { g.beginPath(); g.arc(x, y, C.towers.needle.radius, 0, Math.PI * 2); g.stroke(); }
       g.setLineDash([]); g.strokeStyle = 'rgba(255,0,255,0.5)';                  // narrow-phone crop (360 x 780)
-      const crop = (941 - 360 * 1672 / 780) / 2; g.strokeRect(crop, 0, 941 - 2 * crop, 1672);
+      const crop = (def.w - 360 * def.h / 780) / 2; g.strokeRect(crop, 0, def.w - 2 * crop, def.h);
     }
     const cell = document.createElement('div'); cell.className = 'cell';
     const meta = document.createElement('div'); meta.className = 'meta';
-    meta.innerHTML = '<b>' + def.recipe + '</b>  seed ' + def.seed + '\nroutes ' + def.paths.length + ', pads ' + def.spots.length +
+    meta.innerHTML = '<b>' + def.recipe + '</b>  seed ' + def.seed + '  map scale ' + def.mapScale + '\nroutes ' + def.paths.length + ', pads ' + def.spots.length +
       (def.warnings.length ? '\n<span class="warn">' + def.warnings.join('\n') + '</span>' : '');
     cell.append(c, meta);
     return cell;
   }
   // the level in the chosen zone's look (a level file's `world`)
-  const lvl = (recipe, seed) => Object.assign(buildLevel(recipe, seed), { world: $('zone').value });
+  const scale = () => Math.max(1, +$('scale').value || 1);        // CONFIG.mapGrowth: a bigger plate, the world zoomed out
+  const lvl = (recipe, seed) => Object.assign(buildLevel(recipe, seed, {}, scale()), { world: $('zone').value });
+  $('scale').onchange = () => build();
   $('zone').onchange = () => build();
-  function playLink(recipe, seed) { $('play').href = '../index.html?recipe=' + encodeURIComponent(recipe) + '&seed=' + seed; }
+  const scaleArg = () => (scale() > 1 ? '&scale=' + scale() : '');
+  function playLink(recipe, seed) { $('play').href = '../index.html?recipe=' + encodeURIComponent(recipe) + '&seed=' + seed + scaleArg(); }
   function build() {
     const recipe = $('recipe').value, seed = +$('seed').value || 1;
     out.className = ''; out.replaceChildren(view(lvl(recipe, seed)));
     playLink(recipe, seed);
-    history.replaceState(null, '', '?recipe=' + encodeURIComponent(recipe) + '&seed=' + seed);
+    history.replaceState(null, '', '?recipe=' + encodeURIComponent(recipe) + '&seed=' + seed + scaleArg());
   }
   $('build').onclick = build;
   $('recipe').onkeydown = e => { if (e.key === 'Enter') build(); };
   $('overlay').onchange = build;
-  $('random').onclick = () => { const s = (Math.random() * 1e6) | 0; $('seed').value = s; $('recipe').value = randomRecipe(s); build(); };
+  $('random').onclick = () => { const s = (Math.random() * 1e6) | 0; $('seed').value = s; $('recipe').value = randomRecipe(s, scale()); build(); };
   $('six').onclick = () => {
     const recipe = $('recipe').value, s0 = +$('seed').value || 1;
     out.className = 'grid'; out.replaceChildren(...[0, 1, 2, 3, 4, 5].map(i => view(lvl(recipe, s0 + i))));
@@ -85,6 +89,7 @@
   const q = new URLSearchParams(location.search);
   if (q.get('recipe')) $('recipe').value = q.get('recipe');
   if (q.get('seed')) $('seed').value = q.get('seed');
+  if (q.get('scale')) $('scale').value = q.get('scale');
   loadKit().then(build);
 </script>
 </body>

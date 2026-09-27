@@ -5,12 +5,13 @@
 // roadHalfWidth, workshopR } (the plate art and its measurements, in the plate's pixels), or a generated one:
 // { id, name, blurb, recipe, seed } (src/levelGen.js builds it, src/levelArt.js paints it), or { random: true } (a new
 // recipe from each run's seed). Plus the shared fields every file has: world, allowedPins, startThread, threadPerKill,
-// critters ({ silverfish: cap }, null = CONFIG.critters.perWorld), critterIntro, waves,
+// critters ({ silverfish: cap }, null = CONFIG.critters.perWorld), critterIntro, waves, mapScale (generated only:
+// the plate's size, default from CONFIG.mapGrowth by map position),
 // weapon, unlockOnClear, signText, starRules (see 01-meadow.js for what each means; null = the CONFIG default).
 //
 // loadLevel returns the level as played, the same shape either way: { id, name, blurb, world, gen, bg | (painted by
 // levelArt), w, h, paths, spots, spotR, roadHalfWidth, workshopR, allowedPins, startThread, waves, unlockOnClear,
-// signText, starRules } (+ recipe, seed, heart, deco, warnings for a generated one).
+// signText, starRules } (+ recipe, seed, heart, deco, warnings, mapScale for a generated one).
 import { CONFIG as C } from '../config.js';
 import { buildLevel, randomRecipe } from '../levelGen.js';
 import first from './00-first.js';
@@ -36,6 +37,15 @@ for (const l of LIST) byId[l.id] = l;
 const SHARED = { world: 'meadow', weapon: null, allowedPins: null, startThread: null, threadPerKill: null, critters: null, critterIntro: false, waves: null, unlockOnClear: null, signText: '', starRules: { noDamage: true, noSpecial: true } };
 const shared = f => { const o = {}; for (const k in SHARED) o[k] = f[k] !== undefined ? f[k] : SHARED[k]; return o; };
 
+// Map scale (CONFIG.mapGrowth) of the level at map position n (0 = level 0): 1 before fromLevel, then a step up
+// every everyLevels levels, capped at max. A generated level file's own mapScale wins; Random Quilt and a Custom
+// Road stay at 1 unless given one (?scale=).
+export function mapScaleAt(n) {
+  const M = C.mapGrowth;
+  return n < M.fromLevel ? 1 : Math.round(Math.min(M.max, 1 + M.step * (Math.floor((n - M.fromLevel) / M.everyLevels) + 1)) * 100) / 100;
+}
+const scaleOf = f => f.mapScale ?? (f.random ? 1 : mapScaleAt(LIST.indexOf(f)));
+
 export const hasLevel = id => !!byId[id];
 export const levelIds = () => Object.keys(byId);
 // What the menus need without building anything: { id, name, blurb, world, random, weapon (null = the equipped one) }.
@@ -50,8 +60,8 @@ export function rewardLevelOf(id) {
 }
 
 // ?recipe= in the URL: a temporary "Custom Road" level (the level lab's "Play it").
-export function addCustomLevel(recipe, seed) {
-  byId.custom = { id: 'custom', name: 'Custom Road', blurb: recipe, recipe, seed, world: 'denim' };
+export function addCustomLevel(recipe, seed, mapScale = 1) {
+  byId.custom = { id: 'custom', name: 'Custom Road', blurb: recipe, recipe, seed, mapScale, world: 'denim' };
 }
 
 // id -> the level to play. Painted levels are loaded once; generated ones are built and cached per recipe + seed;
@@ -60,7 +70,7 @@ export function addCustomLevel(recipe, seed) {
 const cache = new Map();
 export function loadLevel(id, seed) {
   const f = byId[id] || byId[C.defaultLevel];
-  const key = f.id + '|' + (f.random ? seed : f.recipe + '|' + (f.seed ?? 1));
+  const sc = scaleOf(f), key = f.id + '|' + sc + '|' + (f.random ? seed : f.recipe + '|' + (f.seed ?? 1));
   if (cache.has(key)) return cache.get(key);
   if (cache.size > 24) cache.clear();
   let lv;
@@ -69,10 +79,10 @@ export function loadLevel(id, seed) {
     if (f.random) {
       for (let k = 0; k < 6; k++) {
         const s = (seed + k * 7919) >>> 0;
-        lv = buildLevel(randomRecipe(s), s, f);
+        lv = buildLevel(randomRecipe(s, sc), s, f, sc);
         if (!lv.warnings.length && lv.spots.length >= C.levelGen.spotsMin) break;
       }
-    } else lv = buildLevel(f.recipe, f.seed ?? 1, f);
+    } else lv = buildLevel(f.recipe, f.seed ?? 1, f, sc);
     if (lv.warnings.length) console.warn('levelGen "' + lv.recipe + '" seed ' + lv.seed + ':', lv.warnings.join('; '));
   }
   Object.assign(lv, { id: f.id, name: f.name, blurb: f.blurb }, shared(f));
