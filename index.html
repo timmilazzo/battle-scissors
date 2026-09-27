@@ -323,7 +323,7 @@
     border: 2px dashed rgba(255, 210, 63, 0.6); font-size: 17px; color: #fff1c2; animation: rvpop 600ms cubic-bezier(.2, 1.6, .4, 1) both; }
   .res-unlock[hidden] { display: none; }
   .res-unlock img { width: 54px; height: 54px; object-fit: contain; filter: drop-shadow(0 4px 5px rgba(0, 0, 0, 0.5)); }
-  .meta-screen { overflow-y: auto; justify-content: safe center; z-index: 12; }
+  .screen.meta-screen { overflow-y: auto; justify-content: safe center; z-index: 12; }   /* .screen.x: must beat .screen (defined below), or a tall card centres off the top */
   .meta-screen .card { width: min(560px, 100%); gap: 10px; }
   .meta-bal { margin: -6px 0 0; display: flex; align-items: center; gap: 6px; font: 400 19px var(--ui-font); color: #ffd23f; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45); }
   .meta-body { width: 100%; display: grid; gap: 8px; }
@@ -620,8 +620,8 @@
     <!-- --x/--y/--w/--h: sprite rect in the mock; --px/--py: portrait position (default --x/--y);
          --lx/--ly/--lw/--lh: landscape rect; --r: clip shape. PLAY, How to play, Settings and Sound are wired; the rest are placeholders. -->
     <button id="play" class="art-btn" type="button" style="--x:212;--y:1030;--w:526;--h:192;--lx:616;--ly:640;--lw:440;--lh:161;--r:11% / 31%"><span class="sr-only">Play</span></button>
-    <button class="art-btn" type="button" data-soon="Upgrades" style="--x:291;--y:1244;--w:365;--h:98;--lx:373;--ly:815;--lw:297;--lh:80;--r:5% / 19%"><span class="sr-only">Upgrades</span></button>
-    <button class="art-btn" type="button" data-soon="Shop" style="--x:291;--y:1356;--w:365;--h:98;--lx:688;--ly:815;--lw:297;--lh:80;--r:5% / 19%"><span class="sr-only">Shop</span></button>
+    <button class="art-btn" id="title-upgrades" type="button" style="--x:291;--y:1244;--w:365;--h:98;--lx:373;--ly:815;--lw:297;--lh:80;--r:5% / 19%"><span class="sr-only">Upgrades</span></button>
+    <button class="art-btn" id="title-shop" type="button" style="--x:291;--y:1356;--w:365;--h:98;--lx:688;--ly:815;--lw:297;--lh:80;--r:5% / 19%"><span class="sr-only">Shop</span></button>
     <button id="how" class="art-btn" type="button" style="--x:291;--y:1467;--w:365;--h:98;--lx:1003;--ly:815;--lw:297;--lh:80;--r:5% / 19%"><span class="sr-only">How to play</span></button>
     <button id="title-settings" class="art-btn icon" type="button" style="--x:699;--y:22;--w:90;--h:80;--px:652;--lx:1282;--ly:18;--lw:80;--lh:71;--r:20%"><span class="sr-only">Settings</span></button>
     <button id="title-sound" class="art-btn icon" type="button" aria-pressed="false" style="--x:824;--y:22;--w:90;--h:80;--px:754;--lx:1370;--ly:18;--lw:80;--lh:71;--r:20%"><span class="sr-only">Sound</span></button>

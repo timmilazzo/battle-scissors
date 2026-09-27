@@ -1,4 +1,5 @@
-// The Shop and Trophies screens (DOM only), both opened from the level map and closed back to it.
+// The Shop and Trophies screens (DOM only), both opened from the level map (the Shop also from the title's Shop and
+// Upgrades tiles) and closed back to whichever opened them.
 // Shop: scissors (a Shop weapon's price once it's on sale; a level-reward one shows the level that wins it), their
 // upgrades (3 tiers each), Sharpening,
 // cosmetics (chest-only ones say which chest). Trophies: every achievement, earned or not, with its reward, so the

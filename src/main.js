@@ -83,10 +83,15 @@ function chooseLevel(id) {
 }
 function openMap() { refreshLevelMap(); goMap(); }
 initLevelMap({ toast: showToast, onPick: chooseLevel, onBack: goTitle });
-// Shop and Trophies (map, top left). A purchase re-applies the weapon's upgrades and the cosmetics (a resize re-rasterizes).
+// Shop and Trophies (map, top left; the title's Shop and Upgrades tiles open the same Shop, whose top section is the
+// scissors and their upgrades). A purchase re-applies the weapon's upgrades and the cosmetics (a resize re-rasterizes).
+// Closing returns to whichever screen opened it (the map refreshes, since a purchase can change it).
+const shopFromTitle = () => { unlockAudio(); toast.hidden = true; openShop(); };
 on('map-shop', () => { unlockAudio(); toast.hidden = true; openShop(); });
+on('title-shop', shopFromTitle);
+on('title-upgrades', shopFromTitle);
 on('map-trophies', () => { unlockAudio(); toast.hidden = true; openTrophies(); });
-initShop({ toast: showToast, onChange: () => { selectWeapon(weapon.id); resize(); }, onClose: refreshLevelMap });
+initShop({ toast: showToast, onChange: () => { selectWeapon(weapon.id); resize(); }, onClose: () => { if (state.mode === 'MAP') refreshLevelMap(); } });
 // The run is over: the results card plays its Button tally.
 setRunEndHook(() => showResults(state.tally));
 selectLevel.textContent = levelLabel(view.levelId);
