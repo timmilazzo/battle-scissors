@@ -9,6 +9,7 @@ export default {
   world: 'meadow',
   allowedPins: [],           // no Pins here
   startThread: 0,
+  critters: { silverfish: 0 },   // no critters in the tutorial
   waves: null,               // unused: the tutorial script spawns everything
   unlockOnClear: { scissors: 'dagger' },   // already held, but the map shows the reveal: the reward loop starts here
   signText: '',

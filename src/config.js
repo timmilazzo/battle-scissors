@@ -8,7 +8,7 @@
 export const FEEDBACK_URL = 'mailto:tim@saltandwisdom.com';
 
 // Shown small at the bottom of Settings and recorded in every run report. Bump it with each published change.
-export const VERSION = '0.2.0';
+export const VERSION = '0.2.1';
 
 export const CONFIG = {
   // --- pose / control mapping ---
@@ -249,6 +249,39 @@ export const CONFIG = {
   startThread: 0,            // thread at the start of a run (Pins are earned with snip kills)
   threadPerKill: 8,          // thread per enemy killed by a snip (or the Helicopter)
   threadPerLeak: 2,          // thread per enemy that reaches the workshop, so a losing player can still afford something
+
+  // --- critters (src/critters.js): bonus targets only a manual snip can hit. Not enemies: no HP, not in waves, never hurt
+  // the workshop, Pins and SHRED ignore them. Their reward is fixed Thread (never Buttons, never random) and each level
+  // caps how many come (its `critters`, else perWorld). Spawns are scheduled on the wave clock from the run's seed.
+  critters: {
+    perWorld: { meadow: 2, denim: 3, lair: 4 },   // cap per level when the level file doesn't set `critters` (Random Quilt, Custom Road)
+    minWaveSec: 10,          // never spawns in the first this-many seconds of a wave
+    minEnemies: 4,           // never spawns while fewer than this many enemies are on screen
+    tailSec: 8,              // a wave's spawn window ends this long after its last scheduled enemy spawn
+    retrySec: 0.25,          // a due spawn that can't happen yet (too few enemies, a boss seam open) checks again this often
+    silverfish: {
+      thread: 30,            // Thread for a squish (fixed)
+      crossSec: 1.8,         // seconds to crawl from one screen edge to the opposite one
+      r: 13,                 // hit radius (px); the snip's hitPadPx is added like for enemies
+      len: 44,               // drawn body length (px), antennae and tail bristles extra
+      wobblePx: 9,           // sideways wobble of its line (px)...
+      wobbleHz: 1.6,         // ...this many wiggles a second
+      laneClearPx: 34,       // its line keeps at least this far outside the road's shove band (roadHalfWidth)
+      laneYMin: 0.1, laneYMax: 0.78, // side-to-side lanes cross between these fractions of the screen height (clear of HUD and action bar)
+      laneTries: 40,         // random edge-to-edge lines tried per spawn; if none misses the road, the one crossing least wins
+      skitterPx: 70,         // blades opening within this many px of it make it skitter (once per crossing)...
+      skitterOpen: 0.15,     // ...once they are at least this far open (0..1)...
+      skitterOpenRate: 0.5,  // ...and still opening at least this fast (opening per second): blades held open and still don't spook it
+      skitterSec: 0.3,       // skitter: turns 90 degrees away from the blades and bursts for this long...
+      skitterMult: 2.2,      // ...at this multiple of its crawl speed, then crawls on in its old direction
+      turnRate: 18,          // how fast the drawn body swings to its heading (per second, exponential)
+      maxLifeSec: 6,         // safety: removed after this long even if it never left the screen
+      introSpeedMult: 0.75,  // the scripted first crossing (a level's critterIntro) crawls this much slower
+      introEarliestSec: 4,   // ...in wave 1's first lull: the board empty after this many seconds...
+      introLatestSec: 11,    // ...or at the latest this far into wave 1 if the board never empties
+      splatSec: 2,           // the squish splat fades over this long
+    },
+  },
 
   // --- towers ("Pins"): Ice and Magnet set up snips; Fire and Needle deal damage on their own. ---
   // Built only on the level's spots (tap the + on one). radius is in level units. ice: enemies inside it are slowed

@@ -1,8 +1,8 @@
 // Achievements: one-time Button rewards, as data. Each entry: { id, name, description, reward, check(report, save, ctx) }.
 // check() runs after every finished run on a Button-earning level (meta.js settleRun), with:
-//   report = the run report (game.js buildReport: won, level, towers {type: count}, boss, bestSnipKills,
+//   report = the run report (game.js buildReport: won, level, towers {type: count}, boss, bestSnipKills, critterKills,
 //            beetleExecutes, prunerBite, ...)
-//   save   = the Save after the run was recorded (levels: { id: { stars, cleared } })
+//   save   = the Save after the run was recorded (levels: { id: { stars, cleared } }, critterKills = lifetime squishes)
 //   ctx    = { worldLevels(world) -> level ids, levelAt(n) -> the id of map level n }
 // Nothing here imports anything, so tools/buttonsupply.js can sum the rewards under Node.
 
@@ -31,6 +31,12 @@ export const ACHIEVEMENTS = [
     check: r => r.beetleExecutes > 0 },
   { id: 'pruner-bite', name: 'Ratchet Bite', description: 'End a boss’s armored phase with the Ratchet Pruners’ 3x bite.', reward: 40,
     check: r => !!r.prunerBite },
+  // The only link between critters and Buttons, once each. A level holds at most 4 silverfish (World 3), so 4 is the
+  // one-level maximum.
+  { id: 'squish-level', name: 'Pest Control', description: 'Squish 4 silverfish in one level.', reward: 25,
+    check: r => r.critterKills >= 4 },
+  { id: 'squish-25', name: 'Silverfish Squasher', description: 'Squish 25 silverfish in total.', reward: 50,
+    check: (r, s) => (s.critterKills | 0) >= 25 },
   clearWorld(1, 'meadow', 50, 'Meadow Mended'),
   clearWorld(2, 'denim', 75, 'Denim Darned'),
   clearWorld(3, 'lair', 100, 'Lair Unravelled'),

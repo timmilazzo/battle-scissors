@@ -5,7 +5,11 @@ export default {
   recipe: 'wiggle 5, fork wide', seed: 12,
   world: 'lair',
   allowedPins: null,         // Pin types that can be built here (null = all)
-  startThread: null,         // thread at the start (null = CONFIG.startThread)
+  // Thread: 6 per kill + 52 to start = 568 for all 86 enemies; its 4 silverfish (30 each) bring it back to
+  // the old 688 (8 per kill). tools/wavesheet.js prints the numbers.
+  startThread: 52,           // thread at the start (null = CONFIG.startThread)
+  threadPerKill: 6,          // thread per kill (null = CONFIG.threadPerKill)
+  critters: { silverfish: 4 },   // bonus critters this level (the cap; src/critters.js)
   // Boss level: five waves, then The Unstitcher alone (it calls its own Scrap swarms). Clearing it rolls the credits.
   waves: [
     [['scrap', 8, 2], ['runner', 6, 8], ['bolster', 2, 14]],

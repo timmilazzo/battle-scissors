@@ -5,7 +5,11 @@ export default {
   recipe: 'wave 3, s', seed: 4,
   world: 'meadow',
   allowedPins: null,         // Pin types that can be built here (null = all)
-  startThread: null,         // thread at the start (null = CONFIG.startThread)
+  // Thread: 6 per kill + 52 to start = 388 for all 56 enemies; its 2 silverfish (30 each) bring it back to
+  // the old 448 (8 per kill). tools/wavesheet.js prints the numbers.
+  startThread: 52,           // thread at the start (null = CONFIG.startThread)
+  threadPerKill: 6,          // thread per kill (null = CONFIG.threadPerKill)
+  critters: { silverfish: 2 },   // bonus critters this level (the cap; src/critters.js)
   // Boss level: five waves, then the Seam Ripper alone (timing).
   waves: [
     [['scrap', 5, 2], ['runner', 3, 10]],

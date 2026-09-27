@@ -75,8 +75,8 @@ export function initActionBar(opts) {
     list.appendChild(li);
   }
   const li = document.createElement('li');
-  li.innerHTML = '<span class="dot" style="--tc:#d9a55a"></span><span><b>Thread</b> pays for Pins: +' + C.threadPerKill + ' per kill, +' +
-    C.threadPerLeak + ' when an enemy reaches the workshop.</span>';
+  li.innerHTML = '<span class="dot" style="--tc:#d9a55a"></span><span><b>Thread</b> pays for Pins: every kill earns some, a squished silverfish +' +
+    C.critters.silverfish.thread + ', and +' + C.threadPerLeak + ' when an enemy reaches the workshop.</span>';
   list.appendChild(li);
   document.getElementById('pins-intro-ok').addEventListener('click', closePinIntro);
   // SHRED meter: listen for the touch itself too (a tap while other fingers are down rarely produces a click)

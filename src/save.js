@@ -19,6 +19,7 @@
 //   settings: { sound, haptics, leftHanded, grip },  grip = touch controls 'hold' | 'pinch'; leftHanded not used yet
 //   tutorialDone, tips: { pinIntro, shred },         one-time onboarding flags (tutorialDone = level 0 cleared)
 //   reveals: [{ scissors } | { credits }],           rewards won but not yet shown (the level map plays them in order)
+//   critterKills,                                    critters squished, all runs (the one-time "Squish 25" achievement)
 // }
 import { CONFIG as C } from './config.js';
 
@@ -28,7 +29,7 @@ const defaults = () => ({
   version: SAVE_VERSION, levels: {}, buttons: 0, achievements: [], chests: [], sharpen: 0,
   cosmetics: { owned: [], handle: '', glow: '' }, unlocks: { scissors: [], pins: [], levels: [] }, upgrades: {},
   equippedScissors: '', lastLevel: '', settings: { sound: true, haptics: true, leftHanded: false, grip: 'hold' },
-  tutorialDone: false, tips: { pinIntro: false, shred: false }, reveals: [],
+  tutorialDone: false, tips: { pinIntro: false, shred: false }, reveals: [], critterKills: 0,
 });
 export const Save = defaults();
 

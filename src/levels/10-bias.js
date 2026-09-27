@@ -5,7 +5,11 @@ export default {
   recipe: 'start right, wave 2, fork pin', seed: 10,
   world: 'denim',
   allowedPins: null,         // Pin types that can be built here (null = all)
-  startThread: null,         // thread at the start (null = CONFIG.startThread)
+  // Thread: 6 per kill + 78 to start = 582 for all 84 enemies; its 3 silverfish (30 each) bring it back to
+  // the old 672 (8 per kill). tools/wavesheet.js prints the numbers.
+  startThread: 78,           // thread at the start (null = CONFIG.startThread)
+  threadPerKill: 6,          // thread per kill (null = CONFIG.threadPerKill)
+  critters: { silverfish: 3 },   // bonus critters this level (the cap; src/critters.js)
   // Bolsters and Runners: slow and tough mixed with small and fast. Six waves; unlocks the Cigar Cutter.
   waves: [
     [['bolster', 2, 2], ['runner', 5, 6]],

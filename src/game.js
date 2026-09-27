@@ -16,6 +16,7 @@ import { recordLevelResult } from './levelSelect.js';
 import { Save, persist } from './save.js';
 import { KNOB_KEYS } from './debug.js';
 import { levelBefore, settleRun, useSharpen } from './meta.js';
+import { critters, splats, plan as critterPlan, planCritters, critterWave, critterWaveEnd, updateCritters, snipCritters, clearCritters, introActive } from './critters.js';
 
 // ======================= state =======================
 // mode: 'TITLE' | 'MAP' | 'SELECT' | 'SETTINGS' | 'TUTORIAL' | 'PLAYING' | 'WAVE_CLEAR' | 'GAME_OVER'. modeT = seconds in the current mode
@@ -47,16 +48,18 @@ export const state = {
     taps: [], ghost: { x: 0, y: 0, a: 0, down: 0, sc: 0, open: 0, meter: 0, scale: 1, alpha: 0.6, cutT: 0, cx: 0, cy: 0, cutOpen: 0 } },
   // run = report counters: bestSnipKills = most kills by one snip, beetleExecutes = Button Beetles executed in the Cigar
   // Cutter's ring, prunerBite = a Ratchet Pruners armor-down bite ended a boss's armored phase (achievements.js)
-  run: { t0: 0, multiSnips: 0, towers: {}, specials: 0, leaks: 0, stars: 0, bestSnipKills: 0, beetleExecutes: 0, prunerBite: false },
+  // critterKills = critters squished this run (src/critters.js)
+  run: { t0: 0, multiSnips: 0, towers: {}, specials: 0, leaks: 0, stars: 0, bestSnipKills: 0, beetleExecutes: 0, prunerBite: false, critterKills: 0 },
   sharpened: false,          // this level used up a Sharpening (CONFIG.meta.sharpenMult on snip damage)
   tally: null,               // the finished run's Buttons (meta.js settleRun), for the results card
   events: { seq: 0, list: [] },
+  critters, splats,          // src/critters.js pools: bonus targets only a manual snip hits, and their squish splats
 };
 const fx = state.fx, heli = state.heli, tut = state.tut;
 export const live = () => state.mode === 'PLAYING' || state.mode === 'WAVE_CLEAR' || state.mode === 'TUTORIAL';
 export const accuracyText = () => state.stats.snips ? Math.round(state.stats.kills / state.stats.snips * 100) + '%' : '—';
 
-// one-off events for the renderer: kind 'thread' (+n pickup at x,y), 'place' (tower built)
+// one-off events for the renderer: kind 'thread' (+n pickup at x,y), 'bonus' (a critter's bigger +n pickup), 'place' (tower built)
 for (let i = 0; i < 32; i++) state.events.list.push({ seq: -1, kind: '', x: 0, y: 0, n: 0 });
 function emit(kind, x, y, n) {
   const ev = state.events.list[state.events.seq % state.events.list.length];
@@ -68,13 +71,13 @@ const rtTweens = makeTweens();
 
 // ======================= seeded randomness =======================
 // Gameplay randomness comes from mulberry32 streams seeded by state.seed (Date.now() per run, or ?seed=N in the URL):
-// spawn = enemy variation, hit = shove chance, fx = fragment bursts. Separate streams keep spawns independent of how
-// many hits or kills happened. Purely visual sparkle (particles) still uses Math.random.
+// spawn = enemy variation, hit = shove chance, fx = fragment bursts, critter = critter schedule and lanes. Separate
+// streams keep spawns independent of how many hits or kills happened. Purely visual sparkle (particles) still uses Math.random.
 const urlSeed = (() => { const s = new URLSearchParams(location.search).get('seed'); return s !== null && /^\d+$/.test(s) ? Number(s) : null; })();
-export const rng = { spawn: makeRng(0), hit: makeRng(1), fx: makeRng(2) };
+export const rng = { spawn: makeRng(0), hit: makeRng(1), fx: makeRng(2), critter: makeRng(3) };
 function seedRun(seed) {
   state.seed = seed;
-  rng.spawn = makeRng(seed); rng.hit = makeRng(seed ^ 0x9E3779B9); rng.fx = makeRng(seed ^ 0x85EBCA6B);
+  rng.spawn = makeRng(seed); rng.hit = makeRng(seed ^ 0x9E3779B9); rng.fx = makeRng(seed ^ 0x85EBCA6B); rng.critter = makeRng(seed ^ 0xC2B2AE35);
 }
 
 const els = {
@@ -199,6 +202,7 @@ function clearWorld() {
   heli.active = false; heli.phase = ''; heli.spread = heli.rot = 0; heli.bannerT = 0; heli.armed = heli.go = false;
   state.paused = false; state.bossCardT = 0;
   tut.step = 0; tut.winT = 0; tut.ghost.cutT = 0; tut.vis = 0;
+  clearCritters();
   setEasyOnly(false);                                           // level 0 forces Hold controls only while it runs
   resetSnipBuffer();
 }
@@ -232,7 +236,8 @@ function resetRun() {
   state.score = 0; state.hp = C.workshopHp; state.won = false; state.stats.snips = 0; state.stats.kills = 0; state.thread = level().startThread ?? C.startThread;
   heli.charge = 0;
   const r = state.run; r.t0 = Date.now(); r.multiSnips = 0; r.specials = 0; r.leaks = 0; r.stars = 0;
-  r.bestSnipKills = 0; r.beetleExecutes = 0; r.prunerBite = false;
+  r.bestSnipKills = 0; r.beetleExecutes = 0; r.prunerBite = false; r.critterKills = 0;
+  if (!isTutorial()) planCritters(level(), levelWaves(), rng.critter, n => !!(C.enemyTypes[n] && C.enemyTypes[n].boss));
   state.sharpened = !isTutorial() && useSharpen(); state.tally = null;
   for (const k in C.towers) r.towers[k] = 0;
 }
@@ -256,6 +261,7 @@ function beginWave(n) {
   }
   spawnList.sort((a, b) => a[0] - b[0]);
   spawnIdx = 0;
+  critterWave(n, spawnList.length ? spawnList[spawnList.length - 1][0] : 0, rng.critter);
   state.wave = n; state.mode = 'PLAYING'; state.modeT = 0; state.bannerT = boss ? 0 : 1;
   if (boss) showBossCard(boss);
 }
@@ -273,6 +279,14 @@ export function nextLevelId() {
   return i >= 0 ? ids[i + 1] || '' : '';
 }
 
+// A win's stars: 1 for clearing, +1 per star rule met (noDamage: nothing reached the workshop; noSpecial: no SHRED;
+// critters: every critter that came was squished, and at least one came).
+function starsEarned() {
+  const rules = level().starRules || {}, r = state.run;
+  return 1 + (rules.noDamage && !r.leaks ? 1 : 0) + (rules.noSpecial && !r.specials ? 1 : 0) +
+    (rules.critters && critterPlan.spawned > 0 && critterPlan.killed >= critterPlan.spawned ? 1 : 0);
+}
+
 export let lastReport = null;
 function endGame(won) {
   state.paused = false;
@@ -281,9 +295,7 @@ function endGame(won) {
   els.overTitle.dataset.text = els.overTitle.textContent;       // the felt heading's outline layer (index.html .card h2)
   els.overTitle.classList.toggle('win', won); els.overTitle.classList.toggle('lose', !won);
   els.overLevel.textContent = level().name;
-  // stars: 1 for clearing, +1 per star rule met (noDamage: nothing reached the workshop; noSpecial: no SHRED)
-  const rules = level().starRules || {};
-  state.run.stars = won ? 1 + (rules.noDamage && !state.run.leaks ? 1 : 0) + (rules.noSpecial && !state.run.specials ? 1 : 0) : 0;
+  state.run.stars = won ? starsEarned() : 0;
   const before = levelBefore(view.levelId);
   recordLevelResult(view.levelId, won, state.score, state.run.stars, level().unlockOnClear);
   const next = nextLevelId();
@@ -312,7 +324,7 @@ function buildReport(inProgress = false) {
     snips: s.snips, kills: s.kills, accuracy: s.snips ? +(s.kills / s.snips).toFixed(3) : 0, multiSnips: r.multiSnips,
     towers: { ...r.towers }, specialUses: r.specials, deathsAtWorkshop: r.leaks, stars: r.stars,
     boss: levelWaves().some(w => w.some(([n]) => C.enemyTypes[n] && C.enemyTypes[n].boss)), bestSnipKills: r.bestSnipKills,
-    beetleExecutes: r.beetleExecutes, prunerBite: r.prunerBite, upgradeTier: weapon.def.tier | 0, sharpened: state.sharpened,
+    beetleExecutes: r.beetleExecutes, prunerBite: r.prunerBite, critterKills: r.critterKills, critterSpawns: critterPlan.spawned, upgradeTier: weapon.def.tier | 0, sharpened: state.sharpened,
     durationSec: Math.round((Date.now() - r.t0) / 1000), device: navigator.userAgent, config: cfg,
     replay: location.origin + location.pathname + '?seed=' + state.seed + '&level=' + view.levelId +
       (view.levelId === 'custom' ? '&recipe=' + encodeURIComponent(level().recipe) : ''), endedAt: new Date().toISOString(),
@@ -595,8 +607,7 @@ export function tutSkip() {
 function finishTutorial() {
   Save.tutorialDone = true; persist();
   state.won = true;
-  const rules = level().starRules || {};
-  state.run.stars = 1 + (rules.noDamage && !state.run.leaks ? 1 : 0) + (rules.noSpecial && !state.run.specials ? 1 : 0);
+  state.run.stars = starsEarned();
   recordLevelResult(view.levelId, true, state.score, state.run.stars, level().unlockOnClear);
   lastReport = buildReport(); saveRun(lastReport);
   clearWorld();
@@ -650,7 +661,19 @@ function doSnip(px, py, theta, spread, strong) {
     if (cutZoneHits(e.x, e.y, e.r, pad)) strike(e, px, py, ax, ay, cut.L, strong, power);
   }
   if (snipKills > state.run.bestSnipKills) state.run.bestSnipKills = snipKills;
+  if (!shredSnap && !isTutorial()) snipCritters(pad, critterSquished);   // SHRED's final snap isn't a manual snip
   if (state.mode === 'TUTORIAL') tutOnSnip(spread, snipKills);
+}
+
+// A critter squished by a manual snip: its fixed Thread (never Buttons), a wet crunch, the +n flying to the counter.
+// The lifetime count feeds the one-time "Squish 25" achievement.
+function critterSquished(c) {
+  const n = C.critters[c.kind].thread;
+  state.thread += n; state.run.critterKills++;
+  emit('bonus', c.x, c.y, n);
+  sfx('squish', 0);
+  sparks(c.x, c.y, 6, 0);
+  Save.critterKills = (Save.critterKills | 0) + 1; persist();
 }
 
 function tooSlow() { if (live() && !heli.active) { fx.tooSlow = 1; sfx('thump'); } }
@@ -776,7 +799,8 @@ function awardKill(e, bySnip = true) {
   state.score += pts;
   if (!isTutorial()) spawnPopup(e.x, e.y, pts, snipMulti);
   if (state.mode !== 'TUTORIAL') {
-    state.thread += C.threadPerKill; emit('thread', e.x, e.y, C.threadPerKill);
+    const pay = level().threadPerKill ?? C.threadPerKill;   // a level can trim it (its critters make up the difference)
+    state.thread += pay; emit('thread', e.x, e.y, pay);
     if (bySnip && !heli.active) heli.charge = Math.min(C.heliKillsToCharge, heli.charge + 1);
   }
   if (t.boss || t.tier >= 2) startHitStop((t.boss ? C.bossHitStopMs : C.hitStopMs) / 1000);
@@ -927,11 +951,14 @@ function heliSpin() {
   tween(heli, { rot: TAU * C.heliSpinTurns }, C.heliSpinMs, easing.inOutSine, heliClose, 'heli');
 }
 function heliClose() { heli.phase = 'close'; tween(heli, HELI_SHUT, C.heliCloseMs, easing.linear, heliDone, 'heli'); }
+let shredSnap = false;                                          // doSnip is SHRED's final snap (critters ignore it)
 function heliDone() {
   const theta = heli.theta0 + heli.rot;
   heli.active = false; heli.phase = ''; heli.spread = 0;
   resetSnipBuffer();
+  shredSnap = true;
   doSnip(input.pose.x, input.pose.y, theta, 1, true);            // the final snap-close is a normal full-open snip
+  shredSnap = false;
   addShake(C.heliFinalShakePx, C.heliFinalShakePx);
 }
 // The SHRED meter tapped while full: arm it (the next press on the table starts the spin there); tapped again: disarm.
@@ -1192,6 +1219,20 @@ const unlessPaused = fn => (...a) => { if (!state.paused) fn(...a); };
 export const gameHooks = { onSnip: doSnip, onTooSlow: tooSlow, onGrip: onGrip, onSpace: unlessPaused(spaceSnip), onReset: goTitle,
   onSpecial: unlessPaused(trySpecial), onPause: togglePause, onPress: unlessPaused(onPress) };
 
+// ======================= critters (src/critters.js) =======================
+// One reused object tells critters.js what it needs from the game each frame (see updateCritters).
+const critterEnv = { rnd: null, paths: null, playing: false, wave: 0, waveT: 0, onScreen: 0, seam: false,
+  shown: false, open: 0, opening: false, bx: 0, by: 0, theta: 0, a: 0, L: 0, slide: false };
+function critterTick(dt, onScreen, seam) {
+  const v = critterEnv, p = input.pose;
+  v.rnd = rng.critter; v.paths = state.paths; v.playing = state.mode === 'PLAYING'; v.wave = state.wave; v.waveT = state.modeT;
+  v.onScreen = onScreen; v.seam = seam;
+  v.shown = input.scAlpha > 0.5 && !heli.active;
+  const open = visOpen(); v.opening = dt > 0 && (open - v.open) / dt >= C.critters.silverfish.skitterOpenRate; v.open = open; v.bx = p.x; v.by = p.y; v.theta = p.theta;
+  v.a = visBladeAngle(); v.L = bladeReachPx() * C.cutZoneScale * (isSlide() ? weapon.def.ringScale || 1 : 1); v.slide = isSlide();
+  if (updateCritters(dt, v)) sfx('skitter', 0);
+}
+
 // ======================= update =======================
 export function update(now, dt) {
   if (state.paused) return;                                      // frozen: no input, timers, tweens or clock
@@ -1220,9 +1261,10 @@ export function update(now, dt) {
 
   // --- waves / onboarding ---
   if (state.mode === 'PLAYING') {
-    state.modeT += dt;
+    const hold = introActive();                                  // the scripted first critter crosses in a quiet moment
+    if (!hold) state.modeT += dt;
     // board cleared mid-wave: skip the wave clock ahead so the next spawn is at most emptyWaveWaitSec away
-    if (spawnIdx < spawnList.length && !anyEnemyOn()) state.modeT = Math.max(state.modeT, spawnList[spawnIdx][0] - C.emptyWaveWaitSec);
+    if (!hold && spawnIdx < spawnList.length && !anyEnemyOn()) state.modeT = Math.max(state.modeT, spawnList[spawnIdx][0] - C.emptyWaveWaitSec);
     while (spawnIdx < spawnList.length && spawnList[spawnIdx][0] <= state.modeT && spawnEnemy(spawnList[spawnIdx][1])) spawnIdx++;
   } else if (state.mode === 'WAVE_CLEAR') {
     state.modeT += dt;
@@ -1244,10 +1286,12 @@ export function update(now, dt) {
   // --- enemies walk the road; shoves are an offset that springs back onto it ---
   if (live()) {
     const pushKeep = Math.exp(-C.pushDrag * dt), returnKeep = Math.exp(-C.pathReturnRate * dt);
-    let alive = 0;
+    let alive = 0, onScreen = 0, seam = false;
     for (let i = 0; i < enemies.length; i++) {
       const e = enemies[i]; if (!e.on) continue;
       e.age += dt;
+      if (e.y > -e.r && e.y < view.H + e.r && e.x > -e.r && e.x < view.W + e.r) onScreen++;
+      if (e.type.boss && (e.seamOpen || e.seamWarn) && bossMode(e) === 'seam') seam = true;
       if (e.hitT > 0) e.hitT = Math.max(0, e.hitT - dt * 5);
       if (e.pinned) { alive++; continue; }                        // level-0 practice Scraps: the tutorial moves them
       // slowed: inside an Ice Pin aura, or recently hit by the Helicopter. burning: inside a Fire Pin aura, or left one
@@ -1282,7 +1326,9 @@ export function update(now, dt) {
       alive++;
     }
     if (live()) bladeContacts(dt);
+    if (live() && !isTutorial()) critterTick(dt, onScreen, seam);
     if (state.mode === 'PLAYING' && spawnIdx >= spawnList.length && alive === 0) {
+      critterWaveEnd(state.wave);
       state.mode = 'WAVE_CLEAR'; state.modeT = 0;
       sfxSequence('waveClear');
       showScreens();

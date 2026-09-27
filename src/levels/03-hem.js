@@ -5,7 +5,11 @@ export default {
   recipe: 'zigzag 2, fork pin', seed: 3,
   world: 'meadow',
   allowedPins: null,         // Pin types that can be built here (null = all)
-  startThread: null,         // thread at the start (null = CONFIG.startThread)
+  // Thread: 6 per kill + 40 to start = 340 for all 50 enemies; its 2 silverfish (30 each) bring it back to
+  // the old 400 (8 per kill). tools/wavesheet.js prints the numbers.
+  startThread: 40,           // thread at the start (null = CONFIG.startThread)
+  threadPerKill: 6,          // thread per kill (null = CONFIG.threadPerKill)
+  critters: { silverfish: 2 },   // bonus critters this level (the cap; src/critters.js)
   // Introduces the Runner (small and fast). Four waves.
   waves: [
     [['scrap', 5, 2], ['runner', 3, 10]],

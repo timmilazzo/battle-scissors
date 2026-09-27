@@ -5,7 +5,11 @@ export default {
   recipe: 'fork wide, fork narrow', seed: 9,
   world: 'denim',
   allowedPins: null,         // Pin types that can be built here (null = all)
-  startThread: null,         // thread at the start (null = CONFIG.startThread)
+  // Thread: 7 per kill + 12 to start = 726 for all 102 enemies; its 3 silverfish (30 each) bring it back to
+  // the old 816 (8 per kill). tools/wavesheet.js prints the numbers.
+  startThread: 12,           // thread at the start (null = CONFIG.startThread)
+  threadPerKill: 7,          // thread per kill (null = CONFIG.threadPerKill)
+  critters: { silverfish: 3 },   // bonus critters this level (the cap; src/critters.js)
   // Remix: every regular enemy, in new mixes, on four roads. Six waves, no unlock.
   waves: [
     [['runner', 6, 2], ['scrap', 6, 8], ['bolster', 2, 14]],

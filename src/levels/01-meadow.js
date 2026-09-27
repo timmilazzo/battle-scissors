@@ -18,7 +18,11 @@ export default {
   workshopR: 118,            // heart pad radius: the red flash when the workshop takes damage
   world: 'meadow',
   allowedPins: null,         // Pin types that can be built here (null = all)
-  startThread: null,         // thread at the start (null = CONFIG.startThread)
+  // Thread: 6 per kill + 10 to start = 220 for all 35 enemies; its 2 silverfish (30 each) bring it back to
+  // the old 280 (8 per kill). tools/wavesheet.js prints the numbers.
+  startThread: 10,           // thread at the start (null = CONFIG.startThread)
+  threadPerKill: 6,          // thread per kill (null = CONFIG.threadPerKill)
+  critters: { silverfish: 2 },   // bonus critters this level (the cap; src/critters.js)
   // Smalls and mediums only: Scraps, then a few Bolsters. Three short waves.
   waves: [
     [['scrap', 4, 2], ['scrap', 5, 12]],

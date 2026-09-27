@@ -22,7 +22,12 @@ export default {
   workshopR: 112,            // heart pad radius
   world: 'meadow',
   allowedPins: null,         // Pin types that can be built here (null = all)
-  startThread: null,         // thread at the start (null = CONFIG.startThread)
+  // Thread: 6 per kill + 24 to start = 276 for all 42 enemies; its 2 silverfish (30 each) bring it back to
+  // the old 336 (8 per kill). tools/wavesheet.js prints the numbers.
+  startThread: 24,           // thread at the start (null = CONFIG.startThread)
+  threadPerKill: 6,          // thread per kill (null = CONFIG.threadPerKill)
+  critters: { silverfish: 2 },   // bonus critters this level (the cap; src/critters.js)
+  critterIntro: true,        // the first silverfish is scripted: wave 1's first lull, no enemies about (counts toward the cap)
   // Still smalls and mediums, now split between two roads. Three waves.
   waves: [
     [['scrap', 5, 2], ['scrap', 5, 12], ['bolster', 1, 18]],
@@ -31,5 +36,5 @@ export default {
   ],
   unlockOnClear: null,       // e.g. { scissors: 'cigar' } or { pin: 'magnet' }: added to the save's unlocks on a first win
   signText: '',              // a line for this level's sign (not shown yet)
-  starRules: { noDamage: true, noSpecial: true },   // each rule met on a win adds a star to the one for clearing
+  starRules: { noDamage: true, critters: true },   // each rule met on a win adds a star: 3rd = squish both silverfish
 };

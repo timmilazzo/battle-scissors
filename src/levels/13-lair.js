@@ -5,7 +5,11 @@ export default {
   recipe: 's left, fork pin, zigzag 1', seed: 13,
   world: 'lair',
   allowedPins: null,         // Pin types that can be built here (null = all)
-  startThread: null,         // thread at the start (null = CONFIG.startThread)
+  // Thread: 7 per kill + 8 to start = 904 for all 128 enemies; its 4 silverfish (30 each) bring it back to
+  // the old 1024 (8 per kill). tools/wavesheet.js prints the numbers.
+  startThread: 8,            // thread at the start (null = CONFIG.startThread)
+  threadPerKill: 7,          // thread per kill (null = CONFIG.threadPerKill)
+  critters: { silverfish: 4 },   // bonus critters this level (the cap; src/critters.js)
   waves: null,               // [[type, count, atSec], ...] per wave (null = CONFIG.waves)
   unlockOnClear: null,       // e.g. { scissors: 'cigar' } or { pin: 'magnet' }: added to the save's unlocks on a first win
   signText: '',              // a line for this level's sign (not shown yet)

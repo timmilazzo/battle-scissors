@@ -5,7 +5,11 @@ export default {
   recipe: 'zigzag 2, fork', seed: 11,
   world: 'lair',
   allowedPins: null,         // Pin types that can be built here (null = all)
-  startThread: null,         // thread at the start (null = CONFIG.startThread)
+  // Thread: 6 per kill + 50 to start = 560 for all 85 enemies; its 4 silverfish (30 each) bring it back to
+  // the old 680 (8 per kill). tools/wavesheet.js prints the numbers.
+  startThread: 50,           // thread at the start (null = CONFIG.startThread)
+  threadPerKill: 6,          // thread per kill (null = CONFIG.threadPerKill)
+  critters: { silverfish: 4 },   // bonus critters this level (the cap; src/critters.js)
   // The Button Beetle's level: round, 10 HP, no weak spot and fireproof, so Fire Pins and pivot hits don't help.
   // Magnets clump them for multi-snips, Needles chip them, the Cigar Cutter (unlocked by Level 10) executes them in
   // its ring. Tuned to be playable with un-upgraded scissors and comfortable at tier 2 (more reach, faster snips).

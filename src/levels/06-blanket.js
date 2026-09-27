@@ -5,7 +5,11 @@ export default {
   recipe: 'start left, zigzag 3', seed: 6,
   world: 'meadow',
   allowedPins: null,         // Pin types that can be built here (null = all)
-  startThread: null,         // thread at the start (null = CONFIG.startThread)
+  // Thread: 7 per kill + 12 to start = 516 for all 72 enemies; its 2 silverfish (30 each) bring it back to
+  // the old 576 (8 per kill). tools/wavesheet.js prints the numbers.
+  startThread: 12,           // thread at the start (null = CONFIG.startThread)
+  threadPerKill: 7,          // thread per kill (null = CONFIG.threadPerKill)
+  critters: { silverfish: 2 },   // bonus critters this level (the cap; src/critters.js)
   // Everything so far, five waves.
   waves: [
     [['scrap', 6, 2], ['runner', 4, 8], ['bolster', 1, 14]],

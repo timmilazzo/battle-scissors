@@ -4,7 +4,8 @@
 // A level file exports one object. Either a painted level: { id, name, blurb, bg, w, h, paths, spots, spotR,
 // roadHalfWidth, workshopR } (the plate art and its measurements, in the plate's pixels), or a generated one:
 // { id, name, blurb, recipe, seed } (src/levelGen.js builds it, src/levelArt.js paints it), or { random: true } (a new
-// recipe from each run's seed). Plus the shared fields every file has: world, allowedPins, startThread, waves,
+// recipe from each run's seed). Plus the shared fields every file has: world, allowedPins, startThread, threadPerKill,
+// critters ({ silverfish: cap }, null = CONFIG.critters.perWorld), critterIntro, waves,
 // weapon, unlockOnClear, signText, starRules (see 01-meadow.js for what each means; null = the CONFIG default).
 //
 // loadLevel returns the level as played, the same shape either way: { id, name, blurb, world, gen, bg | (painted by
@@ -32,7 +33,7 @@ const LIST = [first, meadow, fork, hem, running, double, blanket, loop, hemline,
 const byId = {};
 for (const l of LIST) byId[l.id] = l;
 
-const SHARED = { world: 'meadow', weapon: null, allowedPins: null, startThread: null, waves: null, unlockOnClear: null, signText: '', starRules: { noDamage: true, noSpecial: true } };
+const SHARED = { world: 'meadow', weapon: null, allowedPins: null, startThread: null, threadPerKill: null, critters: null, critterIntro: false, waves: null, unlockOnClear: null, signText: '', starRules: { noDamage: true, noSpecial: true } };
 const shared = f => { const o = {}; for (const k in SHARED) o[k] = f[k] !== undefined ? f[k] : SHARED[k]; return o; };
 
 export const hasLevel = id => !!byId[id];
