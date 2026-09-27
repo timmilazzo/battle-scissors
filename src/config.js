@@ -196,7 +196,7 @@ export const CONFIG = {
   toastMs: 1400,             // "coming soon" message duration for placeholder title buttons
 
   // --- economy (thread) ---
-  startThread: 150,          // thread at the start of a run
+  startThread: 0,            // thread at the start of a run (Pins are earned with snip kills)
   threadPerKill: 8,          // thread per enemy killed by a snip (or the Helicopter)
   threadPerLeak: 2,          // thread per enemy that reaches the workshop, so a losing player can still afford something
 
