@@ -1,13 +1,14 @@
 # Battle Scissors
 
-A 2D mobile canvas game prototype built around one mechanic: your two fingers are the handles of a pair of scissors, and a fast pinch snips whatever sits between the blades. Plush ragdoll enemies walk a road through a kitchen drawer toward your workshop; you snip them, build Pins (Ice, Fire, Magnet) on the pads beside the road, and bank kills for SHRED, a spinning special.
+A 2D mobile canvas game prototype built around one mechanic: your fingers work a pair of scissors that snip whatever sits between the blades. Plush ragdoll enemies walk a road through a kitchen drawer toward your workshop; you snip them, build Pins (Ice, Fire, Magnet) on the pads beside the road, and bank kills for SHRED, a spinning special.
 
 Plain ES modules, no build step, no dependencies. Made for phones; a mouse and keyboard fallback exists for desktop.
 
 ## Play
 
 - **On a phone:** open the GitHub Pages URL, then use *Add to Home Screen* (Android: Chrome menu > Install app / Add to Home screen; iOS: Safari > Share > Add to Home Screen). It launches fullscreen with no browser chrome. Android locks it to portrait; iOS web apps can't lock orientation, so hold the phone upright.
-- **Controls:** two fingers on the screen are the scissor handles. Spread them to open the blades and pinch fast to snip; rotate your hand to aim. Slow closes do nothing. Tap a third finger while gripping to SHRED once it's charged. Tap a **+** beside the road to build a Pin.
+- **Controls (Hold, the default):** hold a finger on the screen and the blades open above it (each weapon opens at its own speed); lift to snip. Lifting early cuts weaker. Tap a second finger while holding to SHRED once it's charged. Tap a **+** beside the road to build a Pin.
+- **Controls (Pinch, in Settings on the title):** two fingers on the screen are the scissor handles. Spread them to open the blades and pinch fast to snip; rotate your hand to aim. Slow closes do nothing. Tap a third finger while gripping to SHRED.
 - **Desktop:** move the mouse, hold the left button to open, release to snip. Wheel = spread, A/D = rotate, Space = instant snip, E = SHRED, P/Esc = pause, R = back to title. The full list is at the top of `index.html`.
 
 ## Run locally

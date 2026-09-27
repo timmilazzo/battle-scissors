@@ -1,12 +1,25 @@
 // Touch / mouse / keyboard -> scissor pose (pivot, aim, spread) + snip detection.
-// The player's two fingers are the HANDLES; the pivot sits above their midpoint and the blades
-// extend away from the fingers so the cutting zone is never under a thumb.
+// Touch has two control modes (input.controls, picked in Settings, remembered in localStorage):
+//   'hold' (default, easy): one finger holds the scissors; holding opens them over the weapon's openMs and lifting
+//     snaps them shut (like the desktop mouse button). A second finger triggers SHRED.
+//   'pinch': two fingers are the HANDLES; spread to open, pinch fast to snip, rotate to aim. A third finger = SHRED.
+// Either way the pivot sits above the finger(s) and the blades extend away from them, so the cutting zone is never
+// under a thumb.
 // This module never touches game entities: it reports snips through the hooks passed to initInput().
 import { CONFIG as C } from './config.js';
 import { view, clamp, lerpK, lerpAngle } from './core.js';
+import { weapon } from './scissors.js';
+
+const CONTROLS_KEY = 'battleScissors.controls', CONTROLS = ['hold', 'pinch'];
+function savedControls() {
+  try { const m = localStorage.getItem(CONTROLS_KEY); if (CONTROLS.includes(m)) return m; } catch (e) { /* storage blocked */ }
+  return 'hold';
+}
 
 export const input = {
-  tp: { id: [-1, -1], x: [0, 0], y: [0, 0] },                              // two tracked touches
+  controls: savedControls(),                                               // touch control mode: 'hold' | 'pinch'
+  tp: { id: [-1, -1], x: [0, 0], y: [0, 0] },                              // two tracked touches ('pinch')
+  hand: { id: -1, x: 0, y: 0, dist: 0, down: false, lift: false, fresh: false }, // the one held finger ('hold')
   mouse: { x: 0, y: 0, inside: false, dist: 150, rot: 0, used: false, held: false },
   usingTouch: false,
   touchCapable: ('ontouchstart' in window) || navigator.maxTouchPoints > 0,
@@ -16,12 +29,12 @@ export const input = {
   gripping: false, scAlpha: 0,
   last: { ms: -1, speed: 0, power: 1, kind: '', ver: 0 },                  // last close, for the HUD
 };
-let prevRaw = 0, needSnap = true;
+let prevRaw = 0, needSnap = true, snapNext = false;
 // widest raw spread since the last close through snipCloseTo (catches closes too slow for the lookback window)
 let openPeak = 0;
 
 // onSnip(px, py, theta, spread, strong), onTooSlow(), onGrip(), onSpace(), onReset(), onPause() (P / Escape),
-// onSpecial() = third finger / E key
+// onSpecial() = the extra finger (second in 'hold', third in 'pinch') / E key
 const hooks = { onSnip: null, onTooSlow: null, onGrip: null, onSpace: null, onReset: null, onSpecial: null, onPause: null };
 
 // ring buffer of recent samples (no per-frame allocation)
@@ -81,10 +94,21 @@ function detectSnip(now) {
 
 function beginGrip() {
   input.gripping = true; bCount = 0; openPeak = 0; hooks.onGrip();
-  needSnap = input.scAlpha < 0.3;
+  needSnap = snapNext || input.scAlpha < 0.3; snapNext = false;
   if (needSnap) { input.aimX = 0; input.aimY = -1; }
 }
 function endGrip() { input.gripping = false; bCount = 0; openPeak = 0; }
+
+// Touch in 'hold' mode (one held finger opens the blades)?
+export const holdTouch = () => input.controls === 'hold';
+export function setControls(mode) {
+  if (!CONTROLS.includes(mode)) return;
+  input.controls = mode;
+  input.tp.id[0] = input.tp.id[1] = -1; input.hand.id = -1; input.hand.down = input.hand.lift = false;
+  try { localStorage.setItem(CONTROLS_KEY, mode); } catch (e) { /* storage blocked */ }
+}
+// Held mouse button / held finger: opens closed -> full over the current weapon's openMs.
+const openStep = (dist, dt) => Math.min(C.openDistPx, dist + (C.openDistPx - C.closedDistPx) * dt * 1000 / weapon.def.openMs);
 
 // Called first thing every frame by game.update().
 export function updateInput(now, dt) {
@@ -92,10 +116,20 @@ export function updateInput(now, dt) {
 
   // --- raw finger points ---
   let have = false;
-  if (input.usingTouch) {
+  if (input.usingTouch && holdTouch()) {
+    // one finger = both handles side by side (aim straight up). A lift keeps the grip one more frame so detectSnip
+    // sees the snap-shut; a new touch always snaps the scissors to it instead of gliding over from the last one.
+    const h = input.hand;
+    if (h.fresh) { h.fresh = false; if (input.gripping) endGrip(); snapNext = true; }
+    if (h.down || h.lift) {
+      if (h.down) h.dist = openStep(h.dist, dt);
+      h.lift = false;
+      input.fAx = h.x - h.dist * 0.5; input.fAy = h.y; input.fBx = h.x + h.dist * 0.5; input.fBy = h.y; have = true;
+    }
+  } else if (input.usingTouch) {
     if (tp.id[0] !== -1 && tp.id[1] !== -1) { input.fAx = tp.x[0]; input.fAy = tp.y[0]; input.fBx = tp.x[1]; input.fBy = tp.y[1]; have = true; }
   } else if (mouse.inside) {
-    if (mouse.held) mouse.dist = Math.min(C.openDistPx, mouse.dist + (C.openDistPx - C.closedDistPx) * dt * 1000 / C.mouseOpenMs);
+    if (mouse.held) mouse.dist = openStep(mouse.dist, dt);
     const hx = Math.cos(mouse.rot) * mouse.dist * 0.5, hy = Math.sin(mouse.rot) * mouse.dist * 0.5;
     input.fAx = mouse.x - hx; input.fAy = mouse.y - hy; input.fBx = mouse.x + hx; input.fBy = mouse.y + hy; have = true;
   }
@@ -151,9 +185,30 @@ export function initInput(h) {
   const cv = view.cv, tp = input.tp, mouse = input.mouse;
   const hintEl = document.getElementById('hint');
 
+  // 'hold': the first finger down is the hand; any other finger landing while it's held asks for SHRED.
+  function onHoldTouch(e) {
+    const h = input.hand, ct = e.changedTouches;
+    const lift = () => { h.id = -1; h.down = false; h.dist = C.closedDistPx; h.lift = true; };   // snap shut
+    if (h.id !== -1) {                                            // lost events: the held finger is gone
+      let alive = false;
+      for (let i = 0; i < e.touches.length; i++) if (e.touches[i].identifier === h.id) { alive = true; break; }
+      if (!alive) lift();
+    }
+    for (let i = 0; i < ct.length; i++) {
+      const t = ct[i];
+      if (e.type === 'touchstart') {
+        if (h.id === -1) { h.id = t.identifier; h.x = t.clientX; h.y = t.clientY; h.dist = C.closedDistPx; h.down = true; h.lift = false; h.fresh = true; }
+        else if (t.identifier !== h.id && hooks.onSpecial) hooks.onSpecial();
+      } else if (t.identifier === h.id) {
+        if (e.type === 'touchmove') { h.x = t.clientX; h.y = t.clientY; } else lift();
+      }
+    }
+  }
+
   function onTouch(e) {
     e.preventDefault();
     if (!input.usingTouch) { input.usingTouch = true; hintEl.style.display = 'none'; }
+    if (holdTouch()) { onHoldTouch(e); return; }
     // drop slots whose touch is no longer on screen (lost events)
     for (let s = 0; s < 2; s++) {
       if (tp.id[s] === -1) continue;

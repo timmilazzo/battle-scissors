@@ -22,32 +22,33 @@ export const CONFIG = {
   // pivotX/pivotY come from the SVG's viewBox and data-* attributes (viewX/viewY default 0). bladeLen = pivot to blade
   // tip in SVG units (measured). maxOpenDeg = half the cut zone's angle at full open (for plain two-blade art, each
   // blade's swing). reachFrac = blade length on screen as a fraction of screen height, damageMult = multiplier on every
-  // snip's damage. Optional: aimOffsetDeg + aimOffsetOpenDeg x open = extra turn of the whole art, for art whose gap
+  // snip's damage, openMs = how long a held mouse button or held finger ('hold' touch controls) takes to
+  // open it closed -> full (lifting snaps it shut). Optional: aimOffsetDeg + aimOffsetOpenDeg x open = extra turn of the whole art, for art whose gap
   // isn't centred on its own axis; kind: 'slide' = no pivot, parts slide apart and the cut zone is a round hole of
   // radius bladeLen at the pivot point (the hole's centre); spinLen = how far the Helicopter spin reaches (SVG units).
   weapons: {
     dagger:  { name: 'Dagger Shears', blurb: 'Long engraved blades that reach deep into the road.',
                svg: 'assets/weapons/dagger-shears.svg', viewW: 800, viewH: 1000, pivotX: 400, pivotY: 440,
-               bladeLen: 370, maxOpenDeg: 32, reachFrac: 0.132, damageMult: 1 },
+               bladeLen: 370, maxOpenDeg: 32, reachFrac: 0.132, damageMult: 1, openMs: 500 },
     nippers: { name: 'War Nippers', blurb: 'Short crescent jaws that bite hard. Get close.',
                svg: 'assets/weapons/battle-cuticle-nippers.svg', viewW: 800, viewH: 1000, pivotX: 400, pivotY: 440,
-               bladeLen: 242, maxOpenDeg: 28, reachFrac: 0.088, damageMult: 1.3 },
+               bladeLen: 242, maxOpenDeg: 28, reachFrac: 0.088, damageMult: 1.3, openMs: 380 },
     barber:  { name: 'Split Enders', blurb: 'Opens wide enough to take a whole crowd, but cuts light.',
                svg: 'assets/weapons/barber-scissors.svg', viewX: -80, viewW: 960, viewH: 1000, pivotX: 400, pivotY: 440,
-               bladeLen: 404, maxOpenDeg: 60, reachFrac: 0.12, damageMult: 0.85 },
+               bladeLen: 404, maxOpenDeg: 60, reachFrac: 0.12, damageMult: 0.85, openMs: 650 },
     scrap:   { name: 'Scrap Snippers', blurb: 'Long heavy blades with a narrow bite. Aim true.',
                svg: 'assets/weapons/scrap-shears.svg', viewW: 800, viewH: 1000, pivotX: 400, pivotY: 440,
-               bladeLen: 408, maxOpenDeg: 24, reachFrac: 0.144, damageMult: 1.25 },
+               bladeLen: 408, maxOpenDeg: 24, reachFrac: 0.144, damageMult: 1.25, openMs: 580 },
     // hooked jaw -12deg, blade +76deg, handle +12deg (per-layer data-open-angle). Closed, the blade tip points 41deg
     // left of the art's axis; fully open, the gap spans -40..+22deg (centre -9deg, 62deg wide). The aim offset turns
     // the art 41deg -> 9deg as it opens so the tip, then the gap's centre, lines up with the aim.
     pruners: { name: 'Ratchet Pruners', blurb: 'A hooked jaw holds, one heavy blade bites down. Big hits up close.',
                svg: 'assets/weapons/ratchet-pruners.svg', viewW: 800, viewH: 1000, pivotX: 400, pivotY: 320,
-               bladeLen: 240, maxOpenDeg: 31, aimOffsetDeg: 41, aimOffsetOpenDeg: -32, reachFrac: 0.1, damageMult: 1.4 },
+               bladeLen: 240, maxOpenDeg: 31, aimOffsetDeg: 41, aimOffsetOpenDeg: -32, reachFrac: 0.1, damageMult: 1.4, openMs: 620 },
     // blades slide 155 units each way inside a 131-unit round window; the finger rings sit about 426 units out
     cigar:   { name: 'Cigar Cutter', blurb: 'No blades to swing: fit them in the hole and slam it shut.',
                svg: 'assets/weapons/cigar-cutter.svg', viewW: 1300, viewH: 640, pivotX: 650, pivotY: 320, kind: 'slide',
-               bladeLen: 131, maxOpenDeg: 0, spinLen: 426, reachFrac: 0.036, damageMult: 2.2 },
+               bladeLen: 131, maxOpenDeg: 0, spinLen: 426, reachFrac: 0.036, damageMult: 2.2, openMs: 440 },
   },
   defaultWeapon: 'dagger',   // weapon picked on first launch (afterwards the last choice is remembered)
   statDrawerHeightIn: 24,    // the play area's height in "story" inches; converts reach to inches on the weapon screen
@@ -94,7 +95,7 @@ export const CONFIG = {
   shakeMs: 220,              // "too slow" wobble duration
   shakePx: 4,                // "too slow" wobble amplitude
   fadeOutMs: 200,            // scissors fade when a finger lifts
-  fadeInMs: 80,              // scissors fade-in when two fingers land
+  fadeInMs: 80,              // scissors fade-in when the finger(s) land
   spacePulseMs: 220,         // Space-key snip: visual snap-shut-and-reopen duration
   snipParticles: 26,         // spark count in the pivot burst
   showFingers: true,         // draw faint markers at the finger/handle points (debug)
@@ -227,7 +228,6 @@ export const CONFIG = {
   tipShowMs: 9000,           // how long a "you can afford a Pin" / "SHRED ready" tip stays up (unless acted on)
 
   // --- desktop fallback ---
-  mouseOpenMs: 500,          // holding left button opens closed->full over this long; release snaps shut
   wheelDistStep: 0.35,       // px of virtual finger distance per wheel delta unit
   wheelRotStep: 0.004,       // radians per wheel delta unit with Shift held
   keyRotStep: 0.08,          // radians per A/D press

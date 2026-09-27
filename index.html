@@ -4,7 +4,11 @@
   Double-click Play.bat (or run `node tools/serve.js`) and open http://localhost:8000/.
   ES modules don't load from file://, so opening this file directly shows a "use Play.bat" message instead.
 
-  TOUCH: two fingers = the scissor HANDLES. Blades extend up/away from your fingers.
+  TOUCH has two control modes, picked in Settings (the title's gear icon):
+  HOLD (default, easy): one finger holds the scissors; blades extend up/away from it.
+    - Hold = the blades open (each weapon at its own speed, CONFIG.weapons[].openMs); lift = snap shut = SNIP.
+    - Lift early = weaker strike. A second finger = SHRED when charged.
+  PINCH: two fingers = the scissor HANDLES. Blades extend up/away from your fingers.
     - Spread fingers = open blades. Rotate hand = aim.
     - Pinch FAST = SNIP, medium = weak "nick", slow = nothing (scissors shake). Graded by average closing speed.
     - Wider opening before the close = more power. Hits near the pivot hit hardest; near the tips they graze and shove.
@@ -13,14 +17,14 @@
     - Move mouse ............ virtual finger midpoint (pivot sits above the cursor)
     - Mouse wheel ........... finger spread (flick the wheel toward you fast to snip, scroll slowly to see "too slow")
     - Shift+wheel or A / D .. rotate
-    - Hold left button ...... blades open over ~0.5s; release = snap shut (release early = weaker strike)
+    - Hold left button ...... blades open (per weapon, ~0.4-0.65s); release = snap shut (release early = weaker strike)
     - Space ................. instant snip at the current pose (tests cut-zone logic directly)
-    - E ..................... SHRED (Helicopter special) when charged; on touch: tap a third finger while gripping
+    - E ..................... SHRED (Helicopter special) when charged; on touch: tap a second (HOLD) or third (PINCH) finger while gripping
     - Pins (towers) ......... tap (click) a + on an empty spot beside the road, then pick a Pin
     - R ..................... back to the title screen (same as the Reset button)
     - P or Esc .............. pause / resume (same as the ⏸ button)
 
-  FLOW: TITLE -> SELECT (weapon) -> [TUTORIAL on first play, or from "How to play"] -> PLAYING -> WAVE_CLEAR (2s) -> PLAYING ... -> GAME_OVER (lose, or win after the last wave).
+  FLOW: TITLE -> SELECT (weapon) or SETTINGS -> [TUTORIAL on first play, or from "How to play"] -> PLAYING -> WAVE_CLEAR (2s) -> PLAYING ... -> GAME_OVER (lose, or win after the last wave).
         Any live mode can be paused (state.paused): a card with RESUME, Copy run report, Send feedback.
 
   DEBUG PANEL: long-press the top-right corner for 1.5s (touch or mouse) to toggle.
@@ -352,7 +356,7 @@
     outline: 2px dashed rgba(255, 228, 170, 0.2); outline-offset: -8px; transition: transform 80ms, background 120ms;
   }
   .weapon-card:active { transform: scale(0.98); }
-  .weapon-card[aria-pressed="true"] {
+  .weapon-card[aria-pressed="true"], .weapon-card[aria-checked="true"] {
     background: var(--felt-fuzz), radial-gradient(100% 80% at 50% 30%, rgba(255, 210, 63, 0.3), rgba(255, 210, 63, 0.08));
     border-color: #ffc93d; outline-color: rgba(255, 230, 150, 0.9); box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.35), 0 0 18px rgba(255, 210, 63, 0.45);
   }
@@ -366,6 +370,16 @@
   .wc-bar > span { display: block; height: 100%; border-radius: 5px; background: linear-gradient(#b8f07a, #5fbf3a); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4); }
   .select-actions { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; width: 100%; }
   .card .felt-btn.back { font-size: clamp(20px, 5.5vw, 26px); }
+  /* settings: the control-mode options reuse the weapon card's sunken slot and gold "chosen" rim */
+  #settings { overflow-y: auto; justify-content: safe center; }
+  #settings .card { width: min(420px, 100%); }
+  .set-label { align-self: flex-start; font: 400 18px var(--ui-font); letter-spacing: 0.4px; color: #ffe4aa; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45); }
+  .ctl-options { display: grid; gap: 10px; width: 100%; }
+  .ctl-options .weapon-card { flex-direction: row; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 10px; padding: 12px 16px 14px; text-align: left; }
+  .ctl-options .wc-blurb { flex-basis: 100%; min-height: 0; font-size: 13px; }
+  .ctl-tag { font: 400 13px var(--ui-font); letter-spacing: 0.4px; padding: 3px 9px 4px; border-radius: 9px; color: #2a170a; background: #ffd23f; }
+  .ctl-tag.pro { background: #c79bff; }
+  #settings .felt-btn.small { width: 100%; }
   @media (max-height: 520px) { #select .card { padding: 22px 14px 14px; gap: 8px; } .wc-blurb { display: none; } #select .card h2 { font-size: 28px; margin-top: -50px; } }
 
   /* debug panel (built by src/debug.js) */
@@ -435,12 +449,12 @@
   <div class="title-art">
     <h1 class="sr-only">Battle Scissors: Kitchen Drawer Defense</h1>
     <!-- --x/--y/--w/--h: sprite rect in the mock; --px/--py: portrait position (default --x/--y);
-         --lx/--ly/--lw/--lh: landscape rect; --r: clip shape. PLAY, How to play and Sound are wired; the rest are placeholders. -->
+         --lx/--ly/--lw/--lh: landscape rect; --r: clip shape. PLAY, How to play, Settings and Sound are wired; the rest are placeholders. -->
     <button id="play" class="art-btn" type="button" style="--x:212;--y:1030;--w:526;--h:192;--lx:616;--ly:640;--lw:440;--lh:161;--r:11% / 31%"><span class="sr-only">Play</span></button>
     <button class="art-btn" type="button" data-soon="Upgrades" style="--x:291;--y:1244;--w:365;--h:98;--lx:373;--ly:815;--lw:297;--lh:80;--r:5% / 19%"><span class="sr-only">Upgrades</span></button>
     <button class="art-btn" type="button" data-soon="Shop" style="--x:291;--y:1356;--w:365;--h:98;--lx:688;--ly:815;--lw:297;--lh:80;--r:5% / 19%"><span class="sr-only">Shop</span></button>
     <button id="how" class="art-btn" type="button" style="--x:291;--y:1467;--w:365;--h:98;--lx:1003;--ly:815;--lw:297;--lh:80;--r:5% / 19%"><span class="sr-only">How to play</span></button>
-    <button class="art-btn icon" type="button" data-soon="Settings" style="--x:699;--y:22;--w:90;--h:80;--px:652;--lx:1282;--ly:18;--lw:80;--lh:71;--r:20%"><span class="sr-only">Settings</span></button>
+    <button id="title-settings" class="art-btn icon" type="button" style="--x:699;--y:22;--w:90;--h:80;--px:652;--lx:1282;--ly:18;--lw:80;--lh:71;--r:20%"><span class="sr-only">Settings</span></button>
     <button id="title-sound" class="art-btn icon" type="button" aria-pressed="false" style="--x:824;--y:22;--w:90;--h:80;--px:754;--lx:1370;--ly:18;--lw:80;--lh:71;--r:20%"><span class="sr-only">Sound</span></button>
   </div>
 </div>
@@ -454,6 +468,21 @@
       <button id="select-back" class="felt-btn back" type="button">BACK</button>
       <button id="select-start" class="felt-btn" type="button"><span class="tri"></span>START</button>
     </div>
+  </div>
+</div>
+
+<div id="settings" class="screen" hidden>
+  <div class="card">
+    <h2 class="blue" data-text="SETTINGS">SETTINGS</h2>
+    <div class="set-label">Touch controls</div>
+    <div class="ctl-options" role="radiogroup" aria-label="Touch controls">
+      <button class="weapon-card" type="button" role="radio" data-controls="hold"><span class="wc-name">HOLD</span><span class="ctl-tag">EASY</span>
+        <span class="wc-blurb">Hold one finger down to open the blades, lift it to snip. Each weapon opens at its own speed. Tap a second finger to SHRED.</span></button>
+      <button class="weapon-card" type="button" role="radio" data-controls="pinch"><span class="wc-name">PINCH</span><span class="ctl-tag pro">PRO</span>
+        <span class="wc-blurb">Two fingers are the handles: spread to open, pinch fast to snip, turn your hand to aim. Tap a third finger to SHRED.</span></button>
+    </div>
+    <button id="settings-sound" class="felt-btn small" type="button" aria-pressed="false">Sound: on</button>
+    <button id="settings-back" class="felt-btn back" type="button">BACK</button>
   </div>
 </div>
 

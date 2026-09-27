@@ -6,7 +6,7 @@
 // own tween group, advanced by the render clock; it never feeds back into the game.
 import { CONFIG as C } from './config.js';
 import { view, TAU, DEG } from './core.js';
-import { input } from './input.js';
+import { input, holdTouch } from './input.js';
 import { cut, scaleFor, weapon } from './scissors.js';
 import { live, visOpen, bladeTheta, towerReach } from './game.js';
 import { buildEnemySprites, drawEnemySprite, drawEnemyGround, drawBruteArmor, drawSeam } from './enemyArt.js';
@@ -422,7 +422,7 @@ function drawPrompt(state) {
   if (state.mode === 'PLAYING' && input.touchCapable && !input.mouse.used && !input.gripping && input.scAlpha === 0) {
     ctx.font = PROMPT_FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = 'rgba(255,241,194,0.8)';
-    ctx.fillText('Put two fingers down — they are the handles', view.W / 2, view.H * 0.5);
+    ctx.fillText(holdTouch() ? 'Hold a finger down to open, lift to snip' : 'Put two fingers down — they are the handles', view.W / 2, view.H * 0.5);
   }
 }
 

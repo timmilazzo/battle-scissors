@@ -1,10 +1,10 @@
-// Game state + update(dt): state machine (TITLE -> SELECT -> [TUTORIAL] -> PLAYING -> WAVE_CLEAR -> ... -> GAME_OVER),
+// Game state + update(dt): state machine (TITLE -> SELECT | SETTINGS, SELECT -> [TUTORIAL] -> PLAYING -> WAVE_CLEAR -> ... -> GAME_OVER),
 // waves along a fixed path, the workshop, thread economy, towers, the Helicopter special, onboarding, scoring, pooled
 // entities (plain data), snip resolution, blade contact, run reports. No canvas calls here: render.js draws `state`.
-// Title / select / game-over / coach screens are HTML in index.html; this module only shows, hides and fills them.
+// Title / select / settings / game-over / coach screens are HTML in index.html; this module only shows, hides and fills them.
 import { CONFIG as C } from './config.js';
 import { view, TAU, DEG, clamp, segDistSq } from './core.js';
-import { input, updateInput, resetSnipBuffer } from './input.js';
+import { input, updateInput, resetSnipBuffer, holdTouch } from './input.js';
 import { weapon, scaleFor, setWeapon, bladeReachPx, spinReachPx, isSlide, cut, setCutZone, cutZoneHits } from './scissors.js';
 import { tween, tweens, makeTweens, easing } from './tween.js';
 import { makeRng } from '../vendor/mulberry32.js';
@@ -13,7 +13,7 @@ import { saveRun } from './runlog.js';
 import { KNOB_KEYS } from './debug.js';
 
 // ======================= state =======================
-// mode: 'TITLE' | 'SELECT' | 'TUTORIAL' | 'PLAYING' | 'WAVE_CLEAR' | 'GAME_OVER'. modeT = seconds in the current mode
+// mode: 'TITLE' | 'SELECT' | 'SETTINGS' | 'TUTORIAL' | 'PLAYING' | 'WAVE_CLEAR' | 'GAME_OVER'. modeT = seconds in the current mode
 // (wave clock while PLAYING). fx = effect timers/amplitudes read by the renderer. Entity pools hold plain objects
 // with an `on` flag. events = a small ring of one-off happenings for the renderer (thread pickups, placements).
 export const state = {
@@ -59,7 +59,7 @@ function seedRun(seed) {
 }
 
 const els = {
-  title: document.getElementById('title'), select: document.getElementById('select'), over: document.getElementById('over'),
+  title: document.getElementById('title'), select: document.getElementById('select'), settings: document.getElementById('settings'), over: document.getElementById('over'),
   reset: document.getElementById('reset'), tray: document.getElementById('tray'), coach: document.getElementById('coach'),
   coachText: document.getElementById('coach-text'), mute: document.getElementById('mute'), pauseBtn: document.getElementById('pause'),
   pause: document.getElementById('pause-screen'), pinsIntro: document.getElementById('pins-intro'), pauseWave: document.getElementById('pause-wave'), pauseScore: document.getElementById('pause-score'),
@@ -71,6 +71,7 @@ function showScreens() {
   const m = state.mode;
   els.title.hidden = m !== 'TITLE';
   els.select.hidden = m !== 'SELECT';
+  els.settings.hidden = m !== 'SETTINGS';
   els.over.hidden = m !== 'GAME_OVER';
   els.reset.hidden = els.mute.hidden = m !== 'GAME_OVER';        // mid-run they're on the pause card, out of the way
 
@@ -154,6 +155,7 @@ function clearWorld() {
 
 export function goTitle() { clearWorld(); state.mode = 'TITLE'; showScreens(); }
 export function goSelect() { clearWorld(); state.mode = 'SELECT'; showScreens(); }
+export function goSettings() { clearWorld(); state.mode = 'SETTINGS'; showScreens(); }
 
 const ONBOARDED_KEY = 'battleScissors.onboarded';
 function onboarded() { try { return localStorage.getItem(ONBOARDED_KEY) === '1'; } catch (e) { return true; } }
@@ -250,7 +252,13 @@ const COACH = ['Put two fingers on the screen.', 'Spread them.', 'Now PINCH FAST
 // desktop wording (mouse + wheel): hold opens, release snaps shut, so the slow close uses the wheel
 const COACH_DESK = ['Move the mouse over the table.', 'Hold the left button to open.', 'Now release to SNIP.',
   'Slow closes do nothing. Scroll up to open, then scroll down slowly.', 'Press A or D to aim.', 'Go.'];
-const coachFor = step => (input.usingTouch || (input.touchCapable && !input.mouse.used) ? COACH : COACH_DESK)[step];
+// 'hold' touch wording: hold opens, lift snaps shut; there is no slow close or rotation, so steps 3 and 4 are skipped
+const COACH_HOLD = ['Put a finger on the screen.', 'Hold it down: the blades open.', 'Now LIFT to SNIP.', '', '', 'Go.'];
+const touchy = () => input.usingTouch || (input.touchCapable && !input.mouse.used);
+const holdTut = () => touchy() && holdTouch();
+const coachFor = step => (holdTut() ? COACH_HOLD : touchy() ? COACH : COACH_DESK)[step];
+// the step after this one ('hold' touch jumps from the practice Scraps straight to Go.)
+const nextStep = step => step === 2 && holdTut() ? 5 : step + 1;
 function tutEnter(step) {
   tut.step = step; tut.t = 0;
   els.coachText.textContent = coachFor(step);
@@ -280,7 +288,7 @@ function tutUpdate(dt) {
   switch (tut.step) {
     case 0: if (input.gripping) tutEnter(1); break;
     case 1: if (input.rawSpread > C.tutSpreadFrac) tutEnter(2); break;
-    case 2: { let left = 0; for (const e of enemies) if (e.on && e.pinned) left++; if (!left) tutEnter(3); break; }
+    case 2: { let left = 0; for (const e of enemies) if (e.on && e.pinned) left++; if (!left) tutEnter(nextStep(2)); break; }
     case 3:
       if (input.last.ver !== tut.ver0) {
         if (input.last.kind === 'too slow') { tutEnter(4); break; }
@@ -297,7 +305,8 @@ function tutUpdate(dt) {
 export function tutSkip() {
   if (state.mode !== 'TUTORIAL') return;
   if (tut.step === 2) for (const e of enemies) if (e.on && e.pinned) e.on = false;
-  if (tut.step >= 4) finishTutorial(); else tutEnter(tut.step + 1);
+  const next = nextStep(tut.step);
+  if (next >= 5) finishTutorial(); else tutEnter(next);
 }
 export function tutSkipAll() { if (state.mode === 'TUTORIAL') finishTutorial(); }
 function finishTutorial() {

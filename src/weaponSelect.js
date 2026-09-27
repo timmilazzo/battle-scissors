@@ -5,12 +5,14 @@ import { CONFIG as C } from './config.js';
 const STORE_KEY = 'battleScissors.weapon';
 // Each stat is either a readout (text) or a bar (value, drawn relative to the best weapon in that stat).
 // Reach: blade length in story inches (play area = statDrawerHeightIn tall). Spread: full angle between the open blades.
+// Speed: how fast a held button / finger opens it (1 / openMs).
 // A slide weapon (kind 'slide') has no reach or spread: its bite is a round hole (reachFrac = the hole's radius).
 const inches = w => w.reachFrac * C.weaponScale * C.statDrawerHeightIn;
 const STATS = [
   { label: w => w.kind === 'slide' ? 'Hole' : 'Reach', text: w => (w.kind === 'slide' ? 2 * inches(w) : inches(w)).toFixed(1) + ' in' },
   { label: w => w.kind === 'slide' ? 'Cut' : 'Spread', text: w => w.kind === 'slide' ? 'guillotine' : w.maxOpenDeg * 2 + '°' },
   { label: () => 'Power', bar: w => w.damageMult },
+  { label: () => 'Speed', bar: w => 1 / w.openMs },
 ];
 
 export function savedWeapon() {

@@ -1,6 +1,6 @@
 // The bottom action bar and the Pin spots: "everything besides snipping". DOM only; reads game state, calls game actions.
-// - Bar: the Thread counter chip (the Pin currency; pops on income) and the SHRED card (charge meter; tap it with a
-//   third finger while holding the scissors, or press E).
+// - Bar: the Thread counter chip (the Pin currency; pops on income) and the SHRED card (charge meter; tap it, or anywhere,
+//   with another finger while holding the scissors: the 2nd finger in 'hold' controls, the 3rd in 'pinch'; or press E).
 // - Pin spots: a + button on every empty spot of the level. Tapping one opens a picker beside it with one card per
 //   Pin (name, effect, cost); tapping an affordable card builds that Pin there. Tapping elsewhere closes it.
 // - Tips: first-time attention for Pins (once a Pin is affordable, the + buttons and the counter pulse plus a tip,
@@ -8,7 +8,7 @@
 //   picker open) and the first time SHRED is ready (until it has ever been used). The SHRED card pulses whenever ready.
 import { CONFIG as C } from './config.js';
 import { view } from './core.js';
-import { input } from './input.js';
+import { input, holdTouch } from './input.js';
 import { state, canAfford, buildTower, trySpecial, setPaused } from './game.js';
 
 const TIPS_KEY = 'battleScissors.tips';
@@ -22,6 +22,7 @@ const tipEl = document.getElementById('tip'), tipText = document.getElementById(
 const spotsEl = document.getElementById('spots'), picker = document.getElementById('picker');
 const spotBtns = [], pickCards = [];
 const touchy = () => input.usingTouch || (input.touchCapable && !input.mouse.used);
+const extraFinger = () => holdTouch() ? 'second' : 'third';
 
 // What each Pin does, for the explainer (numbers come from config so the copy stays true).
 const PIN_TEXT = {
@@ -147,7 +148,7 @@ function shredPressed() {
   const left = C.heliKillsToCharge - state.heli.charge;
   if (left > 0) { toast('SHRED charges with snip kills: ' + left + ' to go'); return; }
   if (!touchy()) { toast('Press E while aiming at a crowd'); return; }
-  if (!input.gripping) { toast('Hold the scissors with two fingers, then tap SHRED with a third'); return; }
+  if (!input.gripping) { toast(holdTouch() ? 'Hold the scissors with one finger, then tap with a second' : 'Hold the scissors with two fingers, then tap SHRED with a third'); return; }
   trySpecial();
 }
 
@@ -209,7 +210,7 @@ export function refreshActionBar() {
     shown.charge = h.charge; shown.ready = ready;
     shredFill.style.width = Math.round(h.charge / C.heliKillsToCharge * 100) + '%';
     shredCard.classList.toggle('ready', ready);
-    shredSub.textContent = ready ? (touchy() ? 'READY: 3rd finger' : 'READY: press E') : h.charge + ' / ' + C.heliKillsToCharge + ' kills';
+    shredSub.textContent = ready ? (touchy() ? (holdTouch() ? 'READY: 2nd finger' : 'READY: 3rd finger') : 'READY: press E') : h.charge + ' / ' + C.heliKillsToCharge + ' kills';
   }
   updateTip(ready, built);
 }
@@ -219,7 +220,7 @@ function updateTip(ready, built) {
   const now = performance.now();
   if (ready && !tips.shred && !tipShredDone) {
     tipShredDone = true;
-    showTip('shred', shredCard, 'SHRED is ready! ' + (touchy() ? 'While holding the scissors, tap a third finger' : 'Press E') +
+    showTip('shred', shredCard, 'SHRED is ready! ' + (touchy() ? 'While holding the scissors, tap a ' + extraFinger() + ' finger' : 'Press E') +
       ' to spin through everything in reach.', now + C.tipShowMs);
   } else if (attn && !tipPinsDone && pick.spot < 0) {
     tipPinsDone = true;

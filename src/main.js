@@ -1,8 +1,8 @@
 // Entry point: apply saved debug overrides, pick the remembered weapon, wire input and screens (title, action bar,
 // coach, pause, mute, run report) to the game, size the canvas, load weapon art, then run the loop: update then draw every frame.
 import { CONFIG as C, FEEDBACK_URL } from './config.js';
-import { input, initInput } from './input.js';
-import { state, gameHooks, goTitle, goSelect, startGame, selectWeapon, layout, update, lastReport,
+import { input, initInput, setControls } from './input.js';
+import { state, gameHooks, goTitle, goSelect, goSettings, startGame, selectWeapon, layout, update, lastReport,
   tutSkip, tutSkipAll, setPaused, togglePause, reportNow } from './game.js';
 import { weapon, setWeapon } from './scissors.js';
 import { draw, sizeCanvas, prerender } from './render.js';
@@ -39,24 +39,33 @@ const play = () => { unlockAudio(); toast.hidden = true; startGame(); };
 on('play', () => { unlockAudio(); toast.hidden = true; goSelect(); });
 on('how', () => { unlockAudio(); toast.hidden = true; startGame({ tutorial: true }); });
 on('again', play);
+// Settings (title's gear icon): touch control mode (input.js remembers it) and sound.
+on('title-settings', () => { unlockAudio(); toast.hidden = true; goSettings(); });
+on('settings-back', goTitle);
+const ctlBtns = document.querySelectorAll('[data-controls]');
+function showControls() { for (const b of ctlBtns) b.setAttribute('aria-checked', String(b.dataset.controls === input.controls)); }
+for (const b of ctlBtns) b.addEventListener('click', () => { setControls(b.dataset.controls); showControls(); });
+showControls();
 initWeaponSelect({ onPick: id => { selectWeapon(id); rasterizeArt(); }, onStart: play, onBack: goTitle });
 // Pressing anywhere on the title snaps its scissors shut (render.js) with a snip; it's also a gesture that unlocks audio.
 document.getElementById('title').addEventListener('pointerdown', () => { unlockAudio(); sfx('snip'); });
 for (const b of document.querySelectorAll('[data-soon]')) b.addEventListener('click', () => showToast(b.dataset.soon + ': coming soon'));
 
-// Mute: the top-bar button (game-over only), the pause card's Sound button and the title's Sound icon; persisted by audio.js.
-const muteBtn = document.getElementById('mute'), titleSound = document.getElementById('title-sound'), pauseSound = document.getElementById('pause-sound');
+// Mute: the top-bar button (game-over only), the pause and settings cards' Sound buttons and the title's Sound icon; persisted by audio.js.
+const muteBtn = document.getElementById('mute'), titleSound = document.getElementById('title-sound'), pauseSound = document.getElementById('pause-sound'),
+  settingsSound = document.getElementById('settings-sound');
 function showMute() {
   const m = isMuted();
   muteBtn.setAttribute('aria-pressed', String(m));                    // the icon swaps on aria-pressed (CSS)
   muteBtn.setAttribute('aria-label', m ? 'Unmute sound' : 'Mute sound');
   titleSound.classList.toggle('muted', m); titleSound.setAttribute('aria-pressed', String(m));
-  pauseSound.textContent = m ? 'Sound: off' : 'Sound: on'; pauseSound.setAttribute('aria-pressed', String(m));
+  for (const b of [pauseSound, settingsSound]) { b.textContent = m ? 'Sound: off' : 'Sound: on'; b.setAttribute('aria-pressed', String(m)); }
 }
 const toggleMute = e => { e.stopPropagation(); unlockAudio(); setMuted(!isMuted()); showMute(); };
 muteBtn.addEventListener('click', toggleMute);
 titleSound.addEventListener('click', e => { toggleMute(e); showToast(isMuted() ? 'Sound off' : 'Sound on'); });
 pauseSound.addEventListener('click', toggleMute);
+settingsSound.addEventListener('click', toggleMute);
 showMute();
 
 // Onboarding coach skip links.
