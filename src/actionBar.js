@@ -1,6 +1,6 @@
 // The bottom action bar and the Pin spots: "everything besides snipping". DOM only; reads game state, calls game actions.
 // - Bar: the Thread counter chip (the Pin currency; pops on income).
-// - SHRED meter (a pill in the top-left HUD column, under the hearts): a tube that fills left to right with snip kills. Full, it pulses; tapping it arms
+// - SHRED meter (a round badge in the top-left HUD column, under the hearts): a ring that fills clockwise with snip kills. Full, it pulses; tapping it arms
 //   SHRED and the next press on the table starts the spin where the scissors land (tap the meter again to cancel). E, or
 //   another finger while holding the scissors, still fires it straight away.
 // - Pin spots: a + button on every empty spot of the level, shown only while some Pin is affordable. Tapping one opens a picker beside it with one card per
@@ -19,7 +19,7 @@ const tips = Save.tips;                          // pinIntro = the Pin explainer
 const saveTips = persist;
 
 const bar = document.getElementById('tray'), threadEl = document.getElementById('tray-thread'), chip = threadEl.parentElement;
-const shredCard = document.getElementById('shred-card'), shredFill = shredCard.querySelector('.tube > span');
+const shredCard = document.getElementById('shred-card');
 const tipEl = document.getElementById('tip'), tipText = document.getElementById('tip-text');
 const spotsEl = document.getElementById('spots'), picker = document.getElementById('picker');
 const spotBtns = [], pickCards = [];
@@ -205,7 +205,7 @@ export function refreshActionBar() {
   const h = state.heli, ready = h.charge >= C.heliKillsToCharge && !h.active;
   if (shown.charge !== h.charge || shown.ready !== ready || shown.armed !== h.armed) {
     shown.charge = h.charge; shown.ready = ready; shown.armed = h.armed;
-    shredFill.style.width = Math.round(h.charge / C.heliKillsToCharge * 100) + '%';
+    shredCard.style.setProperty('--p', Math.round(h.charge / C.heliKillsToCharge * 100));
     shredCard.classList.toggle('ready', ready && !h.armed);
     shredCard.classList.toggle('armed', h.armed);
     shredCard.setAttribute('aria-label', h.armed ? 'SHRED armed: tap to cancel' : ready ? 'SHRED ready: tap to arm' : 'SHRED ' + h.charge + ' of ' + C.heliKillsToCharge + ' kills');

@@ -148,24 +148,25 @@
   /* first time a Pin is affordable (until its explainer has been seen): the thread pill pulses with the + buttons */
   #tray.pin-attn .thread-chip { animation: tchip 0.9s ease-in-out infinite; }
   @keyframes tchip { 50% { box-shadow: inset 0 2px 1px rgba(255, 255, 255, 0.28), 0 4px 0 var(--rim), 0 0 0 3px #fff1c2, 0 0 22px rgba(255, 241, 194, 0.9); } }
-  /* SHRED: a felt pill in the HUD column, under the hearts (clear of the hand, which covers the bottom right); the tube
-     fills left to right with snip kills. Full: it pulses gold, tap it to arm; armed: the next press on the table starts
-     the spin there (tap the meter again to cancel). */
+  /* SHRED: a small round felt badge in the HUD column, under the hearts (clear of the hand, which covers the bottom
+     right, and narrow so it stays off the road); a ring round the scissors fills clockwise with snip kills (--p, set by
+     actionBar.js). Full: it pulses gold, tap it to arm; armed: the next press on the table starts the spin there (tap
+     it again to cancel). */
   #shred-card {
-    pointer-events: auto; z-index: 15;
-    width: 132px; height: 40px; padding: 0 12px 0 4px; border-radius: 999px; outline-offset: -6px;
-    display: flex; flex-direction: row; align-items: center; gap: 6px;
+    pointer-events: auto; z-index: 15; position: relative;
+    width: 48px; height: 48px; padding: 0; border-radius: 50%; outline-offset: -5px;
+    display: flex; align-items: center; justify-content: center;
   }
   #shred-card[hidden] { display: none; }
-  #shred-card .ticon { flex: none; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-    font-size: 16px; color: #3b1060; text-shadow: none; background: radial-gradient(circle at 35% 30%, #efdcff, #b88af0); border: 2px solid #331560; }
-  #shred-card .tube { position: relative; flex: 1; height: 12px; border-radius: 6px; background: rgba(20, 5, 40, 0.6); box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.6); overflow: hidden; }
-  #shred-card .tube > span { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 6px;
-    background: linear-gradient(180deg, #b88af0, #e6cfff 45%, #b88af0); transition: width 150ms; }
-  #shred-card .tname { font-size: 12px; letter-spacing: 0.8px; line-height: 1; }
+  #shred-card .ring { position: absolute; inset: 3px; border-radius: 50%;
+    background: conic-gradient(var(--ringc, #e6cfff) calc(var(--p, 0) * 1%), rgba(20, 5, 40, 0.6) 0);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px));
+            mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px)); }
+  #shred-card .ticon { position: relative; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 15px; color: #3b1060; text-shadow: none; background: radial-gradient(circle at 35% 30%, #efdcff, #b88af0); border: 2px solid #331560; }
   #shred-card.ready { --fc: #d98a12; --rim: #6a3a04; animation: tready 0.9s ease-in-out infinite; }
   #shred-card.ready .ticon, #shred-card.armed .ticon { background: radial-gradient(circle at 35% 30%, #fff6c8, #ffc93d); border-color: #6a3a04; }
-  #shred-card.ready .tube > span, #shred-card.armed .tube > span { background: linear-gradient(180deg, #ffc93d, #fff6c8 45%, #ffc93d); }
+  #shred-card.ready, #shred-card.armed { --ringc: #ffe07a; }
   #shred-card.armed { --fc: #c0392b; --rim: #5a1208; animation: tarmed 0.5s ease-in-out infinite; }
   @keyframes tarmed { 50% { transform: scale(1.06); box-shadow: inset 0 2px 1px rgba(255, 255, 255, 0.28), 0 4px 0 var(--rim), 0 0 0 3px #fff1c2, 0 0 26px rgba(255, 120, 60, 0.95); } }
   @keyframes tready { 50% { filter: brightness(1.18); box-shadow: inset 0 2px 1px rgba(255, 255, 255, 0.28), 0 4px 0 var(--rim), 0 0 22px rgba(255, 210, 63, 0.9); } }
@@ -597,7 +598,7 @@
 <div id="hud" hidden>
   <div class="felt blue hud-wave"><small class="hud-level" id="hud-level" hidden>LEVEL 1</small><small>WAVE</small><b id="hud-wave">1/6</b></div>
   <div class="felt dark hud-hearts" id="hud-hearts" aria-label="Workshop health"><span class="heart"></span><b id="hud-hp">10</b></div>
-  <button id="shred-card" class="felt purple" type="button" aria-label="SHRED" hidden><span class="ticon">✂</span><span class="tube"><span></span></span><span class="tname">SHRED</span></button>
+  <button id="shred-card" class="felt purple" type="button" aria-label="SHRED" hidden><span class="ring"></span><span class="ticon">✂</span></button>
   <div class="felt purple hud-sharp" id="hud-sharp" hidden title="Sharpened: extra snip damage this level">SHARP</div>
 </div>
 <div id="spots" hidden></div>
