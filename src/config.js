@@ -7,6 +7,9 @@
 // body; any other link just opens in a new tab. Empty = the button only shows a toast.
 export const FEEDBACK_URL = 'mailto:tim@saltandwisdom.com';
 
+// Shown small at the bottom of Settings and recorded in every run report. Bump it with each published change.
+export const VERSION = '0.1.5.1';
+
 export const CONFIG = {
   // --- pose / control mapping ---
   pivotOffsetPx: 120,        // pivot sits this many px ABOVE the finger midpoint

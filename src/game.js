@@ -2,7 +2,7 @@
 // waves along the current level's road (one route, or several at a fork), the workshop, thread economy, towers, the Helicopter special, onboarding, scoring, pooled
 // entities (plain data), snip resolution, blade contact, run reports. No canvas calls here: render.js draws `state`.
 // Title / select / settings / game-over / coach screens are HTML in index.html; this module only shows, hides and fills them.
-import { CONFIG as C } from './config.js';
+import { CONFIG as C, VERSION } from './config.js';
 import { view, level, TAU, DEG, clamp, segDistSq } from './core.js';
 import { input, updateInput, resetSnipBuffer, holdTouch } from './input.js';
 import { weapon, scaleFor, setWeapon, bladeReachPx, spinReachPx, isSlide, cut, setCutZone, cutZoneHits } from './scissors.js';
@@ -248,7 +248,7 @@ function buildReport(inProgress = false) {
   const s = state.stats, r = state.run, cfg = {};
   for (const k of KNOB_KEYS) cfg[k] = C[k];
   return {
-    seed: state.seed, level: view.levelId, weapon: weapon.id, won: state.won, wavesReached: state.wave, score: state.score,
+    version: VERSION, seed: state.seed, level: view.levelId, weapon: weapon.id, won: state.won, wavesReached: state.wave, score: state.score,
     snips: s.snips, kills: s.kills, accuracy: s.snips ? +(s.kills / s.snips).toFixed(3) : 0, multiSnips: r.multiSnips,
     towers: { ...r.towers }, specialUses: r.specials, deathsAtWorkshop: r.leaks,
     durationSec: Math.round((Date.now() - r.t0) / 1000), device: navigator.userAgent, config: cfg,

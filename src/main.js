@@ -1,6 +1,6 @@
 // Entry point: apply saved debug overrides, pick the remembered weapon, wire input and screens (title, action bar,
 // coach, pause, mute, run report) to the game, size the canvas, load weapon art, then run the loop: update then draw every frame.
-import { CONFIG as C, FEEDBACK_URL } from './config.js';
+import { CONFIG as C, FEEDBACK_URL, VERSION } from './config.js';
 import { input, initInput, setControls } from './input.js';
 import { state, gameHooks, goTitle, goSelect, goSettings, startGame, selectWeapon, setLevel, nextLevelId, layout, update, lastReport,
   tutSkip, tutSkipAll, setPaused, togglePause, reportNow } from './game.js';
@@ -45,6 +45,7 @@ on('again', play);
 // Settings (title's gear icon): touch control mode (input.js remembers it) and sound.
 on('title-settings', () => { unlockAudio(); toast.hidden = true; goSettings(); });
 on('settings-back', goTitle);
+document.getElementById('version').textContent = 'v' + VERSION;
 const ctlBtns = document.querySelectorAll('[data-controls]');
 function showControls() { for (const b of ctlBtns) b.setAttribute('aria-checked', String(b.dataset.controls === input.controls)); }
 for (const b of ctlBtns) b.addEventListener('click', () => { setControls(b.dataset.controls); showControls(); });
