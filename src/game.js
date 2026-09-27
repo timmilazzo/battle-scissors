@@ -1,9 +1,9 @@
 // Game state + update(dt): state machine (TITLE -> SELECT | SETTINGS, SELECT -> [TUTORIAL] -> PLAYING -> WAVE_CLEAR -> ... -> GAME_OVER),
-// waves along a fixed path, the workshop, thread economy, towers, the Helicopter special, onboarding, scoring, pooled
+// waves along the current level's road (one route, or several at a fork), the workshop, thread economy, towers, the Helicopter special, onboarding, scoring, pooled
 // entities (plain data), snip resolution, blade contact, run reports. No canvas calls here: render.js draws `state`.
 // Title / select / settings / game-over / coach screens are HTML in index.html; this module only shows, hides and fills them.
 import { CONFIG as C } from './config.js';
-import { view, TAU, DEG, clamp, segDistSq } from './core.js';
+import { view, level, TAU, DEG, clamp, segDistSq } from './core.js';
 import { input, updateInput, resetSnipBuffer, holdTouch } from './input.js';
 import { weapon, scaleFor, setWeapon, bladeReachPx, spinReachPx, isSlide, cut, setCutZone, cutZoneHits } from './scissors.js';
 import { tween, tweens, makeTweens, easing } from './tween.js';
@@ -24,11 +24,13 @@ export const state = {
   // space = Space-key snap pulse, ring = pivot shock ring (at ringX/ringY), camShake = kill screen shake (px),
   // hitStop = seconds of world freeze left
   fx: { flash: 0, tooSlow: 0, cut: 0, kick: 0, space: 0, ring: 0, ringX: 0, ringY: 0, camShake: 0, hitStop: 0 },
-  path: { x: new Float32Array(0), y: new Float32Array(0), cum: new Float32Array(0), n: 0, len: 1 },
-  enemies: [], frags: [], parts: [], labels: [], nums: [], pops: [],
-  towers: [],                // one per CONFIG.level.spots entry (towers[i] stands on spot i when on)
-  // Helicopter: charge = snip kills banked; phase '' | 'open' | 'spin' | 'close'; spread/rot drive the blades while active
-  heli: { charge: 0, active: false, phase: '', spread: 0, rot: 0, theta0: 0, tick: 0, bannerT: 0 },
+  // one polyline per route of the current level ({ x, y, cum, n, len }, px); enemies walk paths[e.route]
+  paths: [],
+  enemies: [], frags: [], parts: [], labels: [], nums: [], pops: [], needles: [],
+  towers: [],                // one per spot of the current level (towers[i] stands on spot i when on)
+  // Helicopter: charge = snip kills banked; phase '' | 'open' | 'spin' | 'close'; spread/rot drive the blades while active.
+  // armed = the full SHRED meter was tapped: the next press on the table (go) starts the spin where the scissors land.
+  heli: { charge: 0, active: false, phase: '', spread: 0, rot: 0, theta0: 0, tick: 0, bannerT: 0, armed: false, go: false },
   tut: { step: 0, t: 0, theta0: 0, ver0: 0, nagT: 0 },
   run: { t0: 0, multiSnips: 0, towers: {}, specials: 0, leaks: 0 },
   events: { seq: 0, list: [] },
@@ -64,7 +66,8 @@ const els = {
   coachText: document.getElementById('coach-text'), mute: document.getElementById('mute'), pauseBtn: document.getElementById('pause'),
   pause: document.getElementById('pause-screen'), pinsIntro: document.getElementById('pins-intro'), pauseWave: document.getElementById('pause-wave'), pauseScore: document.getElementById('pause-score'),
   pauseAcc: document.getElementById('pause-acc'), pauseSeed: document.getElementById('pause-seed'),
-  overTitle: document.getElementById('over-title'), overScore: document.getElementById('over-score'),
+  overTitle: document.getElementById('over-title'), overScore: document.getElementById('over-score'), overLevel: document.getElementById('over-level'),
+  next: document.getElementById('next'),
   overWaves: document.getElementById('over-waves'), overAcc: document.getElementById('over-acc'), overSeed: document.getElementById('over-seed'),
 };
 function showScreens() {
@@ -91,41 +94,65 @@ function applyWeaponScale() { view.S = scaleFor(weapon.def); }
 export function selectWeapon(id) { setWeapon(id); applyWeaponScale(); }
 
 // The plate is drawn full height, centred: level units -> screen px.
-function placeLevel() { view.L = view.H / C.level.h; view.LX = (view.W - C.level.w * view.L) / 2; }
+function placeLevel() { const lv = level(); view.L = view.H / lv.h; view.LX = (view.W - lv.w * view.L) / 2; }
 export const levelX = x => view.LX + x * view.L, levelY = y => y * view.L;
 
-// C.level.path (level units) -> Catmull-Rom polyline in px, rebuilt on resize. Enemies store progress u (0..1).
-function buildPath() {
-  const P = C.level.path, n = P.length, steps = C.pathSmoothSteps, L = view.L, LX = view.LX, path = state.path;
-  const N = (n - 1) * steps + 1, X = new Float32Array(N), Y = new Float32Array(N), cum = new Float32Array(N);
-  let k = 0;
-  for (let i = 0; i < n - 1; i++) {
-    const p0 = P[Math.max(i - 1, 0)], p1 = P[i], p2 = P[i + 1], p3 = P[Math.min(i + 2, n - 1)];
-    for (let s = 0; s < steps; s++, k++) {
-      const t = s / steps, t2 = t * t, t3 = t2 * t;
-      X[k] = LX + L * 0.5 * (2 * p1[0] + (-p0[0] + p2[0]) * t + (2 * p0[0] - 5 * p1[0] + 4 * p2[0] - p3[0]) * t2 + (-p0[0] + 3 * p1[0] - 3 * p2[0] + p3[0]) * t3);
-      Y[k] = L * 0.5 * (2 * p1[1] + (-p0[1] + p2[1]) * t + (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * t2 + (-p0[1] + 3 * p1[1] - 3 * p2[1] + p3[1]) * t3);
-    }
+// Switch levels (select screen): one tower slot per spot of the new level. The caller then re-runs the resize chain
+// (layout, prerender, measureActionBar) and rebuilds the action bar's + buttons.
+export function setLevel(id) {
+  if (!C.levels[id]) id = C.defaultLevel;
+  view.levelId = id;
+  towers.length = 0;
+  for (let i = 0; i < level().spots.length; i++) {
+    towers.push({ on: false, type: '', x: 0, y: 0, fx: 0, fy: 0, fu: [], timer: 0, pulse: 0, aim: -Math.PI / 2, kick: 0 });
   }
-  X[k] = levelX(P[n - 1][0]); Y[k] = levelY(P[n - 1][1]);
-  for (let i = 1; i < N; i++) cum[i] = cum[i - 1] + Math.hypot(X[i] - X[i - 1], Y[i] - Y[i - 1]);
-  path.x = X; path.y = Y; path.cum = cum; path.n = N; path.len = Math.max(1, cum[N - 1]);
-  for (const e of enemies) if (e.on && !e.pinned) { e.seg = 0; pathPoint(e); e.x = e.px + e.ox; e.y = e.py + e.oy; }
 }
-// Each tower sits on its spot; fx/fy = the nearest road point and fu = its road progress (where a Magnet Pin clumps
-// enemies).
+
+// Each route of the level (level units) -> a Catmull-Rom polyline in px, rebuilt on resize. Enemies store progress u
+// (0..1) along their own route.
+function buildPath() {
+  const routes = level().paths;
+  state.paths.length = routes.length;
+  routes.forEach((P, r) => {
+    const n = P.length, steps = C.pathSmoothSteps, L = view.L, LX = view.LX;
+    const path = state.paths[r] || (state.paths[r] = { x: null, y: null, cum: null, n: 0, len: 1 });
+    const N = (n - 1) * steps + 1, X = new Float32Array(N), Y = new Float32Array(N), cum = new Float32Array(N);
+    let k = 0;
+    for (let i = 0; i < n - 1; i++) {
+      const p0 = P[Math.max(i - 1, 0)], p1 = P[i], p2 = P[i + 1], p3 = P[Math.min(i + 2, n - 1)];
+      for (let s = 0; s < steps; s++, k++) {
+        const t = s / steps, t2 = t * t, t3 = t2 * t;
+        X[k] = LX + L * 0.5 * (2 * p1[0] + (-p0[0] + p2[0]) * t + (2 * p0[0] - 5 * p1[0] + 4 * p2[0] - p3[0]) * t2 + (-p0[0] + 3 * p1[0] - 3 * p2[0] + p3[0]) * t3);
+        Y[k] = L * 0.5 * (2 * p1[1] + (-p0[1] + p2[1]) * t + (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * t2 + (-p0[1] + 3 * p1[1] - 3 * p2[1] + p3[1]) * t3);
+      }
+    }
+    X[k] = levelX(P[n - 1][0]); Y[k] = levelY(P[n - 1][1]);
+    for (let i = 1; i < N; i++) cum[i] = cum[i - 1] + Math.hypot(X[i] - X[i - 1], Y[i] - Y[i - 1]);
+    path.x = X; path.y = Y; path.cum = cum; path.n = N; path.len = Math.max(1, cum[N - 1]);
+  });
+  for (const e of enemies) if (e.on && !e.pinned) { if (e.route >= routes.length) e.route = 0; e.seg = 0; pathPoint(e); e.x = e.px + e.ox; e.y = e.py + e.oy; }
+}
+// Each tower sits on its spot; fx/fy = the nearest road point on any route (where the Magnet ring collapses) and
+// fu[r] = the progress of route r's nearest point (where a Magnet Pin clumps that route's enemies).
 function placeSpots() {
-  const { x: X, y: Y, cum, n, len } = state.path;
-  C.level.spots.forEach(([sx, sy], i) => {
+  level().spots.forEach(([sx, sy], i) => {
     const t = towers[i]; if (!t) return;
     t.x = levelX(sx); t.y = levelY(sy);
+    t.fu.length = state.paths.length;
     let best = Infinity;
-    for (let k = 0; k < n; k++) { const d = (X[k] - t.x) ** 2 + (Y[k] - t.y) ** 2; if (d < best) { best = d; t.fx = X[k]; t.fy = Y[k]; t.fu = cum[k] / len; } }
+    state.paths.forEach(({ x: X, y: Y, cum, n, len }, r) => {
+      let bestR = Infinity;
+      for (let k = 0; k < n; k++) {
+        const d = (X[k] - t.x) ** 2 + (Y[k] - t.y) ** 2;
+        if (d < bestR) { bestR = d; t.fu[r] = cum[k] / len; }
+        if (d < best) { best = d; t.fx = X[k]; t.fy = Y[k]; }
+      }
+    });
   });
 }
-// Sets e.px/e.py to the road point at progress e.u; e.seg is a search hint (the boss walks backwards too).
+// Sets e.px/e.py to the road point at progress e.u on its route; e.seg is a search hint (the boss walks backwards too).
 function pathPoint(e) {
-  const { x: pathX, y: pathY, cum: pathCum, n: pathN } = state.path, d = e.u * state.path.len;
+  const path = state.paths[e.route], { x: pathX, y: pathY, cum: pathCum, n: pathN } = path, d = e.u * path.len;
   let s = e.seg;
   while (s > 0 && pathCum[s] > d) s--;
   while (s < pathN - 2 && pathCum[s + 1] < d) s++;
@@ -144,11 +171,12 @@ function clearWorld() {
   for (const n of nums) n.on = false;
   for (const p of pops) p.on = false;
   for (const t of towers) t.on = false;
+  for (const n of needles) n.on = false;
   tweens.clear(); rtTweens.clear();
   const last = input.last;
   last.ms = -1; last.kind = ''; last.ver++;
   fx.cut = fx.flash = fx.tooSlow = fx.kick = fx.ring = fx.space = fx.hitStop = fx.camShake = 0; state.bannerT = state.workshopHitT = 0;
-  heli.active = false; heli.phase = ''; heli.spread = heli.rot = 0; heli.bannerT = 0;
+  heli.active = false; heli.phase = ''; heli.spread = heli.rot = 0; heli.bannerT = 0; heli.armed = heli.go = false;
   state.paused = false;
   resetSnipBuffer();
 }
@@ -191,6 +219,9 @@ function beginWave(n) {
   state.wave = n; state.mode = 'PLAYING'; state.modeT = 0; state.bannerT = 1;
 }
 
+// The level after the current one in CONFIG.levels order (offered on the win card), or '' after the last.
+export function nextLevelId() { const ids = Object.keys(C.levels); return ids[ids.indexOf(view.levelId) + 1] || ''; }
+
 export let lastReport = null;
 function endGame(won) {
   state.paused = false;
@@ -198,6 +229,9 @@ function endGame(won) {
   els.overTitle.textContent = won ? 'DRAWER DEFENDED!' : 'WORKSHOP OVERRUN';
   els.overTitle.dataset.text = els.overTitle.textContent;       // the felt heading's outline layer (index.html .card h2)
   els.overTitle.classList.toggle('win', won); els.overTitle.classList.toggle('lose', !won);
+  els.overLevel.textContent = level().name;
+  const next = nextLevelId();
+  els.next.hidden = !(won && next);
   els.overScore.textContent = String(state.score);
   els.overWaves.textContent = (won ? C.waves.length : state.wave - 1) + ' / ' + C.waves.length;
   els.overAcc.textContent = accuracyText();
@@ -214,11 +248,11 @@ function buildReport(inProgress = false) {
   const s = state.stats, r = state.run, cfg = {};
   for (const k of KNOB_KEYS) cfg[k] = C[k];
   return {
-    seed: state.seed, weapon: weapon.id, won: state.won, wavesReached: state.wave, score: state.score,
+    seed: state.seed, level: view.levelId, weapon: weapon.id, won: state.won, wavesReached: state.wave, score: state.score,
     snips: s.snips, kills: s.kills, accuracy: s.snips ? +(s.kills / s.snips).toFixed(3) : 0, multiSnips: r.multiSnips,
     towers: { ...r.towers }, specialUses: r.specials, deathsAtWorkshop: r.leaks,
     durationSec: Math.round((Date.now() - r.t0) / 1000), device: navigator.userAgent, config: cfg,
-    replay: location.origin + location.pathname + '?seed=' + state.seed, endedAt: new Date().toISOString(),
+    replay: location.origin + location.pathname + '?seed=' + state.seed + '&level=' + view.levelId, endedAt: new Date().toISOString(),
     ...(inProgress ? { inProgress: true } : {}),
   };
 }
@@ -500,20 +534,22 @@ function seamHit(e, px, py, ax, ay, L) {
 }
 
 // Armor absorbs the snip.
-function clang(e) {
+function clang(e, buzz = true) {
   spawnLabel(e.x, e.y - e.r * 0.4, LABEL_CLANG);
   sparks(e.x, e.y - e.r * 0.7, 12, 0);
   e.hitT = 0.5;
   sfx('clang');
-  if (input.usingTouch && navigator.vibrate) { try { navigator.vibrate(C.weakHapticMs); } catch (err) { /* ignore */ } }
+  if (buzz && input.usingTouch && navigator.vibrate) { try { navigator.vibrate(C.weakHapticMs); } catch (err) { /* ignore */ } }
 }
 
 // ======================= special: Helicopter =======================
 // Charged by snip kills. Snap fully open (outBack), spin 720° (inOutSine) hitting everything within blade reach every
 // heliTickMs, then snap shut into a normal full-open snip. The pivot still follows the hand; spread and aim don't.
 const HELI_OPEN = { spread: 1 }, HELI_SHUT = { spread: 0 };
+const shredReady = () => live() && state.mode !== 'TUTORIAL' && !heli.active && heli.charge >= C.heliKillsToCharge;
 export function trySpecial() {
-  if (!live() || state.mode === 'TUTORIAL' || heli.active || heli.charge < C.heliKillsToCharge || !input.gripping || input.scAlpha < 0.5) return;
+  if (!shredReady() || !input.gripping || input.scAlpha < 0.5) return;
+  heli.armed = heli.go = false;
   heli.charge = 0; heli.active = true; heli.phase = 'open'; heli.spread = input.pose.spread; heli.rot = 0;
   heli.theta0 = input.pose.theta; heli.tick = 0; heli.bannerT = 1; state.run.specials++;
   tween(heli, HELI_OPEN, C.heliOpenMs, easing.outBack, heliSpin, 'heli');
@@ -531,6 +567,15 @@ function heliDone() {
   doSnip(input.pose.x, input.pose.y, theta, 1, true);            // the final snap-close is a normal full-open snip
   addShake(C.heliFinalShakePx, C.heliFinalShakePx);
 }
+// The SHRED meter tapped while full: arm it (the next press on the table starts the spin there); tapped again: disarm.
+// Returns whether it is armed now.
+export function armShred() {
+  if (!shredReady()) { heli.armed = heli.go = false; return false; }
+  heli.armed = !heli.armed; heli.go = false;
+  return heli.armed;
+}
+function onPress() { if (heli.armed) heli.go = true; }
+
 // One spin tick: 1 damage to everything within blade reach, ignoring armor; leaves them slowed for a while.
 function heliTick() {
   const p = input.pose, reach = spinReachPx();
@@ -546,10 +591,12 @@ function heliTick() {
 }
 
 // ======================= towers =======================
-// One tower per level spot (towers[i] stands on C.level.spots[i]). Plain data: { on, type, x, y (the spot, px),
-// fx, fy, fu (nearest road point and its progress), timer (magnet period clock), pulse (1 -> 0 visual after a pull) }.
+// One tower per spot of the current level (towers[i] stands on level().spots[i]; setLevel rebuilds the list). Plain
+// data: { on, type, x, y (the spot, px), fx, fy (nearest road point), fu[route] (nearest point's progress per route),
+// timer (magnet: period clock; needle: reload seconds left), pulse (1 -> 0 visual after a magnet pull),
+// aim (needle: angle it points), kick (needle: 1 -> 0 recoil visual after a shot) }.
 const towers = state.towers;
-for (let i = 0; i < C.level.spots.length; i++) towers.push({ on: false, type: '', x: 0, y: 0, fx: 0, fy: 0, fu: 0, timer: 0, pulse: 0 });
+setLevel(view.levelId);
 export const canAfford = type => state.thread >= C.towers[type].cost;
 export const towerReach = type => C.towers[type].radius * view.L;   // a Pin's radius in px
 
@@ -576,8 +623,60 @@ function magnetPull(t) {
     if (!e.on || e.pinned || e.type.pushScale <= 0 || Math.hypot(e.x - t.x, e.y - t.y) > reach) continue;
     tweens.cancel(e);
     e.pulling = true; e.pvx = e.pvy = 0;
-    tween(e, { u: t.fu + (e.u - t.fu) * k, ox: e.ox * k, oy: e.oy * k }, def.pullMs, easing.inOutSine, pullDone, e);
+    const fu = t.fu[e.route];
+    tween(e, { u: fu + (e.u - fu) * k, ox: e.ox * k, oy: e.oy * k }, def.pullMs, easing.inOutSine, pullDone, e);
   }
+}
+
+// Needle Pin (the archer): when reloaded, fires at the enemy in range that is furthest along the road, then reloads for
+// cooldownSec. It keeps turning toward its current pick between shots (t.aim, for the renderer).
+function needleTower(t, dt) {
+  const def = C.towers.needle, reach = towerReach('needle'), mx = t.x, my = t.y - C.needleMuzzle * level().spotR * view.L;
+  if (t.kick > 0) t.kick = Math.max(0, t.kick - dt * 4);
+  if (t.timer > 0) t.timer = Math.max(0, t.timer - dt);
+  let best = null;
+  for (let i = 0; i < enemies.length; i++) {
+    const e = enemies[i];
+    if (!e.on || e.pinned || Math.hypot(e.x - t.x, e.y - t.y) > reach + e.r) continue;
+    if (!best || e.u > best.u) best = e;
+  }
+  if (!best) return;
+  t.aim = Math.atan2(best.y - my, best.x - mx);
+  if (t.timer > 0) return;
+  let n = null;
+  for (let i = 0; i < needles.length; i++) if (!needles[i].on) { n = needles[i]; break; }
+  if (!n) return;
+  n.on = true; n.x = mx; n.y = my; n.target = best; n.gen = best.gen; n.dmg = def.damage; n.life = C.needleLostSec;
+  n.ang = t.aim; n.vx = Math.cos(t.aim); n.vy = Math.sin(t.aim);
+  t.timer = def.cooldownSec; t.kick = 1;
+  sfx('needle', 0);
+}
+// Needles in flight: home on their target at needleSpeed; if it died (or its pool slot was reused) they fly straight on
+// for needleLostSec and vanish. A hit deals the Pin's damage (armor rules as for a snip).
+function updateNeedles(dt) {
+  const sp = C.towers.needle.needleSpeed * view.L;
+  for (let i = 0; i < needles.length; i++) {
+    const n = needles[i]; if (!n.on) continue;
+    const e = n.target, alive = e && e.on && e.gen === n.gen;
+    if (alive) {
+      const dx = e.x - n.x, dy = e.y - n.y, d = Math.hypot(dx, dy);
+      if (d <= e.r * 0.7 + sp * dt) { n.on = false; needleHit(e, n.dmg); continue; }
+      n.vx = dx / d; n.vy = dy / d; n.ang = Math.atan2(dy, dx);
+    } else if ((n.life -= dt) <= 0) { n.on = false; continue; }
+    n.x += n.vx * sp * dt; n.y += n.vy * sp * dt;
+  }
+}
+function needleHit(e, dmg) {
+  sparks(e.x, e.y, 4, 0);
+  if (e.armored) {                                              // like a snip: the first hit clangs unless slowed, armor spent
+    e.armored = false;
+    if (!e.slowed) { clang(e, false); return; }
+  }
+  e.hp -= dmg;
+  if (e.hp <= 0.001) { snipMulti = false; killEnemy(e, false); return; }
+  sfx('rip', 60);
+  spawnNumber(e.x, e.y - e.r, dmg, -2);
+  e.hitT = Math.max(e.hitT, 0.35);
 }
 
 // ======================= entity pools (plain data) =======================
@@ -586,9 +685,10 @@ const enemies = state.enemies;
 // (slowT seconds left); lets the first snip through a Brute's armor. burning = on fire from a Fire Pin (burnLeft =
 // seconds of burning left once out of its ring, burnT = seconds toward the next burn tick).
 // leg = boss turn index, seamA = boss seam angle, age = seconds alive, pulling = a Magnet Pin is moving it (a tween owns u),
-// pinned = onboarding target that never moves.
+// pinned = onboarding target that never moves. route = which of the level's paths it walks. gen = bumped on every spawn,
+// so a needle aimed at an earlier occupant of this pool slot knows its target is gone.
 for (let i = 0; i < C.maxEnemies; i++) enemies.push({ on: false, type: null, name: '', x: 0, y: 0, px: 0, py: 0, ox: 0, oy: 0,
-  u: 0, seg: 0, speed: 0, r: 0, hp: 0, maxHp: 0, armored: false, slowed: false, slowT: 0, burning: false, burnLeft: 0, burnT: 0, leg: 0, seamA: 0, age: 0,
+  u: 0, seg: 0, route: 0, gen: 0, speed: 0, r: 0, hp: 0, maxHp: 0, armored: false, slowed: false, slowT: 0, burning: false, burnLeft: 0, burnT: 0, leg: 0, seamA: 0, age: 0,
   pvx: 0, pvy: 0, phase: 0, hitT: 0, pulling: false, pinned: false });
 
 // Returns the enemy, or null if the pool is full (the schedule retries next frame).
@@ -600,16 +700,23 @@ function spawnEnemy(name) {
   e.on = true; e.type = t; e.name = name; e.r = t.r; e.hp = e.maxHp = t.hp * (1 + C.hpPerWave * Math.max(0, state.wave - 1));
   e.armored = !!t.armor; e.slowed = false; e.slowT = 0; e.burning = false; e.burnLeft = 0; e.burnT = 0; e.leg = 0; e.seamA = rng.spawn() * TAU; e.age = 0;
   e.speed = 1 / t.traverseSec; e.u = 0; e.seg = 0; e.ox = 0; e.oy = 0; e.pvx = 0; e.pvy = 0; e.hitT = 0;
-  e.pulling = false; e.pinned = false;
+  e.pulling = false; e.pinned = false; e.gen++;
   e.phase = rng.spawn() * TAU;
+  // a fork: pick a route at random (single-route levels draw nothing, so their seeded runs replay as before)
+  const nr = state.paths.length;
+  e.route = nr > 1 ? Math.min(nr - 1, Math.floor(rng.spawn() * nr)) : 0;
   pathPoint(e); e.x = e.px; e.y = e.py;
   return e;
 }
 
+// needles in flight (Needle Pin shots): target + gen = the enemy it homes on, ang = heading for the renderer
+const needles = state.needles;
+for (let i = 0; i < 24; i++) needles.push({ on: false, x: 0, y: 0, vx: 0, vy: 0, ang: 0, target: null, gen: 0, dmg: 0, life: 0 });
+
 // Shoves (snips, blade contact) can push an enemy toward the road's edge but never off it: its offset from the
 // centreline is capped at level.roadHalfWidth, and velocity still pushing outward is dropped so it slides along the edge.
 function keepOnRoad(e) {
-  const max = C.level.roadHalfWidth * view.L, d2 = e.ox * e.ox + e.oy * e.oy;
+  const max = level().roadHalfWidth * view.L, d2 = e.ox * e.ox + e.oy * e.oy;
   if (d2 <= max * max) return;
   const d = Math.sqrt(d2), nx = e.ox / d, ny = e.oy / d;
   e.ox = nx * max; e.oy = ny * max;
@@ -698,12 +805,16 @@ export function spaceSnip() {
 // Event-driven hooks (keys, third finger) are ignored while paused; frame-driven ones never run then.
 const unlessPaused = fn => (...a) => { if (!state.paused) fn(...a); };
 export const gameHooks = { onSnip: doSnip, onTooSlow: tooSlow, onGrip: onGrip, onSpace: unlessPaused(spaceSnip), onReset: goTitle,
-  onSpecial: unlessPaused(trySpecial), onPause: togglePause };
+  onSpecial: unlessPaused(trySpecial), onPause: togglePause, onPress: unlessPaused(onPress) };
 
 // ======================= update =======================
 export function update(now, dt) {
   if (state.paused) return;                                      // frozen: no input, timers, tweens or clock
   updateInput(now, dt);                                          // input keeps running through hit-stop so no gesture is lost
+  if (heli.armed) {                                              // armed SHRED: starts once the pressed hand has the scissors
+    if (!shredReady()) heli.armed = heli.go = false;
+    else if (heli.go) trySpecial();
+  }
   state.clock += dt;
   const frozen = fx.hitStop > 0;                                 // kill hit-stop: freeze the world
   rtTweens.update(dt);                                           // screen shake + the hit-stop countdown run regardless
@@ -737,7 +848,9 @@ export function update(now, dt) {
     if (!t.on) continue;
     if (t.pulse > 0) t.pulse = Math.max(0, t.pulse - dt * 2);
     if (t.type === 'magnet' && live()) { t.timer += dt; if (t.timer >= C.towers.magnet.periodSec) { t.timer -= C.towers.magnet.periodSec; magnetPull(t); } }
+    else if (t.type === 'needle' && live()) needleTower(t, dt);
   }
+  updateNeedles(dt);
 
   // --- Helicopter spin ticks ---
   if (heli.phase === 'spin') { heli.tick += ms; while (heli.tick >= C.heliTickMs) { heli.tick -= C.heliTickMs; heliTick(); } }
@@ -755,7 +868,7 @@ export function update(now, dt) {
       // less than burnSec ago.
       let inIce = false, inFire = false;
       for (const t of towers) {
-        if (!t.on || t.type === 'magnet' || Math.hypot(e.x - t.x, e.y - t.y) > towerReach(t.type)) continue;
+        if (!t.on || (t.type !== 'ice' && t.type !== 'fire') || Math.hypot(e.x - t.x, e.y - t.y) > towerReach(t.type)) continue;
         if (t.type === 'ice') inIce = true; else inFire = true;
       }
       if (e.slowT > 0) e.slowT = Math.max(0, e.slowT - dt);

@@ -134,21 +134,42 @@ export const CONFIG = {
   fragmentSpeed: 260,        // px/s shard launch speed
   fragmentLifeMs: 650,       // shard fade time
 
-  // --- level: a painted plate with the road, the Pin spots and the workshop (the heart pad) baked in ---
-  // Everything in `level` is in the plate's own pixels ("level units"). The plate is drawn full height and centred
-  // (narrow screens crop its sides, wide ones get blurred side bars), so level units -> screen px = view.L.
-  level: {
-    bg: 'assets/level-bg.webp', w: 941, h: 1672,   // the plate and its pixel size
-    // road centreline, Catmull-Rom control points. Enemies walk first -> last; the last point is the heart pad.
-    path: [
-      [485, -90], [482, 60], [440, 210], [510, 320], [640, 420], [600, 500], [450, 550], [330, 610], [320, 690],
-      [400, 760], [540, 840], [565, 930], [520, 1010], [420, 1090], [420, 1170], [500, 1260], [510, 1380], [501, 1470],
-    ],
-    spots: [[215, 806], [719, 725], [769, 1101]],   // centres of the fenced round pads where a Pin can be built
-    spotR: 92,               // pad radius: sizes the Pin art standing on it
-    roadHalfWidth: 50,       // shoves can move an enemy's centre at most this far from the road centreline (painted road is ~110-150 wide)
-    workshopR: 118,          // heart pad radius: the red flash when the workshop takes damage
+  // --- levels: each a painted plate with the road, the Pin spots and the workshop (the heart pad) baked in ---
+  // Picked on the select screen (or ?level=id). Everything in a level is in its plate's own pixels ("level units").
+  // The plate is drawn full height and centred (narrow screens crop its sides, wide ones get blurred side bars), so
+  // level units -> screen px = view.L. If a plate's art changes, re-measure its paths and spots.
+  // paths = one or more routes (road centrelines as Catmull-Rom control points), each walked first -> last point (the
+  // heart pad). With several, every enemy picks one at random when it spawns; shared stretches just overlap.
+  levels: {
+    meadow: {
+      name: 'Meadow Road', blurb: 'One winding road.',
+      bg: 'assets/level-bg.webp', w: 941, h: 1672,   // the plate and its pixel size
+      paths: [[
+        [485, -90], [482, 60], [440, 210], [510, 320], [640, 420], [600, 500], [450, 550], [330, 610], [320, 690],
+        [400, 760], [540, 840], [565, 930], [520, 1010], [420, 1090], [420, 1170], [500, 1260], [510, 1380], [501, 1470],
+      ]],
+      spots: [[215, 806], [719, 725], [769, 1101]],  // centres of the fenced round pads where a Pin can be built
+      spotR: 92,             // pad radius: sizes the Pin art standing on it
+      roadHalfWidth: 50,     // shoves can move an enemy's centre at most this far from the road centreline (painted road is ~110-150 wide)
+      workshopR: 118,        // heart pad radius: the red flash when the workshop takes damage
+    },
+    // the road forks around the big button and joins again above the heart pad; each enemy takes a side at random
+    fork: {
+      name: 'Button Fork', blurb: 'The road forks. Enemies pick a side.',
+      bg: 'assets/level2-bg.webp', w: 941, h: 1672,
+      paths: [
+        [[474, -90], [474, 60], [474, 250], [474, 420], [400, 500], [290, 560], [195, 650], [155, 770], [165, 880],
+          [235, 965], [350, 1030], [445, 1075], [474, 1130], [474, 1250], [474, 1380], [474, 1480]],
+        [[474, -90], [474, 60], [474, 250], [474, 420], [548, 500], [658, 560], [753, 650], [793, 770], [783, 880],
+          [713, 965], [598, 1030], [503, 1075], [474, 1130], [474, 1250], [474, 1380], [474, 1480]],
+      ],
+      spots: [[190, 462], [762, 462], [262, 1195], [686, 1195]],
+      spotR: 84,             // pad radius
+      roadHalfWidth: 45,     // the fork's arms are a little narrower than the Meadow road
+      workshopR: 112,        // heart pad radius
+    },
   },
+  defaultLevel: 'meadow',    // level picked on first launch (afterwards the last choice is remembered)
   pathSmoothSteps: 16,       // Catmull-Rom samples per path segment (road smoothness)
   workshopHp: 10,            // workshop hit points; an enemy that arrives deals its size tier
   workshopHitMs: 400,        // red flash on the workshop when it takes damage
@@ -179,21 +200,27 @@ export const CONFIG = {
   threadPerKill: 8,          // thread per enemy killed by a snip (or the Helicopter)
   threadPerLeak: 2,          // thread per enemy that reaches the workshop, so a losing player can still afford something
 
-  // --- towers ("Pins"): Ice and Magnet set up snips; Fire is the one Pin that deals damage on its own. ---
+  // --- towers ("Pins"): Ice and Magnet set up snips; Fire and Needle deal damage on their own. ---
   // Built only on the level's spots (tap the + on one). radius is in level units. ice: enemies inside it are slowed
   // (slowSpeedMult) and flagged slowed (lets a snip through Brute armor). fire: enemies inside it catch fire and keep
   // burning burnSec after leaving it, taking burnDps HP per second in burnTickMs ticks (armor doesn't stop it; burn
   // kills don't charge SHRED). magnet: every
   // periodSec, pulls every enemy within radius along the road toward the nearest road point to the Pin over pullMs
   // (the ones ahead back, the ones behind forward), leaving pullKeep of the gap (0 = all onto one spot): a clump
-  // that keeps walking together, set up for a multi-snip.
+  // that keeps walking together, set up for a multi-snip. needle (the archer): when an enemy is inside radius, fires one
+  // sewing needle at the one furthest along the road (damage, flying needleSpeed level units per second and homing on
+  // it), then reloads for cooldownSec. Armor stops a needle like a snip (the Brute's first hit clangs unless slowed, and
+  // the armor is spent); needle kills don't charge SHRED.
   // color = glow / aura, felt = cushion colour, head = pin-head colour.
   towers: {
+    needle: { name: 'Needle Pin', blurb: 'shoots one enemy, reloads', cost: 90, radius: 380, damage: 1, cooldownSec: 1.4, needleSpeed: 1400, color: '#e6eef5', felt: '#3e8f5a', head: '#f2c230' },
     ice:    { name: 'Ice Pin',    blurb: 'slows, beats armor', cost: 100, radius: 290, color: '#8fe8ff', felt: '#2f63c9', head: '#3d7dff' },
     fire:   { name: 'Fire Pin',   blurb: 'burns what walks by', cost: 110, radius: 290, burnDps: 0.25, burnSec: 1.5, burnTickMs: 500, color: '#ffa04a', felt: '#c8352b', head: '#e0312b' },
     magnet: { name: 'Magnet Pin', blurb: 'pulls into a clump', cost: 120, radius: 330, periodSec: 3, pullMs: 500, pullKeep: 0.25, color: '#c79bff', felt: '#7b3fc4', head: '#9a4fe0' },
   },
   slowSpeedMult: 0.4,        // slowed enemies move at this fraction of their speed
+  needleLostSec: 0.4,        // a needle whose target died first flies straight on this long, then vanishes
+  needleMuzzle: 1.0,         // needles leave the Needle Pin this many pad radii above the pad's centre (its loaded needle)
   spotBtnPx: 42,             // size of the + button on an empty Pin spot
 
   // --- special: Helicopter ---

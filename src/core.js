@@ -1,6 +1,8 @@
 // Shared canvas/view state and small math helpers used by every module.
 // Kept separate so no two feature modules have to import each other.
 
+import { CONFIG as C } from './config.js';
+
 export const TAU = Math.PI * 2, DEG = Math.PI / 180;
 
 export const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -17,4 +19,7 @@ export function segDistSq(px, py, ax, ay, bx, by) {
 // L = level units (the painted plate's pixels) -> CSS px, LX = screen x of the plate's left edge (its top is y = 0).
 const cv = document.getElementById('c');
 // pickupX/Y: where "+8 thread" pickups fly to (the action bar's thread counter; set by actionBar.js)
-export const view = { cv, ctx: cv.getContext('2d'), W: 0, H: 0, dpr: 1, S: 1, L: 1, LX: 0, pickupX: 40, pickupY: 40 };
+// levelId: the CONFIG.levels key being played (set by game.setLevel)
+export const view = { cv, ctx: cv.getContext('2d'), W: 0, H: 0, dpr: 1, S: 1, L: 1, LX: 0, pickupX: 40, pickupY: 40, levelId: C.defaultLevel };
+// The current level's CONFIG entry (read live, so the debug panel / config edits apply).
+export const level = () => C.levels[view.levelId];

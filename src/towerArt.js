@@ -1,9 +1,10 @@
 // Procedural Pin (tower) art, after the level mock: a two-tier felt cushion with a stitched rim and yellow
 // cross-stitches, sewing pins with coloured heads stuck around it, a post holding the Pin's charm (Ice: a blue
-// crystal, Fire: an ember crystal, Magnet: a horseshoe magnet) and, for Ice and Fire, a little felt flag.
+// crystal, Fire: an ember crystal, Magnet: a horseshoe magnet, Needle: a thread spool with a loaded needle) and, for
+// all but the Magnet, a little felt flag.
 // One sprite per type, built on resize at the spot's size; the charm's glow is drawn live on top. Called only by render.js.
 import { CONFIG as C } from './config.js';
-import { view, TAU } from './core.js';
+import { view, level, TAU } from './core.js';
 
 const sprites = {};
 const K = 0.64;                                           // ellipse squash: the pads are seen from above at an angle
@@ -12,7 +13,7 @@ function mix(a, b, t) { const A = rgb(a), B = rgb(b); return 'rgb(' + A.map((v, 
 const shade = (c, t) => mix(c, '#1a0c04', t), tint = (c, t) => mix(c, '#fffaf0', t);
 
 // Size unit (px) of the art on a spot: about the pad's radius.
-export const towerUnit = () => C.level.spotR * view.L * 0.9;
+export const towerUnit = () => level().spotR * view.L * 0.9;
 
 // A felt cylinder: side band from y0 down to y0 + h, lit top ellipse, dashed stitched ring.
 function drum(g, rx, y0, h, felt) {
@@ -65,7 +66,39 @@ function magnet(g, u) {
   g.fillStyle = '#e3e8ec'; g.strokeStyle = '#2a1040'; g.lineWidth = Math.max(1, u * 0.03);
   for (const s of [-1, 1]) { g.beginPath(); g.rect(s * R - 0.1 * u, top - 0.14 * u, 0.2 * u, 0.16 * u); g.fill(); g.stroke(); }
 }
-// Felt flag on a pole at the back right, with a snowflake or a flame on it.
+// Needle Pin: a wooden thread spool on the post (its loaded needle is drawn live on top, see drawTower).
+function spool(g, u) {
+  const rx = 0.24 * u, ry = rx * K, y0 = -0.74 * u, y1 = -1.04 * u, tr = 0.17 * u;
+  const flange = y => {
+    g.fillStyle = '#c08a4e'; g.strokeStyle = '#5a3418'; g.lineWidth = Math.max(1, u * 0.03);
+    g.beginPath(); g.ellipse(0, y, rx, ry, 0, 0, TAU); g.fill(); g.stroke();
+  };
+  flange(y0);
+  const gr = g.createLinearGradient(-tr, 0, tr, 0);
+  gr.addColorStop(0, '#9a7418'); gr.addColorStop(0.4, '#f7d45a'); gr.addColorStop(1, '#a27a1a');
+  g.fillStyle = gr; g.fillRect(-tr, y1, 2 * tr, y0 - y1);
+  g.strokeStyle = 'rgba(90,60,10,0.45)'; g.lineWidth = Math.max(0.8, u * 0.015); g.beginPath();
+  for (let y = y1 + u * 0.04; y < y0; y += u * 0.045) { g.moveTo(-tr, y); g.lineTo(tr, y + u * 0.012); }
+  g.stroke();
+  flange(y1);
+  g.fillStyle = '#3a2210'; g.beginPath(); g.ellipse(0, y1, rx * 0.25, ry * 0.25, 0, 0, TAU); g.fill();
+}
+// The loaded needle, pointing along `ang`, centred on (x, y): silver shaft, eye at the back, a loop of gold thread.
+export function drawNeedle(ctx, x, y, ang, len, alpha) {
+  const c = Math.cos(ang), s = Math.sin(ang), bx = x - c * len * 0.45, by = y - s * len * 0.45, tx = x + c * len * 0.55, ty = y + s * len * 0.55;
+  ctx.globalAlpha = alpha; ctx.lineCap = 'round';
+  ctx.strokeStyle = '#2a3440'; ctx.lineWidth = Math.max(2, len * 0.11);
+  ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(tx, ty); ctx.stroke();
+  ctx.strokeStyle = '#e8eef4'; ctx.lineWidth = Math.max(1.2, len * 0.065);
+  ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(tx, ty); ctx.stroke();
+  ctx.strokeStyle = '#f2c230'; ctx.lineWidth = Math.max(1, len * 0.04);
+  ctx.beginPath(); ctx.moveTo(bx + c * len * 0.06, by + s * len * 0.06);
+  ctx.quadraticCurveTo(bx - c * len * 0.3 + s * len * 0.2, by - s * len * 0.3 - c * len * 0.2, bx - c * len * 0.45 - s * len * 0.05, by - s * len * 0.45 + c * len * 0.05);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+
+// Felt flag on a pole at the back right, with a snowflake, a flame or a needle on it.
 function flag(g, u, felt, icon) {
   const px = 0.66 * u;
   g.strokeStyle = '#6b4a2e'; g.lineWidth = Math.max(1.5, u * 0.06); g.lineCap = 'round';
@@ -88,6 +121,11 @@ function flag(g, u, felt, icon) {
       }
     }
     g.stroke();
+  } else if (icon === 'needle') {                                // a threaded needle across the flag
+    g.strokeStyle = '#ffffff'; g.lineCap = 'round'; g.lineWidth = Math.max(1, u * 0.035);
+    g.beginPath(); g.moveTo(cx - s * 1.1, cy + s * 0.7); g.lineTo(cx + s * 1.1, cy - s * 0.7); g.stroke();
+    g.strokeStyle = '#f2c230'; g.lineWidth = Math.max(1, u * 0.025);
+    g.beginPath(); g.moveTo(cx + s * 0.95, cy - s * 0.6); g.quadraticCurveTo(cx + s * 0.2, cy + s * 1.2, cx - s * 0.9, cy + s * 0.2); g.stroke();
   } else {
     const fl = new Path2D();
     fl.moveTo(cx, cy - s * 1.2); fl.quadraticCurveTo(cx + s * 1.1, cy, cx + s * 0.4, cy + s);
@@ -108,7 +146,7 @@ function drawArt(g, u, type) {
   drum(g, u, 0, u * 0.16, felt);                               // base cushion
   const pinAt = a => [Math.cos(a * Math.PI / 180) * u * 0.8, Math.sin(a * Math.PI / 180) * u * 0.8 * K];
   for (const a of BACK) { const [x, y] = pinAt(a); pin(g, x, y, u, def.head); }
-  if (type !== 'magnet') flag(g, u, felt, type === 'ice' ? 'snow' : 'flame');
+  if (type !== 'magnet') flag(g, u, felt, type === 'ice' ? 'snow' : type === 'needle' ? 'needle' : 'flame');
   drum(g, u * 0.56, -u * 0.3, u * 0.3, felt);                 // upper drum
   for (const a of [35, 70, 110, 145]) {                        // yellow cross-stitches on its front
     const r = a * Math.PI / 180;
@@ -120,6 +158,7 @@ function drawArt(g, u, type) {
   g.fillStyle = tint(felt, 0.2); g.beginPath(); g.ellipse(0, -u * 0.72, u * 0.13, u * 0.13 * K, 0, 0, TAU); g.fill(); g.stroke();
   if (type === 'ice') crystal(g, u, '#f2feff', '#7fdcff', '#2f63c9');
   else if (type === 'fire') crystal(g, u, '#fff6b0', '#ffa04a', '#c8352b');
+  else if (type === 'needle') spool(g, u);
   else magnet(g, u);
   for (const a of FRONT) { const [x, y] = pinAt(a); pin(g, x, y, u, def.head); }
 }
@@ -145,9 +184,16 @@ export function buildTowerSprites(dpr) {
 }
 
 // The Pin standing on its spot (x, y = the spot's centre), with its charm glowing (Fire flickers, the others breathe).
-export function drawTower(ctx, type, x, y, clock) {
+// t = the game's tower (the Needle Pin reads its aim, reload and recoil to draw the loaded needle).
+export function drawTower(ctx, type, x, y, clock, t) {
   const s = sprites[type]; if (!s) return;
   ctx.drawImage(s.canvas, x - s.left, y - s.top, s.w, s.h);
+  if (type === 'needle') {                                       // no glow: the needle sits on the spool, aimed, and
+    const u = towerUnit(), ready = 1 - Math.min(1, t.timer / C.towers.needle.cooldownSec);   // slides back in as it reloads
+    const my = y - C.needleMuzzle * level().spotR * view.L, back = u * (0.35 * (1 - ready) + 0.12 * t.kick);
+    drawNeedle(ctx, x - Math.cos(t.aim) * back, my - Math.sin(t.aim) * back, t.aim, u * 0.95, ready * ready);
+    return;
+  }
   const cy = y - (type === 'magnet' ? 1.05 : 1.08) * towerUnit();
   const flick = type === 'fire' ? 0.75 + 0.25 * Math.sin(clock * 13 + x) * Math.sin(clock * 7.3) : 0.8 + 0.2 * Math.sin(clock * 3 + x);
   ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.55 * flick;

@@ -5,12 +5,12 @@
 // Purely visual animation (blade trails, thread pickups, placement rings) runs on this module's
 // own tween group, advanced by the render clock; it never feeds back into the game.
 import { CONFIG as C } from './config.js';
-import { view, TAU, DEG } from './core.js';
+import { view, level, TAU, DEG } from './core.js';
 import { input, holdTouch } from './input.js';
 import { cut, scaleFor, weapon } from './scissors.js';
 import { live, visOpen, bladeTheta, towerReach } from './game.js';
 import { buildEnemySprites, drawEnemySprite, drawEnemyGround, drawBruteArmor, drawSeam } from './enemyArt.js';
-import { buildTowerSprites, drawTower } from './towerArt.js';
+import { buildTowerSprites, drawTower, drawNeedle, towerUnit } from './towerArt.js';
 import { drawWeapon, rasterizeArt } from './weaponArt.js';
 import { makeTweens, easing } from './tween.js';
 
@@ -33,8 +33,8 @@ const PART_COLORS = ['#ffffff', '#8ff7ff', '', '#ffd23f', '#ff8a3d'];   // parti
 const LABEL_TEXT = ['SNIP!', 'nick', 'CLANG!'], LABEL_SCALE = [1, 0.6, 0.8];
 const LABEL_FILL = ['#ffffff', '#ffffff', '#e3e9ee'], LABEL_STROKE = ['rgba(0,70,100,0.8)', 'rgba(0,70,100,0.8)', '#39424a'];
 // damage number colour by strike grade: gold = strong (near pivot / seam), white = mid, grey-blue = graze (near tips),
-// orange = a Fire Pin burn tick (g < 0)
-const numColor = g => g < 0 ? '#ff9a4a' : g < 0.35 ? '#ffe27a' : g < 0.7 ? '#ffffff' : '#9fc7d6';
+// orange = a Fire Pin burn tick (g = -1), silver = a Needle Pin hit (g = -2)
+const numColor = g => g <= -2 ? '#dfe9f2' : g < 0 ? '#ff9a4a' : g < 0.35 ? '#ffe27a' : g < 0.7 ? '#ffffff' : '#9fc7d6';
 
 // ======================= resize =======================
 // 1) sizeCanvas() sets view.W/H/dpr and the canvas; 2) game.layout() rebuilds weapon scale + path; 3) prerender().
@@ -59,16 +59,17 @@ export function prerender() {
 const bgCanvas = document.createElement('canvas');
 const plate = new Image();
 plate.onload = () => { if (view.W > 0) renderBackground(); };
-plate.src = C.level.bg;
 function renderBackground() {
-  const W = view.W, H = view.H, dpr = view.dpr, L = view.L, LX = view.LX, pw = C.level.w * L, ph = C.level.h * L;
+  const lv = level();
+  if (plate.getAttribute('src') !== lv.bg) plate.src = lv.bg;       // a level switch: onload redraws once it arrives
+  const W = view.W, H = view.H, dpr = view.dpr, L = view.L, LX = view.LX, pw = lv.w * L, ph = lv.h * L;
   bgCanvas.width = Math.max(1, Math.round(W * dpr)); bgCanvas.height = Math.max(1, Math.round(H * dpr));
   const g = bgCanvas.getContext('2d');
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
   g.fillStyle = '#2f5a1c'; g.fillRect(0, 0, W, H);
-  if (!plate.complete || !plate.naturalWidth) return;
+  if (!plate.complete || !plate.naturalWidth || plate.getAttribute('src') !== lv.bg) return;
   if (LX > 0) {                                                  // side bars: the plate stretched to cover, blurred
-    const cover = Math.max(W / C.level.w, H / C.level.h), cw = C.level.w * cover, ch = C.level.h * cover;
+    const cover = Math.max(W / lv.w, H / lv.h), cw = lv.w * cover, ch = lv.h * cover;
     g.save();
     if ('filter' in g) g.filter = 'blur(16px) brightness(0.55)';
     g.drawImage(plate, (W - cw) / 2, (H - ch) / 2, cw, ch);
@@ -86,9 +87,9 @@ function renderBackground() {
 
 function drawWorkshopHit(state) {
   if (state.workshopHitT <= 0) return;
-  const p = state.path, x = p.x[p.n - 1], y = p.y[p.n - 1];
+  const p = state.paths[0], x = p.x[p.n - 1], y = p.y[p.n - 1];              // every route ends on the heart pad
   ctx.globalAlpha = state.workshopHitT * 0.55; ctx.fillStyle = '#ff3b3b';
-  ctx.beginPath(); ctx.arc(x, y, C.level.workshopR * view.L * (0.8 + (1 - state.workshopHitT) * 0.3), 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.arc(x, y, level().workshopR * view.L * (0.8 + (1 - state.workshopHitT) * 0.3), 0, TAU); ctx.fill();
   ctx.globalAlpha = 1;
 }
 
@@ -270,9 +271,14 @@ function drawTowers(state) {
     }
   }
   ctx.globalAlpha = 1;
-  for (const t of state.towers) if (t.on) drawTower(ctx, t.type, t.x, t.y, state.clock);
+  for (const t of state.towers) if (t.on) drawTower(ctx, t.type, t.x, t.y, state.clock, t);
 }
 const DASH = [6, 6], NO_DASH = [];
+// Needles in flight (Needle Pin shots), same art as the one loaded on the Pin, a little smaller.
+function drawNeedles(state) {
+  const len = towerUnit() * 0.8;
+  for (const n of state.needles) if (n.on) drawNeedle(ctx, n.x, n.y, n.ang, len, 1);
+}
 
 // ======================= one-off event effects =======================
 // Reads new entries of state.events (thread pickups, Pin built) and animates them here.
@@ -454,6 +460,7 @@ export function draw(state) {
   if (fx.kick > 0) ctx.translate(-input.aimX * C.snipKickPx * fx.kick, -input.aimY * C.snipKickPx * fx.kick);
   drawCutZone(fx.cut);
   drawEnemies(state);
+  drawNeedles(state);
   drawFragments(state);
   if (live()) {
     drawFingers();

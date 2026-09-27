@@ -20,6 +20,8 @@ export const clang = [0.6, 0.02, 1300, 0, 0.02, 0.35, 1, 1, 0, 0, 0, 0, 0, 0, 40
 export const pinPop = [0.5, 0.05, 700, 0, 0.01, 0.06, 0, 2, -60, 0, 0, 0, 0, 0, 0, 0, 0, 0.5];
 // Magnet Pin pulse: low hum.
 export const magnetHum = [0.35, 0, 70, 0.08, 0.35, 0.2, 0, 1, 0, 0, 0, 0, 0.08, 0, 0, 0, 0, 0.8, 0.05, 0.3];
+// Needle Pin shot: a quick high "thwip" falling in pitch, a little noisy, high-passed so it stays under the snip.
+export const needle = [0.3, 0.1, 1900, 0, 0.005, 0.06, 0, 1.5, -45, 0, 0, 0, 0, 3, 0, 0, 0, 0.5, 0.02, 0, 1500];
 // Wave clear: short ascending 3-note arpeggio (C5 E5 G5); game over: the descending version (G4 E4 C4).
 export const waveClear = [
   [0.4, 0, 523, 0, 0.05, 0.18, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.7, 0.02],

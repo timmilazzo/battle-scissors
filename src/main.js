@@ -2,22 +2,25 @@
 // coach, pause, mute, run report) to the game, size the canvas, load weapon art, then run the loop: update then draw every frame.
 import { CONFIG as C, FEEDBACK_URL } from './config.js';
 import { input, initInput, setControls } from './input.js';
-import { state, gameHooks, goTitle, goSelect, goSettings, startGame, selectWeapon, layout, update, lastReport,
+import { state, gameHooks, goTitle, goSelect, goSettings, startGame, selectWeapon, setLevel, nextLevelId, layout, update, lastReport,
   tutSkip, tutSkipAll, setPaused, togglePause, reportNow } from './game.js';
 import { weapon, setWeapon } from './scissors.js';
+import { view } from './core.js';
 import { draw, sizeCanvas, prerender } from './render.js';
 import { art, preloadWeapons, rasterizeArt } from './weaponArt.js';
 import { applySavedOverrides, initDebug } from './debug.js';
 import { savedWeapon, initWeaponSelect } from './weaponSelect.js';
+import { savedLevel, initLevelSelect, select as selectLevelCard } from './levelSelect.js';
 import { isMuted, setMuted, unlockAudio, sfx } from './audio.js';
 import { loadRuns, copyText, downloadJson } from './runlog.js';
-import { initActionBar, refreshActionBar, measureActionBar } from './actionBar.js';
+import { initActionBar, refreshActionBar, measureActionBar, buildSpotButtons } from './actionBar.js';
 import { refreshHud } from './hud.js';
 
 applySavedOverrides();
 // The canvas draws banners and labels in the felt font (Lilita One, index.html); ask for it now so it's ready.
 if (document.fonts) document.fonts.load('400 32px "Lilita One"').catch(() => {});
 setWeapon(savedWeapon());
+setLevel(savedLevel());
 initInput(gameHooks);
 document.getElementById('reset').addEventListener('click', e => { e.stopPropagation(); goTitle(); });
 
@@ -47,6 +50,12 @@ function showControls() { for (const b of ctlBtns) b.setAttribute('aria-checked'
 for (const b of ctlBtns) b.addEventListener('click', () => { setControls(b.dataset.controls); showControls(); });
 showControls();
 initWeaponSelect({ onPick: id => { selectWeapon(id); rasterizeArt(); }, onStart: play, onBack: goTitle });
+// Level picker (same screen): switch the plate, road(s) and Pin spots, then re-run the resize chain for the new plate.
+function switchLevel(id) { setLevel(id); buildSpotButtons(); resize(); }
+initLevelSelect({ current: view.levelId, onPick: switchLevel });
+// Win card: NEXT LEVEL plays the following level with the same weapon; "Change level or shears" opens the select screen.
+on('next', () => { const id = nextLevelId(); if (!id) return; selectLevelCard(id); switchLevel(id); play(); });
+on('over-select', () => { unlockAudio(); toast.hidden = true; goSelect(); });
 // Pressing anywhere on the title snaps its scissors shut (render.js) with a snip; it's also a gesture that unlocks audio.
 document.getElementById('title').addEventListener('pointerdown', () => { unlockAudio(); sfx('snip'); });
 for (const b of document.querySelectorAll('[data-soon]')) b.addEventListener('click', () => showToast(b.dataset.soon + ': coming soon'));
@@ -105,7 +114,7 @@ for (const b of document.querySelectorAll('[data-send-feedback]')) b.addEventLis
 // Readout for the debug panel (snip-feel numbers and the run seed).
 function debugInfo() {
   const last = input.last;
-  return 'state ' + state.mode + '  ' + weapon.id + ' art ' + art.state + '\nseed ' + state.seed + '  spread ' + Math.round(input.rawSpread * 100) + '%' +
+  return 'state ' + state.mode + '  ' + view.levelId + '  ' + weapon.id + ' art ' + art.state + '\nseed ' + state.seed + '  spread ' + Math.round(input.rawSpread * 100) + '%' +
     (last.ms < 0 ? '' : '\nlast ' + last.kind + ' ' + last.speed.toFixed(1) + '/s ' + Math.round(last.ms) + 'ms' +
       (last.kind === 'too slow' ? '' : ' pow ' + Math.round(last.power * 100) + '%'));
 }

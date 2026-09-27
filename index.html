@@ -119,14 +119,14 @@
   .bump { animation: tbump 260ms ease-out; }
   @keyframes tbump { 40% { transform: scale(1.18); } }
 
-  /* action bar (bottom): the thread pill (Pin currency) and the SHRED button (charge meter). */
+  /* action bar (bottom): the thread pill (Pin currency). SHRED is its own vertical meter in the bottom-right corner. */
   #tray {
     position: fixed; left: 50%; bottom: calc(10px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 15;
     display: flex; align-items: flex-end; gap: 10px; pointer-events: none;
   }
   #tray[hidden] { display: none; }
   /* landscape: the road ends bottom-centre at the workshop, so the bar moves to the empty bottom-right corner */
-  @media (min-aspect-ratio: 1/1) { #tray { left: auto; right: calc(12px + env(safe-area-inset-right)); transform: none; } }
+  @media (min-aspect-ratio: 1/1) { #tray { left: auto; right: calc(82px + env(safe-area-inset-right)); transform: none; } }
   .tcap { font: 900 10px/1 var(--ui-font); letter-spacing: 1.5px; color: #ffe4aa; text-shadow: 0 1px 0 rgba(0, 0, 0, 0.8), 0 0 4px rgba(0, 0, 0, 0.8); padding-left: 8px; }
   .tgroup { display: flex; flex-direction: column; gap: 5px; }
   /* Thread: a spool + the balance on a felt pill; pickups fly into it and it pops. */
@@ -143,28 +143,37 @@
   /* first time a Pin is affordable (until its explainer has been seen): the thread pill pulses with the + buttons */
   #tray.pin-attn .thread-chip { animation: tchip 0.9s ease-in-out infinite; }
   @keyframes tchip { 50% { box-shadow: inset 0 2px 1px rgba(255, 255, 255, 0.28), 0 4px 0 var(--rim), 0 0 0 3px #fff1c2, 0 0 22px rgba(255, 241, 194, 0.9); } }
-  /* SHRED: scissors badge, name, stitched meter, status */
-  .shred { display: grid; grid-template-columns: 34px auto; column-gap: 8px; align-content: center; align-items: center; min-height: 50px; padding: 6px 14px 7px 8px; border-radius: 16px; text-align: left; outline-offset: -7px; }
-  .shred .ticon { grid-row: 1 / 4; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-    font-size: 17px; color: #3b1060; text-shadow: none; background: radial-gradient(circle at 35% 30%, #efdcff, #b88af0); border: 2px solid #331560; }
-  .shred .tname { font-size: 15px; letter-spacing: 1px; line-height: 1; }
-  .shred .tmeter { display: block; width: 84px; height: 7px; margin: 3px 0 2px; border-radius: 4px; background: rgba(20, 5, 40, 0.6); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5); overflow: hidden; }
-  .shred .tmeter > span { display: block; height: 100%; width: 0; background: linear-gradient(#e6cfff, #b88af0); transition: width 150ms; }
-  .shred .tsub { font-size: 9.5px; line-height: 1; color: #e6d4ff; letter-spacing: 0.3px; white-space: nowrap; }
-  .shred.ready { --fc: #d98a12; --rim: #6a3a04; animation: tready 0.9s ease-in-out infinite; }
-  .shred.ready .ticon { background: radial-gradient(circle at 35% 30%, #fff6c8, #ffc93d); border-color: #6a3a04; }
-  .shred.ready .tmeter > span { background: linear-gradient(#fff6c8, #ffd23f); }
-  .shred.ready .tsub { color: #fff1c2; }
+  /* SHRED: a tall felt capsule in the bottom-right corner; the tube fills from the bottom with snip kills. Full: it pulses
+     gold, tap it to arm; armed: the next press on the table starts the spin there (tap the meter again to cancel). */
+  #shred-card {
+    position: fixed; right: calc(10px + env(safe-area-inset-right)); bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 15;
+    width: 62px; height: 168px; padding: 8px 0 9px; border-radius: 22px; outline-offset: -7px;
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+  }
+  #shred-card[hidden] { display: none; }
+  #shred-card .ticon { flex: none; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 18px; color: #3b1060; text-shadow: none; background: radial-gradient(circle at 35% 30%, #efdcff, #b88af0); border: 2px solid #331560; }
+  #shred-card .tube { position: relative; flex: 1; width: 20px; border-radius: 10px; background: rgba(20, 5, 40, 0.6); box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.6); overflow: hidden; }
+  #shred-card .tube > span { position: absolute; left: 0; right: 0; bottom: 0; height: 0; border-radius: 10px;
+    background: linear-gradient(90deg, #b88af0, #e6cfff 45%, #b88af0); transition: height 150ms; }
+  #shred-card .tname { font-size: 12px; letter-spacing: 0.8px; line-height: 1; }
+  #shred-card.ready { --fc: #d98a12; --rim: #6a3a04; animation: tready 0.9s ease-in-out infinite; }
+  #shred-card.ready .ticon, #shred-card.armed .ticon { background: radial-gradient(circle at 35% 30%, #fff6c8, #ffc93d); border-color: #6a3a04; }
+  #shred-card.ready .tube > span, #shred-card.armed .tube > span { background: linear-gradient(90deg, #ffc93d, #fff6c8 45%, #ffc93d); }
+  #shred-card.armed { --fc: #c0392b; --rim: #5a1208; animation: tarmed 0.5s ease-in-out infinite; }
+  @keyframes tarmed { 50% { transform: scale(1.06); box-shadow: inset 0 2px 1px rgba(255, 255, 255, 0.28), 0 4px 0 var(--rim), 0 0 0 3px #fff1c2, 0 0 26px rgba(255, 120, 60, 0.95); } }
   @keyframes tready { 50% { filter: brightness(1.18); box-shadow: inset 0 2px 1px rgba(255, 255, 255, 0.28), 0 4px 0 var(--rim), 0 0 22px rgba(255, 210, 63, 0.9); } }
 
   /* Pin spots: a green felt + button on each empty pad of the level (positioned by actionBar.js) */
   #spots { position: fixed; inset: 0; z-index: 14; pointer-events: none; }
   #spots[hidden] { display: none; }
   .spot-add { position: absolute; pointer-events: auto; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%;
-    opacity: 0.65; font-size: 28px; line-height: 1; outline-offset: -7px; }
+    font-size: 28px; line-height: 1; outline-offset: -7px; }
   .spot-add[hidden] { display: none; }
+  /* the + buttons only show while some Pin is affordable (an open one stays: it is the picker's close button) */
+  #spots:not(.can) .spot-add:not([aria-expanded="true"]) { display: none; }
   .spot-add span { margin-top: -3px; }
-  #spots.can .spot-add { opacity: 1; animation: sbob 1.6s ease-in-out infinite; }
+  #spots.can .spot-add { animation: sbob 1.6s ease-in-out infinite; }
   @keyframes sbob { 50% { transform: translateY(-4px); } }
   #spots.attn .spot-add { animation: sattn 0.9s ease-in-out infinite; }
   @keyframes sattn { 50% { transform: scale(1.15); box-shadow: 0 4px 0 var(--rim), 0 0 0 3px #fff1c2, 0 0 24px rgba(255, 241, 194, 0.95); } }
@@ -368,6 +377,12 @@
   .wc-val { font: 400 14px var(--ui-font); color: #ffd23f; font-variant-numeric: tabular-nums; }
   .wc-bar { height: 9px; border-radius: 5px; background: rgba(0, 0, 0, 0.5); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.6); overflow: hidden; }
   .wc-bar > span { display: block; height: 100%; border-radius: 5px; background: linear-gradient(#b8f07a, #5fbf3a); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4); }
+  /* level picker (src/levelSelect.js): the same sunken slots, laid out as a row: plate crop, then name + blurb */
+  .level-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; width: 100%; }
+  .level-card { flex-direction: row; align-items: center; gap: 10px; padding: 8px 10px; text-align: left; }
+  .level-card img { flex: none; width: 58px; height: 72px; aspect-ratio: auto; object-fit: cover; object-position: 50% 45%; border-radius: 10px; border: 2px solid #2a170a; }
+  .lc-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .level-card .wc-blurb { min-height: 0; }
   .select-actions { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; width: 100%; }
   .card .felt-btn.back { font-size: clamp(20px, 5.5vw, 26px); }
   /* settings: the control-mode options reuse the weapon card's sunken slot and gold "chosen" rim */
@@ -433,11 +448,8 @@
     <div class="tcap">PINS</div>
     <span class="felt dark thread-chip" title="Thread: earned by snip kills, spent on Pins (tap a + beside the road)"><span class="spool"></span><b id="tray-thread">0</b><span class="unit">THREAD</span></span>
   </div>
-  <div class="tgroup">
-    <div class="tcap">SPECIAL</div>
-    <button id="shred-card" class="felt purple shred" type="button"><span class="ticon">✂</span><span class="tname">SHRED</span><span class="tmeter"><span></span></span><span class="tsub"></span></button>
-  </div>
 </div>
+<button id="shred-card" class="felt purple" type="button" aria-label="SHRED" hidden><span class="ticon">✂</span><span class="tube"><span></span></span><span class="tname">SHRED</span></button>
 <div id="tip" hidden><span id="tip-text"></span></div>
 <div id="coach" hidden>
   <div id="coach-text">Put two fingers on the screen.</div>
@@ -463,6 +475,9 @@
 <div id="select" class="screen" hidden>
   <div class="card">
     <h2 class="blue" data-text="CHOOSE YOUR SHEARS">CHOOSE YOUR SHEARS</h2>
+    <div class="set-label">Level</div>
+    <div id="level-cards" class="level-cards" role="radiogroup" aria-label="Level"></div>
+    <div class="set-label">Shears</div>
     <div id="weapon-cards" class="weapon-cards"></div>
     <div class="select-actions">
       <button id="select-back" class="felt-btn back" type="button">BACK</button>
@@ -540,12 +555,15 @@
   <div class="card">
     <h2 id="over-title" class="lose" data-text="WORKSHOP OVERRUN">WORKSHOP OVERRUN</h2>
     <dl>
+      <dt>Level</dt><dd id="over-level">—</dd>
       <dt>Score</dt><dd id="over-score">0</dd>
       <dt>Waves survived</dt><dd id="over-waves">0 / 6</dd>
       <dt>Snip accuracy</dt><dd id="over-acc">—</dd>
       <dt>Seed</dt><dd id="over-seed">—</dd>
     </dl>
+    <button id="next" class="felt-btn" type="button" hidden><span class="tri"></span>NEXT LEVEL</button>
     <button id="again" class="felt-btn" type="button"><span class="tri"></span>PLAY AGAIN</button>
+    <button id="over-select" class="felt-btn small" type="button">Change level or shears</button>
     <div class="over-actions">
       <button class="felt-btn small" type="button" data-copy-report>Copy run report</button>
       <button class="felt-btn small" type="button" data-send-feedback>Send feedback</button>

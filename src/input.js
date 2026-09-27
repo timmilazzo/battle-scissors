@@ -34,8 +34,9 @@ let prevRaw = 0, needSnap = true, snapNext = false;
 let openPeak = 0;
 
 // onSnip(px, py, theta, spread, strong), onTooSlow(), onGrip(), onSpace(), onReset(), onPause() (P / Escape),
-// onSpecial() = the extra finger (second in 'hold', third in 'pinch') / E key
-const hooks = { onSnip: null, onTooSlow: null, onGrip: null, onSpace: null, onReset: null, onSpecial: null, onPause: null };
+// onSpecial() = the extra finger (second in 'hold', third in 'pinch') / E key, onPress() = a finger or the mouse button
+// going down on the table (a new hand: the first finger in 'hold', either handle in 'pinch'; an armed SHRED starts on it)
+const hooks = { onSnip: null, onTooSlow: null, onGrip: null, onSpace: null, onReset: null, onSpecial: null, onPause: null, onPress: null };
 
 // ring buffer of recent samples (no per-frame allocation)
 const BUF = 256;
@@ -197,7 +198,7 @@ export function initInput(h) {
     for (let i = 0; i < ct.length; i++) {
       const t = ct[i];
       if (e.type === 'touchstart') {
-        if (h.id === -1) { h.id = t.identifier; h.x = t.clientX; h.y = t.clientY; h.dist = C.closedDistPx; h.down = true; h.lift = false; h.fresh = true; }
+        if (h.id === -1) { h.id = t.identifier; h.x = t.clientX; h.y = t.clientY; h.dist = C.closedDistPx; h.down = true; h.lift = false; h.fresh = true; if (hooks.onPress) hooks.onPress(); }
         else if (t.identifier !== h.id && hooks.onSpecial) hooks.onSpecial();
       } else if (t.identifier === h.id) {
         if (e.type === 'touchmove') { h.x = t.clientX; h.y = t.clientY; } else lift();
@@ -226,6 +227,7 @@ export function initInput(h) {
           if (slot === -1 && hooks.onSpecial) hooks.onSpecial();   // a third finger while both handles are held
         }
         if (slot === -1) continue;
+        if (tp.id[slot] !== t.identifier && hooks.onPress) hooks.onPress();
         tp.id[slot] = t.identifier; tp.x[slot] = t.clientX; tp.y[slot] = t.clientY;
       }
     }
@@ -244,6 +246,7 @@ export function initInput(h) {
   cv.addEventListener('mousedown', e => {
     if (!mouseActive() || e.button !== 0) return;
     mouse.held = true;
+    if (hooks.onPress) hooks.onPress();
   });
   window.addEventListener('mouseup', e => {
     if (input.usingTouch || e.button !== 0) return;
