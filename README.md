@@ -7,7 +7,7 @@ Plain ES modules, no build step, no dependencies. Made for phones; a mouse and k
 ## Play
 
 - **On a phone:** open the GitHub Pages URL, then use *Add to Home Screen* (Android: Chrome menu > Install app / Add to Home screen; iOS: Safari > Share > Add to Home Screen). It launches fullscreen with no browser chrome. Android locks it to portrait; iOS web apps can't lock orientation, so hold the phone upright.
-- **Controls (Hold, the default):** hold a finger on the screen and the blades open above it (each weapon opens at its own speed); lift to snip. Lifting early cuts weaker. When the SHRED meter (bottom right) is full, tap it, then touch where you want the spin. A **+** appears beside the road on each free pad once you can afford a Pin; tap it to build one.
+- **Controls (Hold, the default):** hold a finger on the screen and the blades open above it (each weapon opens at its own speed); lift to snip. Lifting early cuts weaker. When the SHRED meter (top left, under the hearts) is full, tap it, then touch where you want the spin. A **+** appears beside the road on each free pad once you can afford a Pin; tap it to build one.
 - **Controls (Pinch, in Settings on the title):** two fingers on the screen are the scissor handles. Spread them to open the blades and pinch fast to snip; rotate your hand to aim. Slow closes do nothing. SHRED works the same way: tap the full meter, then put your fingers down where it should spin.
 - **Desktop:** move the mouse, hold the left button to open, release to snip. Wheel = spread, A/D = rotate, Space = instant snip, E = SHRED, P/Esc = pause, R = back to title. The full list is at the top of `index.html`.
 

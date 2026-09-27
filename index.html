@@ -124,7 +124,7 @@
   .bump { animation: tbump 260ms ease-out; }
   @keyframes tbump { 40% { transform: scale(1.18); } }
 
-  /* action bar (bottom): the thread pill (Pin currency). SHRED is its own vertical meter in the bottom-right corner. */
+  /* action bar (bottom): the thread pill (Pin currency). SHRED is its own meter in the HUD column, under the hearts. */
   #tray {
     position: fixed; left: 50%; bottom: calc(10px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 15;
     display: flex; align-items: flex-end; gap: 10px; pointer-events: none;
@@ -148,23 +148,24 @@
   /* first time a Pin is affordable (until its explainer has been seen): the thread pill pulses with the + buttons */
   #tray.pin-attn .thread-chip { animation: tchip 0.9s ease-in-out infinite; }
   @keyframes tchip { 50% { box-shadow: inset 0 2px 1px rgba(255, 255, 255, 0.28), 0 4px 0 var(--rim), 0 0 0 3px #fff1c2, 0 0 22px rgba(255, 241, 194, 0.9); } }
-  /* SHRED: a tall felt capsule in the bottom-right corner; the tube fills from the bottom with snip kills. Full: it pulses
-     gold, tap it to arm; armed: the next press on the table starts the spin there (tap the meter again to cancel). */
+  /* SHRED: a felt pill in the HUD column, under the hearts (clear of the hand, which covers the bottom right); the tube
+     fills left to right with snip kills. Full: it pulses gold, tap it to arm; armed: the next press on the table starts
+     the spin there (tap the meter again to cancel). */
   #shred-card {
-    position: fixed; right: calc(10px + env(safe-area-inset-right)); bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 15;
-    width: 62px; height: 168px; padding: 8px 0 9px; border-radius: 22px; outline-offset: -7px;
-    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    pointer-events: auto; z-index: 15;
+    width: 132px; height: 40px; padding: 0 12px 0 4px; border-radius: 999px; outline-offset: -6px;
+    display: flex; flex-direction: row; align-items: center; gap: 6px;
   }
   #shred-card[hidden] { display: none; }
-  #shred-card .ticon { flex: none; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-    font-size: 18px; color: #3b1060; text-shadow: none; background: radial-gradient(circle at 35% 30%, #efdcff, #b88af0); border: 2px solid #331560; }
-  #shred-card .tube { position: relative; flex: 1; width: 20px; border-radius: 10px; background: rgba(20, 5, 40, 0.6); box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.6); overflow: hidden; }
-  #shred-card .tube > span { position: absolute; left: 0; right: 0; bottom: 0; height: 0; border-radius: 10px;
-    background: linear-gradient(90deg, #b88af0, #e6cfff 45%, #b88af0); transition: height 150ms; }
+  #shred-card .ticon { flex: none; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 16px; color: #3b1060; text-shadow: none; background: radial-gradient(circle at 35% 30%, #efdcff, #b88af0); border: 2px solid #331560; }
+  #shred-card .tube { position: relative; flex: 1; height: 12px; border-radius: 6px; background: rgba(20, 5, 40, 0.6); box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.6); overflow: hidden; }
+  #shred-card .tube > span { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 6px;
+    background: linear-gradient(180deg, #b88af0, #e6cfff 45%, #b88af0); transition: width 150ms; }
   #shred-card .tname { font-size: 12px; letter-spacing: 0.8px; line-height: 1; }
   #shred-card.ready { --fc: #d98a12; --rim: #6a3a04; animation: tready 0.9s ease-in-out infinite; }
   #shred-card.ready .ticon, #shred-card.armed .ticon { background: radial-gradient(circle at 35% 30%, #fff6c8, #ffc93d); border-color: #6a3a04; }
-  #shred-card.ready .tube > span, #shred-card.armed .tube > span { background: linear-gradient(90deg, #ffc93d, #fff6c8 45%, #ffc93d); }
+  #shred-card.ready .tube > span, #shred-card.armed .tube > span { background: linear-gradient(180deg, #ffc93d, #fff6c8 45%, #ffc93d); }
   #shred-card.armed { --fc: #c0392b; --rim: #5a1208; animation: tarmed 0.5s ease-in-out infinite; }
   @keyframes tarmed { 50% { transform: scale(1.06); box-shadow: inset 0 2px 1px rgba(255, 255, 255, 0.28), 0 4px 0 var(--rim), 0 0 0 3px #fff1c2, 0 0 26px rgba(255, 120, 60, 0.95); } }
   @keyframes tready { 50% { filter: brightness(1.18); box-shadow: inset 0 2px 1px rgba(255, 255, 255, 0.28), 0 4px 0 var(--rim), 0 0 22px rgba(255, 210, 63, 0.9); } }
@@ -214,6 +215,7 @@
   }
   #tip[hidden] { display: none; }
   #tip::after { content: ""; position: absolute; top: calc(100% + 3px); left: var(--arrow, 50%); margin-left: -9px; border: 9px solid transparent; border-top-color: #7a4a1c; }
+  #tip.below::after { top: auto; bottom: calc(100% + 3px); border-top-color: transparent; border-bottom-color: #7a4a1c; }   /* under a top-of-screen anchor (the SHRED meter) */
 
   /* onboarding coach */
   #coach {
@@ -595,6 +597,7 @@
 <div id="hud" hidden>
   <div class="felt blue hud-wave"><small class="hud-level" id="hud-level" hidden>LEVEL 1</small><small>WAVE</small><b id="hud-wave">1/6</b></div>
   <div class="felt dark hud-hearts" id="hud-hearts" aria-label="Workshop health"><span class="heart"></span><b id="hud-hp">10</b></div>
+  <button id="shred-card" class="felt purple" type="button" aria-label="SHRED" hidden><span class="ticon">✂</span><span class="tube"><span></span></span><span class="tname">SHRED</span></button>
   <div class="felt purple hud-sharp" id="hud-sharp" hidden title="Sharpened: extra snip damage this level">SHARP</div>
 </div>
 <div id="spots" hidden></div>
@@ -605,7 +608,6 @@
     <span class="felt dark thread-chip" title="Thread: earned by snip kills, spent on Pins (tap a + beside the road)"><span class="spool"></span><b id="tray-thread">0</b><span class="unit">THREAD</span></span>
   </div>
 </div>
-<button id="shred-card" class="felt purple" type="button" aria-label="SHRED" hidden><span class="ticon">✂</span><span class="tube"><span></span></span><span class="tname">SHRED</span></button>
 <div id="tip" hidden><span id="tip-text"></span></div>
 <button id="tut-skip" class="felt brown" type="button" aria-label="Skip this step" hidden><span>›</span></button>
 <div id="boss-card" class="felt purple" role="status" hidden><h3 id="boss-name"></h3><p id="boss-taunt"></p></div>

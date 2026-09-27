@@ -1,6 +1,6 @@
 // The bottom action bar and the Pin spots: "everything besides snipping". DOM only; reads game state, calls game actions.
 // - Bar: the Thread counter chip (the Pin currency; pops on income).
-// - SHRED meter (bottom-right corner): a tube that fills from the bottom with snip kills. Full, it pulses; tapping it arms
+// - SHRED meter (a pill in the top-left HUD column, under the hearts): a tube that fills left to right with snip kills. Full, it pulses; tapping it arms
 //   SHRED and the next press on the table starts the spin where the scissors land (tap the meter again to cancel). E, or
 //   another finger while holding the scissors, still fires it straight away.
 // - Pin spots: a + button on every empty spot of the level, shown only while some Pin is affordable. Tapping one opens a picker beside it with one card per
@@ -205,7 +205,7 @@ export function refreshActionBar() {
   const h = state.heli, ready = h.charge >= C.heliKillsToCharge && !h.active;
   if (shown.charge !== h.charge || shown.ready !== ready || shown.armed !== h.armed) {
     shown.charge = h.charge; shown.ready = ready; shown.armed = h.armed;
-    shredFill.style.height = Math.round(h.charge / C.heliKillsToCharge * 100) + '%';
+    shredFill.style.width = Math.round(h.charge / C.heliKillsToCharge * 100) + '%';
     shredCard.classList.toggle('ready', ready && !h.armed);
     shredCard.classList.toggle('armed', h.armed);
     shredCard.setAttribute('aria-label', h.armed ? 'SHRED armed: tap to cancel' : ready ? 'SHRED ready: tap to arm' : 'SHRED ' + h.charge + ' of ' + C.heliKillsToCharge + ' kills');
@@ -237,13 +237,18 @@ function showTip(kind, anchor, text, until) {
   placeTip();
 }
 // Centred over its anchor, kept on screen, the arrow pointing at the anchor. Anchors in the bar get the tip above
-// the whole bar; a + button gets it just above itself.
+// the whole bar; a + button gets it just above itself; an anchor in the top half (the SHRED meter) gets it below.
 function placeTip() {
   const r = tip.anchor.getBoundingClientRect(), w = tipEl.offsetWidth, cx = r.left + r.width / 2;
   const left = Math.max(8, Math.min(window.innerWidth - w - 8, cx - w / 2));
-  const above = bar.contains(tip.anchor) ? bar.getBoundingClientRect().top : r.top;
+  const below = r.top + r.height / 2 < window.innerHeight / 2;
+  tipEl.classList.toggle('below', below);
   tipEl.style.left = left + 'px';
-  tipEl.style.bottom = (window.innerHeight - above + 10) + 'px';
+  if (below) { tipEl.style.top = (r.bottom + 12) + 'px'; tipEl.style.bottom = ''; }
+  else {
+    const above = bar.contains(tip.anchor) ? bar.getBoundingClientRect().top : r.top;
+    tipEl.style.top = ''; tipEl.style.bottom = (window.innerHeight - above + 10) + 'px';
+  }
   tipEl.style.setProperty('--arrow', (cx - left) + 'px');
 }
 function hideTip() { if (tip.kind) { tip.kind = ''; tipEl.hidden = true; } }
