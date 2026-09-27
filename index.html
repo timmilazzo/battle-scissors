@@ -99,11 +99,12 @@
   #hint { display: none; margin: 0; max-width: 320px; text-align: center; font: 12px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: rgba(255, 241, 194, 0.75); }
   #hint b { color: #ffd23f; }
 
-  /* HUD (top-left, one compact row): wave badge and the workshop's hearts left as one heart + a number. Filled by
-     src/hud.js. Score lives on the pause and game-over cards, not here. */
+  /* HUD (top-left, one compact column): wave badge, then the workshop's hearts left as one heart + a number below it
+     (stacked, not side by side, so it stays out of the top of the road where enemies enter). Filled by src/hud.js.
+     Score lives on the pause and game-over cards, not here. */
   #hud {
     position: fixed; top: calc(10px + env(safe-area-inset-top)); left: calc(10px + env(safe-area-inset-left)); z-index: 9;
-    display: flex; align-items: center; gap: 8px; pointer-events: none;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 6px; pointer-events: none;
   }
   #hud[hidden] { display: none; }
   .hud-wave[hidden] { display: none; }
@@ -290,11 +291,13 @@
   .res { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 6px; font-family: var(--ui-font); }
   .res-stars { display: flex; gap: 14px; justify-content: center; }
   .rs { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 64px; }
-  .rs i { display: block; width: 52px; height: 50px; clip-path: polygon(50% 0, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
-    background: rgba(0, 0, 0, 0.45); transform: scale(0.85); }
+  /* the kit's felt stars (as on the map): an empty stitched outline until each pops in; gold = new, a grey felt
+     star = already earned on an earlier run */
+  .rs i { display: block; width: 58px; height: 58px; background: url(assets/kit/sewing/sewing_star_empty_01.webp) center / contain no-repeat;
+    filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.55)); opacity: 0.55; transform: scale(0.85); }
   .rs em { font: 400 13px var(--ui-font); font-style: normal; color: #ffd23f; min-height: 1.1em; white-space: nowrap; }
-  .rs.new.show i { background: linear-gradient(#fff3a8, #ffc93d 55%, #d88a10); }
-  .rs.old.show i { background: linear-gradient(#e2dccd, #9d978a); opacity: 0.8; }
+  .rs.show i { background-image: url(assets/kit/sewing/sewing_star_gold_01.webp); opacity: 1; }
+  .rs.old.show i { filter: grayscale(1) brightness(1.15) drop-shadow(0 2px 2px rgba(0, 0, 0, 0.55)); opacity: 0.85; }
   .rs.old em { color: #cfc6b3; font-size: 11px; }
   .rs.show i { animation: rspop 420ms cubic-bezier(.2, 1.8, .4, 1) both; }
   @keyframes rspop { 0% { transform: scale(0.2) rotate(-30deg); } 100% { transform: scale(1); } }
@@ -501,10 +504,15 @@
   @media (max-height: 640px) { #pins-intro .pin-diagram { display: none; } }
 
   /* weapon select (cards built by src/weaponSelect.js): sunken felt slots; the chosen one gets a gold stitched rim */
-  #select { overflow-y: auto; justify-content: safe center; }
-  #select .card { width: min(760px, 100%); gap: 12px; }
-  #select .card h2 { font-size: clamp(30px, 8.6vw, 50px); margin-top: -58px; }
+  /* The card never grows past the screen: the heading and BACK / START stay put and only the weapon grid scrolls,
+     so START is always on screen after picking. */
+  #select { justify-content: center; }
+  #select .card { width: min(760px, 100%); gap: 12px; max-height: calc(100% - 34px); min-height: 0; }
+  #select .card h2 { font-size: clamp(30px, 8.6vw, 50px); margin-top: -58px; flex-shrink: 0; }
+  #select .select-level, #select .select-actions { flex-shrink: 0; }
   .weapon-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; width: 100%; }
+  #select .weapon-cards { flex: 0 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box;
+    padding: 6px; margin: -6px; width: calc(100% + 12px); border-radius: 18px; }
   @media (min-width: 640px) { .weapon-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
   .weapon-card {
     display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 10px 12px; cursor: pointer; min-width: 0;

@@ -66,6 +66,8 @@ export function initWeaponSelect({ onPick, onStart, onBack }) {
       cards[k].querySelector('.wc-lock').textContent = weaponLocked(k) ? '🔒 ' + unlockHint(k) : '';
     }
     select(savedWeapon());
+    // the grid scrolls on its own (START stays on screen): open it scrolled to the equipped pair
+    requestAnimationFrame(() => cards[savedWeapon()]?.scrollIntoView({ block: 'nearest' }));
   };
   refreshLocks();
 }
