@@ -1,18 +1,21 @@
-// Game state + update(dt): state machine (TITLE -> SELECT | SETTINGS, SELECT -> [TUTORIAL] -> PLAYING -> WAVE_CLEAR -> ... -> GAME_OVER),
-// waves along the current level's road (one route, or several at a fork), the workshop, thread economy, towers, the Helicopter special, onboarding, scoring, pooled
-// entities (plain data), snip resolution, blade contact, run reports. No canvas calls here: render.js draws `state`.
-// Title / select / settings / game-over / coach screens are HTML in index.html; this module only shows, hides and fills them.
+// Game state + update(dt): state machine (TITLE -> MAP | SETTINGS, MAP -> SELECT -> PLAYING -> WAVE_CLEAR -> ... -> GAME_OVER,
+// or level 0 -> TUTORIAL -> the map), waves along the current level's road (one route, or several at a fork), the workshop, thread
+// economy, towers, bosses, the Helicopter special, the level-0 tutorial script, scoring, pooled entities (plain data), snip
+// resolution, blade contact, run reports. No canvas calls here: render.js draws `state`.
+// Title / select / settings / game-over / boss-card screens are HTML in index.html; this module only shows, hides and fills them.
 import { CONFIG as C, VERSION } from './config.js';
 import { view, level, TAU, DEG, clamp, segDistSq } from './core.js';
-import { input, updateInput, resetSnipBuffer, holdTouch } from './input.js';
+import { input, updateInput, resetSnipBuffer, holdTouch, setEasyOnly } from './input.js';
 import { weapon, scaleFor, setWeapon, bladeReachPx, spinReachPx, isSlide, cut, setCutZone, cutZoneHits } from './scissors.js';
 import { tween, tweens, makeTweens, easing } from './tween.js';
 import { makeRng } from '../vendor/mulberry32.js';
 import { sfx, sfxSnip, sfxSequence } from './audio.js';
 import { saveRun } from './runlog.js';
-import { resolveLevel } from './levelGen.js';
-import { markCleared } from './levelSelect.js';
+import { loadLevel, hasLevel, levelInfo } from './levels/index.js';
+import { recordLevelResult } from './levelSelect.js';
+import { Save, persist } from './save.js';
 import { KNOB_KEYS } from './debug.js';
+import { levelBefore, settleRun, useSharpen } from './meta.js';
 
 // ======================= state =======================
 // mode: 'TITLE' | 'MAP' | 'SELECT' | 'SETTINGS' | 'TUTORIAL' | 'PLAYING' | 'WAVE_CLEAR' | 'GAME_OVER'. modeT = seconds in the current mode
@@ -20,7 +23,7 @@ import { KNOB_KEYS } from './debug.js';
 // with an `on` flag. events = a small ring of one-off happenings for the renderer (thread pickups, placements).
 export const state = {
   mode: 'TITLE', modeT: 0, wave: 0, hp: 0, score: 0, won: false, seed: 0, thread: 0, paused: false, pauseCard: 'menu',
-  bannerT: 0, workshopHitT: 0, clock: 0,
+  bannerT: 0, workshopHitT: 0, clock: 0, bossCardT: 0,
   stats: { snips: 0, kills: 0 },
   // flash = snip flash on the blades, tooSlow = "too slow" wobble, cut = cut-zone ghost, kick = snip world punch,
   // space = Space-key snap pulse, ring = pivot shock ring (at ringX/ringY), camShake = kill screen shake (px),
@@ -33,8 +36,20 @@ export const state = {
   // Helicopter: charge = snip kills banked; phase '' | 'open' | 'spin' | 'close'; spread/rot drive the blades while active.
   // armed = the full SHRED meter was tapped: the next press on the table (go) starts the spin where the scissors land.
   heli: { charge: 0, active: false, phase: '', spread: 0, rot: 0, theta0: 0, tick: 0, bannerT: 0, armed: false, go: false },
-  tut: { step: 0, t: 0, theta0: 0, ver0: 0, nagT: 0 },
-  run: { t0: 0, multiSnips: 0, towers: {}, specials: 0, leaks: 0 },
+  // level 0 (see the tutorial section): step 1..5, rep = ghost repeats this step (it grows more obvious), cyc = seconds
+  // into the ghost's demo, vis = ghost fade, away = seconds until it comes back after the player lets go, holdT = the
+  // player's current hold, meter = step 2's hold ring (0..1), ok = step 2 passed (the next lift moves on), phase = step 4's
+  // part (0 the row, 1 the pair), wide/short = step 4's cuts done, cuts = step 5 kills, winT = celebration left.
+  // ghost = the hand for render.js: x, y fingertip, a alpha, down press 0..1, sc scissors risen 0..1, open 0..1, meter hold
+  // ring 0..1, scale / alpha emphasis, cutT / cx / cy / cutOpen = the fading cut zone of its last snip.
+  tut: { step: 0, t: 0, rep: 0, cyc: 0, prevCyc: 0, cycLen: 4, vis: 0, away: 0, holdT: 0, meter: 0, ok: false, wasGrip: false,
+    phase: 0, wide: false, short: false, cuts: 0, next: 0, spawnLeft: 0, spawnT: 0, respawnT: 0, advanceT: 0, walkIn: false, winT: 0, burstT: 0,
+    taps: [], ghost: { x: 0, y: 0, a: 0, down: 0, sc: 0, open: 0, meter: 0, scale: 1, alpha: 0.6, cutT: 0, cx: 0, cy: 0, cutOpen: 0 } },
+  // run = report counters: bestSnipKills = most kills by one snip, beetleExecutes = Button Beetles executed in the Cigar
+  // Cutter's ring, prunerBite = a Ratchet Pruners armor-down bite ended a boss's armored phase (achievements.js)
+  run: { t0: 0, multiSnips: 0, towers: {}, specials: 0, leaks: 0, stars: 0, bestSnipKills: 0, beetleExecutes: 0, prunerBite: false },
+  sharpened: false,          // this level used up a Sharpening (CONFIG.meta.sharpenMult on snip damage)
+  tally: null,               // the finished run's Buttons (meta.js settleRun), for the results card
   events: { seq: 0, list: [] },
 };
 const fx = state.fx, heli = state.heli, tut = state.tut;
@@ -64,8 +79,8 @@ function seedRun(seed) {
 
 const els = {
   title: document.getElementById('title'), map: document.getElementById('map'), select: document.getElementById('select'), settings: document.getElementById('settings'), over: document.getElementById('over'),
-  reset: document.getElementById('reset'), tray: document.getElementById('tray'), coach: document.getElementById('coach'),
-  coachText: document.getElementById('coach-text'), mute: document.getElementById('mute'), pauseBtn: document.getElementById('pause'),
+  reset: document.getElementById('reset'), tray: document.getElementById('tray'), tutSkip: document.getElementById('tut-skip'),
+  bossCard: document.getElementById('boss-card'), bossName: document.getElementById('boss-name'), bossTaunt: document.getElementById('boss-taunt'), mute: document.getElementById('mute'), pauseBtn: document.getElementById('pause'),
   pause: document.getElementById('pause-screen'), pinsIntro: document.getElementById('pins-intro'), pauseWave: document.getElementById('pause-wave'), pauseScore: document.getElementById('pause-score'),
   pauseAcc: document.getElementById('pause-acc'), pauseSeed: document.getElementById('pause-seed'),
   overTitle: document.getElementById('over-title'), overScore: document.getElementById('over-score'), overLevel: document.getElementById('over-level'),
@@ -85,7 +100,8 @@ function showScreens() {
   els.pause.hidden = !state.paused || state.pauseCard !== 'menu';
   els.pinsIntro.hidden = !state.paused || state.pauseCard !== 'pins';
   els.tray.hidden = state.paused || (m !== 'PLAYING' && m !== 'WAVE_CLEAR');
-  els.coach.hidden = state.paused || m !== 'TUTORIAL';
+  els.tutSkip.hidden = state.paused || m !== 'TUTORIAL';
+  els.bossCard.hidden = state.paused || state.bossCardT <= 0 || !live();
 }
 
 // ======================= layout (weapon scale + level) =======================
@@ -101,11 +117,11 @@ function placeLevel() { const lv = level(); view.L = view.H / lv.h; view.LX = (v
 export const levelX = x => view.LX + x * view.L, levelY = y => y * view.L;
 
 // Switch levels (select screen): one tower slot per spot of the new level. The caller then re-runs the resize chain
-// (layout, prerender, measureActionBar) and rebuilds the action bar's + buttons. A generated level is built here
-// (src/levelGen.js); a random one from `seed` (startGame passes the run's seed and calls onLevelBuilt).
+// (layout, prerender, measureActionBar) and rebuilds the action bar's + buttons. The level comes from loadLevel()
+// (src/levels/index.js); a random one is built from `seed` (startGame passes the run's seed and calls onLevelBuilt).
 export function setLevel(id, seed = Date.now()) {
-  if (!C.levels[id]) id = C.defaultLevel;
-  view.levelId = id; view.levelDef = resolveLevel(C.levels[id], seed);
+  if (!hasLevel(id)) id = C.defaultLevel;
+  view.levelId = id; view.levelDef = loadLevel(id, seed);
   towers.length = 0;
   for (let i = 0; i < level().spots.length; i++) {
     towers.push({ on: false, type: '', x: 0, y: 0, fx: 0, fy: 0, fu: [], timer: 0, pulse: 0, aim: -Math.PI / 2, kick: 0 });
@@ -181,7 +197,9 @@ function clearWorld() {
   last.ms = -1; last.kind = ''; last.ver++;
   fx.cut = fx.flash = fx.tooSlow = fx.kick = fx.ring = fx.space = fx.hitStop = fx.camShake = 0; state.bannerT = state.workshopHitT = 0;
   heli.active = false; heli.phase = ''; heli.spread = heli.rot = 0; heli.bannerT = 0; heli.armed = heli.go = false;
-  state.paused = false;
+  state.paused = false; state.bossCardT = 0;
+  tut.step = 0; tut.winT = 0; tut.ghost.cutT = 0; tut.vis = 0;
+  setEasyOnly(false);                                           // level 0 forces Hold controls only while it runs
   resetSnipBuffer();
 }
 
@@ -190,43 +208,63 @@ export function goMap() { clearWorld(); state.mode = 'MAP'; showScreens(); }
 export function goSelect() { clearWorld(); state.mode = 'SELECT'; showScreens(); }
 export function goSettings() { clearWorld(); state.mode = 'SETTINGS'; showScreens(); }
 
-const ONBOARDED_KEY = 'battleScissors.onboarded';
-function onboarded() { try { return localStorage.getItem(ONBOARDED_KEY) === '1'; } catch (e) { return true; } }
-
-// Start a run. The coach (onboarding) runs first on the very first play, or when asked (title's "How to play").
-// main.js sets this: after a random level is rebuilt for a new run, re-run the resize chain and the + buttons.
-let onLevelBuilt = () => {};
+// Start a run on the current level. Level 0 (CONFIG.tutLevel) is the tutorial: its script runs instead of waves.
+// main.js sets these: after a random level is rebuilt for a new run, re-run the resize chain and the + buttons; after
+// level 0 is cleared, go to the level map (which plays the reward reveal).
+let onLevelBuilt = () => {}, onTutorialDone = () => {}, onRunEnd = () => {};
 export function setLevelHook(fn) { onLevelBuilt = fn; }
+export function setRunEndHook(fn) { onRunEnd = fn; }            // the results card (results.js) plays the tally
+export function setTutorialDoneHook(fn) { onTutorialDone = fn; }
 
-export function startGame(opts = {}) {
+export function startGame() {
   clearWorld();
   seedRun(urlSeed !== null ? urlSeed : Date.now());
-  if (C.levels[view.levelId].random) { setLevel(view.levelId, state.seed); onLevelBuilt(); }   // a new road every run
+  if (levelInfo(view.levelId).random) { setLevel(view.levelId, state.seed); onLevelBuilt(); }   // a new road every run
   resetRun();
-  if (opts.tutorial || !onboarded()) { state.mode = 'TUTORIAL'; state.wave = 0; tutEnter(0); showScreens(); return; }
+  if (isTutorial()) {
+    state.mode = 'TUTORIAL'; state.wave = 0; state.bannerT = 1;   // the banner shows the level name
+    setEasyOnly(true); tutEnter(1); showScreens(); return;
+  }
   beginWave(1);
   showScreens();
 }
 function resetRun() {
-  state.score = 0; state.hp = C.workshopHp; state.won = false; state.stats.snips = 0; state.stats.kills = 0; state.thread = C.startThread;
+  state.score = 0; state.hp = C.workshopHp; state.won = false; state.stats.snips = 0; state.stats.kills = 0; state.thread = level().startThread ?? C.startThread;
   heli.charge = 0;
-  const r = state.run; r.t0 = Date.now(); r.multiSnips = 0; r.specials = 0; r.leaks = 0;
+  const r = state.run; r.t0 = Date.now(); r.multiSnips = 0; r.specials = 0; r.leaks = 0; r.stars = 0;
+  r.bestSnipKills = 0; r.beetleExecutes = 0; r.prunerBite = false;
+  state.sharpened = !isTutorial() && useSharpen(); state.tally = null;
   for (const k in C.towers) r.towers[k] = 0;
 }
 
-// Wave schedule from CONFIG.waves: each [type, count, atSec] entry spawns `count` of `type` from atSec, gapMs apart.
+// The level's waves (its own, or CONFIG.waves).
+export const levelWaves = () => level().waves || C.waves;
+
+// Wave schedule from levelWaves(): each [type, count, atSec] entry spawns `count` of `type` from atSec, gapMs apart.
 let spawnList = [], spawnIdx = 0;                             // [[timeSec, typeName], ...] sorted by time
 const anyEnemyOn = () => { for (let i = 0; i < enemies.length; i++) if (enemies[i].on) return true; return false; };
+// A boss wave opens on the boss's intro card (and roar) instead of the WAVE banner; the boss walks on as it closes.
 function beginWave(n) {
   spawnList = [];
-  for (const [name, count, atSec] of C.waves[n - 1]) {
+  let boss = '';
+  for (const [name, count, atSec] of levelWaves()[n - 1]) {
     const t = C.enemyTypes[name];
     if (!t) { console.warn('CONFIG.waves: unknown enemy type', name); continue; }
-    for (let i = 0; i < count; i++) spawnList.push([atSec + i * t.gapMs / 1000, name]);
+    if (t.boss) boss = name;
+    const at = t.boss ? Math.max(atSec, C.bossIntroMs / 1000) : atSec;
+    for (let i = 0; i < count; i++) spawnList.push([at + i * t.gapMs / 1000, name]);
   }
   spawnList.sort((a, b) => a[0] - b[0]);
   spawnIdx = 0;
-  state.wave = n; state.mode = 'PLAYING'; state.modeT = 0; state.bannerT = 1;
+  state.wave = n; state.mode = 'PLAYING'; state.modeT = 0; state.bannerT = boss ? 0 : 1;
+  if (boss) showBossCard(boss);
+}
+function showBossCard(name) {
+  const def = C.bosses[name]; if (!def) return;
+  els.bossName.textContent = def.name; els.bossTaunt.textContent = def.taunt;
+  state.bossCardT = C.bossIntroMs / 1000;
+  sfx(def.roar, 0); addShake(8, 8);
+  showScreens();
 }
 
 // The level after the current one on the level map (offered on the win card), or '' after the last / off the map.
@@ -243,17 +281,25 @@ function endGame(won) {
   els.overTitle.dataset.text = els.overTitle.textContent;       // the felt heading's outline layer (index.html .card h2)
   els.overTitle.classList.toggle('win', won); els.overTitle.classList.toggle('lose', !won);
   els.overLevel.textContent = level().name;
-  if (won) markCleared(view.levelId);
+  // stars: 1 for clearing, +1 per star rule met (noDamage: nothing reached the workshop; noSpecial: no SHRED)
+  const rules = level().starRules || {};
+  state.run.stars = won ? 1 + (rules.noDamage && !state.run.leaks ? 1 : 0) + (rules.noSpecial && !state.run.specials ? 1 : 0) : 0;
+  const before = levelBefore(view.levelId);
+  recordLevelResult(view.levelId, won, state.score, state.run.stars, level().unlockOnClear);
   const next = nextLevelId();
   els.next.hidden = !(won && next);
   els.overScore.textContent = String(state.score);
-  els.overWaves.textContent = (won ? C.waves.length : state.wave - 1) + ' / ' + C.waves.length;
+  els.overWaves.textContent = (won ? levelWaves().length : state.wave - 1) + ' / ' + levelWaves().length;
   els.overAcc.textContent = accuracyText();
   els.overSeed.textContent = String(state.seed);
   if (!won) sfxSequence('gameOver');
   lastReport = buildReport();
+  state.tally = settleRun(lastReport, before);
+  state.tally.unlock = won && !before.cleared ? level().unlockOnClear : null;
+  lastReport.buttons = { stars: state.tally.starButtons, score: state.tally.scoreButtons, achievements: state.tally.achievements.map(a => a.id), total: state.tally.total };
   saveRun(lastReport);
   showScreens();
+  onRunEnd();
 }
 
 // Compact playtest report for the "Copy run report" button (also kept in localStorage). inProgress = taken from the
@@ -264,7 +310,9 @@ function buildReport(inProgress = false) {
   return {
     version: VERSION, seed: state.seed, level: view.levelId, ...(level().gen ? { recipe: level().recipe } : {}), weapon: weapon.id, won: state.won, wavesReached: state.wave, score: state.score,
     snips: s.snips, kills: s.kills, accuracy: s.snips ? +(s.kills / s.snips).toFixed(3) : 0, multiSnips: r.multiSnips,
-    towers: { ...r.towers }, specialUses: r.specials, deathsAtWorkshop: r.leaks,
+    towers: { ...r.towers }, specialUses: r.specials, deathsAtWorkshop: r.leaks, stars: r.stars,
+    boss: levelWaves().some(w => w.some(([n]) => C.enemyTypes[n] && C.enemyTypes[n].boss)), bestSnipKills: r.bestSnipKills,
+    beetleExecutes: r.beetleExecutes, prunerBite: r.prunerBite, upgradeTier: weapon.def.tier | 0, sharpened: state.sharpened,
     durationSec: Math.round((Date.now() - r.t0) / 1000), device: navigator.userAgent, config: cfg,
     replay: location.origin + location.pathname + '?seed=' + state.seed + '&level=' + view.levelId +
       (view.levelId === 'custom' ? '&recipe=' + encodeURIComponent(level().recipe) : ''), endedAt: new Date().toISOString(),
@@ -283,7 +331,7 @@ export function setPaused(p, card = 'menu') {
   if (p) state.pauseCard = card;
   if (p) {
     pausedAt = Date.now();
-    els.pauseWave.textContent = state.mode === 'TUTORIAL' ? 'Tutorial' : state.wave + ' / ' + C.waves.length;
+    els.pauseWave.textContent = state.mode === 'TUTORIAL' ? 'Level 0' : state.wave + ' / ' + levelWaves().length;
     els.pauseScore.textContent = String(state.score);
     els.pauseAcc.textContent = accuracyText();
     els.pauseSeed.textContent = String(state.seed);
@@ -296,75 +344,263 @@ export function setPaused(p, card = 'menu') {
 export const togglePause = () => setPaused(!state.paused);
 export const reportNow = () => buildReport(true);
 
-// ======================= onboarding (coach) =======================
-const COACH = ['Put two fingers on the screen.', 'Spread them.', 'Now PINCH FAST.', 'Slow closes do nothing. Try one.', 'Rotate your hand to aim.', 'Go.'];
-// desktop wording (mouse + wheel): hold opens, release snaps shut, so the slow close uses the wheel
-const COACH_DESK = ['Move the mouse over the table.', 'Hold the left button to open.', 'Now release to SNIP.',
-  'Slow closes do nothing. Scroll up to open, then scroll down slowly.', 'Press A or D to aim.', 'Go.'];
-// 'hold' touch wording: hold opens, lift snaps shut; there is no slow close or rotation, so steps 3 and 4 are skipped
-const COACH_HOLD = ['Put a finger on the screen.', 'Hold it down: the blades open.', 'Now LIFT to SNIP.', '', '', 'Go.'];
-const touchy = () => input.usingTouch || (input.touchCapable && !input.mouse.used);
-const holdTut = () => touchy() && holdTouch();
-const coachFor = step => (holdTut() ? COACH_HOLD : touchy() ? COACH : COACH_DESK)[step];
-// the step after this one ('hold' touch jumps from the practice Scraps straight to Go.)
-const nextStep = step => step === 2 && holdTut() ? 5 : step + 1;
+// ======================= level 0: the no-text tutorial =======================
+// For a young player who can't read, Hold controls only: a translucent ghost hand (tut.ghost, drawn by render.js) shows
+// each step and repeats every tutGhostCycleMs, holding longer and more obviously each time (tut.rep). It hides while
+// the player's own finger is down and comes back tutGhostReturnMs after a lift that didn't pass the step (one repeat
+// further along, so a player who only taps sees ever longer, bigger holds).
+//   1 touch anywhere. 2 hold until the blades open (tutHoldSec; a ring round the finger fills), then lift.
+//   3 three frozen Scraps: press below them, hold, lift. If the player's blades are out but none of them is inside,
+//     they walk into the blades. 4 a row of six (one wide cut: tutWideMin+ at once, opened tutWideSpread+), then two Scraps far apart (one
+//     short cut, opened less than tutShortSpread). 5 no ghost: tutFinishCount Scraps walk the road; all cut = cleared.
+// No Pins, thread or SHRED, and the heart can't be hurt: a Scrap that reaches it goes back to the top. Each step has a
+// small skip arrow (#tut-skip) for adults.
+export const isTutorial = () => view.levelId === C.tutLevel;
+const ghost = tut.ghost;
+const ENTER = 0.45, PRESS = 0.15, REL = 0.12, MOVE = 0.4, EXIT = 0.4;   // ghost demo timing (s): arrive, press, release, glide, leave
+const SHORT_HOLD = 0.3;                                                 // the ghost's short taps (step 4)
+const easeOut = k => 1 - (1 - k) * (1 - k), easeInOut = k => k < 0.5 ? 2 * k * k : 1 - 2 * (1 - k) * (1 - k);
+
+// Where things go: the road's x at a screen y (level 0's road is straight, but ask the path anyway), the ghost's first
+// press point, and a point in the blades of scissors held at finger (fx, fy) aiming up: d = fraction of blade length out
+// from the pivot, k = fraction of the full-open half-angle.
+function roadXAt(y) {
+  const p = state.paths[0]; let best = 0, bd = Infinity;
+  for (let k = 0; k < p.n; k++) { const d = Math.abs(p.y[k] - y); if (d < bd) { bd = d; best = k; } }
+  return p.x[best];
+}
+const fingerY = () => view.H * C.tutFingerY;
+const fingerX = () => roadXAt(fingerY());
+function bladePoint(fx, fy, d, k) {
+  const L = bladeReachPx(), a = k * weapon.def.maxOpenDeg * DEG;
+  return [fx + Math.sin(a) * L * d, fy - C.pivotOffsetPx - Math.cos(a) * L * d];
+}
+// The finger point that puts a group's centre d blade-lengths out along the aim.
+function fingerFor(list, d) {
+  let x = 0, y = 0; for (const e of list) { x += e.x; y += e.y; }
+  return [x / list.length, y / list.length + d * bladeReachPx() + C.pivotOffsetPx];
+}
+const practiceList = [];
+function practice() {                                                   // the frozen practice Scraps (a reused list)
+  practiceList.length = 0;
+  for (const e of enemies) if (e.on && e.pinned) practiceList.push(e);
+  return practiceList;
+}
+
+function tutScrap(x, y, k) {
+  const e = spawnEnemy('scrap'); if (!e) return null;
+  e.pinned = true; e.x = e.px = x; e.y = e.py = y; e.tutK = k; e.hp = e.maxHp = C.tutScrapHp; e.hitT = 0.8;
+  sparks(x, y, 5, 3);
+  return e;
+}
+function clearPractice() { for (const e of enemies) if (e.on && e.pinned) e.on = false; }
+
+// The setups for steps 3 and 4.
+function setupThree() {
+  const fx = fingerX(), fy = fingerY();
+  [[0.5, -0.45], [0.75, 0], [0.5, 0.45]].forEach(([d, k], i) => tutScrap(...bladePoint(fx, fy, d, k), i));
+  sfx('pinPop', 0);
+}
+function setupRow() {                                                    // six abreast: a full-open cut takes them all
+  const fx = fingerX(), fy = fingerY(), L = bladeReachPx(), y = fy - C.pivotOffsetPx - 0.8 * L;
+  const half = 0.8 * L * Math.sin(weapon.def.maxOpenDeg * DEG) + 8, gap = 2 * half / 5;
+  for (let i = 0; i < 6; i++) tutScrap(fx + (i - 2.5) * gap, y, i);
+  sfx('pinPop', 0);
+}
+function setupPair() {                                                   // one behind the other, too far apart for one cut
+  const fx = fingerX(), fy = fingerY(), L = bladeReachPx(), y1 = fy - C.pivotOffsetPx - 0.55 * L;
+  const y2 = Math.max(C.pivotOffsetPx * 0.6, y1 - 2.4 * L);
+  tutScrap(fx, y1, 0); tutScrap(fx, y2, 1);
+  sfx('pinPop', 0);
+}
+
 function tutEnter(step) {
-  tut.step = step; tut.t = 0;
-  els.coachText.textContent = coachFor(step);
-  if (step === 2) {                                             // three stationary Scraps inside the current cut zone
-    const p = input.pose, a = visBladeAngle(), L = bladeReachPx();
-    if (isSlide()) {                                            // a slide weapon's zone is its hole: a small triangle inside it
-      const ax = Math.sin(p.theta), ay = -Math.cos(p.theta), r = L * 0.45;
-      for (const [u, v] of [[-0.87, 0.5], [0.87, 0.5], [0, -1]]) pinScrap(p.x + (ay * -u + ax * v) * r, p.y + (ax * u + ay * v) * r);
+  clearPractice();
+  tut.step = step; tut.t = 0; tut.rep = 0; tut.cyc = tut.prevCyc = 0; tut.away = 0; tut.ok = false; tut.meter = 0;
+  tut.phase = 0; tut.wide = tut.short = false; tut.walkIn = false; tut.respawnT = tut.advanceT = 0;
+  if (step === 3) setupThree();
+  else if (step === 4) setupRow();
+  else if (step === 5) { tut.cuts = 0; tut.spawnLeft = C.tutFinishCount; tut.spawnT = 0.6; }
+  planGhost();
+}
+// A step passed: a chime, then the next one after a beat.
+function tutPass(next) { sfxSequence('waveClear'); tut.advanceT = 0.6; tut.next = next; }
+
+// The ghost's demo for this step and repeat: a list of presses { x, y, hold (s), open (the blades open while held),
+// rel (s into the demo when it lets go) }. Holds grow with each repeat.
+function planGhost() {
+  const hold = Math.min(C.tutGhostHoldMax, C.tutGhostHoldSec + C.tutGhostHoldGrow * tut.rep), taps = tut.taps;
+  taps.length = 0;
+  const fx = fingerX(), fy = fingerY();
+  if (tut.step === 1) taps.push({ x: fx, y: fy, hold: 0.35 + 0.1 * Math.min(tut.rep, 4), open: false });
+  else if (tut.step === 2) taps.push({ x: fx, y: fy, hold, open: true });
+  else if (tut.step === 3 || (tut.step === 4 && tut.phase === 0)) {
+    const list = practice();
+    if (list.length) { const [x, y] = fingerFor(list, tut.step === 3 ? 0.62 : 0.8); taps.push({ x, y, hold: Math.max(hold, 1.1), open: true }); }
+  } else if (tut.step === 4) {
+    for (const e of practice().sort((a, b) => b.y - a.y)) { const [x, y] = fingerFor([e], 0.55); taps.push({ x, y, hold: SHORT_HOLD, open: true }); }
+  }
+  let t = ENTER;
+  taps.forEach((p, i) => { t += PRESS + p.hold; p.rel = t; t += REL + (i < taps.length - 1 ? MOVE : EXIT); });
+  tut.cycLen = Math.max(C.tutGhostCycleMs / 1000, t + 0.5);
+  ghost.scale = 1 + 0.07 * Math.min(tut.rep, 4); ghost.alpha = Math.min(0.9, 0.55 + 0.08 * tut.rep);
+}
+// The ghost at t seconds into its demo.
+function ghostPose(t) {
+  const g = ghost, taps = tut.taps;
+  g.a = g.down = g.sc = g.open = g.meter = 0;
+  if (!taps.length) return;
+  const p0 = taps[0];
+  if (t < ENTER) { const k = easeOut(t / ENTER); g.x = p0.x + 70 * (1 - k); g.y = p0.y + 110 * (1 - k); g.a = k; return; }
+  t -= ENTER;
+  for (let i = 0; i < taps.length; i++) {
+    const p = taps[i], openSec = C.tutGhostOpenMs / 1000;
+    g.x = p.x; g.y = p.y; g.a = 1;
+    if (t < PRESS) { g.down = t / PRESS; return; }
+    t -= PRESS;
+    if (t < p.hold) { g.down = 1; g.meter = t / p.hold; g.sc = Math.min(1, t / 0.25); g.open = p.open ? Math.min(1, t / openSec) : 0; return; }
+    t -= p.hold;
+    if (t < REL) { g.down = 1 - t / REL; g.sc = 1; return; }                    // let go: the blades snap shut
+    t -= REL;
+    const nx = taps[i + 1];
+    if (nx) {
+      if (t < MOVE) { const k = easeInOut(t / MOVE); g.x = p.x + (nx.x - p.x) * k; g.y = p.y + (nx.y - p.y) * k; g.sc = 1 - Math.min(1, t / 0.2); return; }
+      t -= MOVE;
     } else {
-      const spots = [[-0.45, 0.55], [0, 0.72], [0.45, 0.55]];
-      for (const [k, d] of spots) {
-        const ang = p.theta + k * a;
-        pinScrap(p.x + Math.sin(ang) * L * d, p.y - Math.cos(ang) * L * d);
-      }
+      if (t < EXIT) { const k = t / EXIT; g.x = p.x + 40 * k; g.y = p.y + 60 * k; g.a = 1 - k; g.sc = 1 - k; }
+      else g.a = 0;                                                        // gone until the next repeat
+      return;
     }
   }
-  if (step === 3) { tut.ver0 = input.last.ver; tut.nagT = 0; }
-  if (step === 4) tut.theta0 = input.pose.theta;
 }
-function pinScrap(x, y) {
-  const e = spawnEnemy('scrap'); if (!e) return;
-  e.pinned = true; e.x = e.px = x; e.y = e.py = y;
+// The ghost lets go: its cut zone flashes and the practice Scraps inside it flash as if cut (they stay: they're the
+// player's to cut).
+function ghostCut(p) {
+  const open = p.open ? Math.min(1, p.hold / (C.tutGhostOpenMs / 1000)) : 0;
+  ghost.cutT = 1; ghost.cx = p.x; ghost.cy = p.y - C.pivotOffsetPx; ghost.cutOpen = open;
+  if (!p.open) return;
+  sfx('snip', 0);
+  const L = bladeReachPx(), a = open * weapon.def.maxOpenDeg * DEG;
+  for (const e of enemies) {
+    if (!e.on || !e.pinned) continue;
+    const rx = e.x - ghost.cx, ry = e.y - ghost.cy, d = Math.hypot(rx, ry);
+    if (d <= L + e.r && Math.abs(Math.atan2(rx, -ry)) <= a + Math.atan2(e.r + C.hitPadPx, Math.max(d, 1))) { e.hitT = 0.9; sparks(e.x, e.y, 4, 2); }
+  }
+}
+// Is e inside blades held at the current pose, opened to half-angle a?
+function inBlades(e, a) {
+  const p = input.pose, rx = e.x - p.x, ry = e.y - p.y, d = Math.hypot(rx, ry), reach = e.r + C.hitPadPx;
+  if (d > bladeReachPx() + reach) return false;
+  let off = Math.atan2(rx, -ry) - p.theta; off = Math.atan2(Math.sin(off), Math.cos(off));
+  return Math.abs(off) <= a + Math.atan2(reach, Math.max(d, 1));
+}
+
+// A snip in level 0 (from doSnip): spread = how far it opened, kills = Scraps it cut.
+function tutOnSnip(spread, kills) {
+  if (tut.step !== 4 || !kills) return;
+  if (kills >= C.tutWideMin && spread >= C.tutWideSpread) tut.wide = true;
+  if (spread < C.tutShortSpread) tut.short = true;
 }
 function tutUpdate(dt) {
   tut.t += dt;
-  if (!(tut.nagT > 0) && els.coachText.textContent !== coachFor(tut.step)) els.coachText.textContent = coachFor(tut.step);
-  switch (tut.step) {
-    case 0: if (input.gripping) tutEnter(1); break;
-    case 1: if (input.rawSpread > C.tutSpreadFrac) tutEnter(2); break;
-    case 2: { let left = 0; for (const e of enemies) if (e.on && e.pinned) left++; if (!left) tutEnter(nextStep(2)); break; }
-    case 3:
-      if (input.last.ver !== tut.ver0) {
-        if (input.last.kind === 'too slow') { tutEnter(4); break; }
-        tut.ver0 = input.last.ver; tut.nagT = C.tutNagMs / 1000;          // closed too fast: nudge, then restore the prompt
-        els.coachText.textContent = 'Too fast! Take about two seconds to close.';
-      }
-      if (tut.nagT > 0 && (tut.nagT -= dt) <= 0) els.coachText.textContent = coachFor(3);
-      break;
-    case 4: { let d = (input.pose.theta - tut.theta0) % TAU; if (d > Math.PI) d -= TAU; else if (d < -Math.PI) d += TAU;
-      if (Math.abs(d) > C.tutRotateDeg * DEG) tutEnter(5); break; }
-    case 5: if (tut.t * 1000 >= C.tutGoMs) finishTutorial(); break;
+  if (tut.winT > 0) { tutCelebrate(dt); return; }
+  if (tut.advanceT > 0) { if ((tut.advanceT -= dt) <= 0) tutEnter(tut.next); }
+
+  // the player's finger (or held mouse button: a mouse over the table always shows its scissors): count the hold; a
+  // lift that didn't pass the step brings the ghost back sooner, one repeat on
+  const grip = input.gripping && (input.usingTouch || input.mouse.held);
+  if (grip !== tut.wasGrip) {
+    tut.wasGrip = grip;
+    if (!grip) {
+      if (tut.step === 2 && tut.ok) tutPass(3);
+      else if (tut.step < 5 && tut.advanceT <= 0) { tut.away = C.tutGhostReturnMs / 1000; tut.rep++; }
+      tut.walkIn = false;
+    }
   }
+  tut.holdT = grip ? tut.holdT + dt : 0;
+
+  // the ghost: plays while the player's hands are off, starting over each cycle (one repeat further)
+  const show = tut.step < 5 && !grip && tut.away <= 0 && tut.advanceT <= 0;
+  tut.vis = show ? Math.min(1, tut.vis + dt * 4) : Math.max(0, tut.vis - dt * 6);
+  if (tut.away > 0 && (tut.away -= dt) <= 0) { tut.cyc = tut.prevCyc = 0; planGhost(); }
+  if (show) {
+    tut.cyc += dt;
+    if (tut.cyc >= tut.cycLen) { tut.rep++; planGhost(); tut.cyc = tut.prevCyc = 0; }
+    for (const p of tut.taps) if (tut.prevCyc < p.rel && tut.cyc >= p.rel) ghostCut(p);
+  } else if (grip) tut.cyc = 0;
+  tut.prevCyc = tut.cyc;
+  ghostPose(tut.cyc);
+  if (ghost.cutT > 0) ghost.cutT = Math.max(0, ghost.cutT - dt / 0.35);
+  if (tut.advanceT > 0) return;
+
+  switch (tut.step) {
+    case 1: if (grip) tutEnter(2); break;                            // the same touch goes on counting as step 2's hold
+    case 2:
+      tut.meter = grip ? Math.min(1, tut.holdT / C.tutHoldSec) : 0;
+      if (grip && !tut.ok && tut.holdT >= C.tutHoldSec && input.pose.spread >= C.tutHoldOpen) {
+        tut.ok = true; sfx('pinPop', 0); sparks(input.pose.x, input.pose.y, 14, 3);
+      }
+      break;
+    case 3: {
+      const list = practice();
+      if (!list.length) { tutPass(4); break; }
+      // blades out, nothing in them: the Scraps walk in (a column up the blades) and follow them until the lift
+      if (grip && input.scAlpha > 0.5) {
+        const a = Math.max(visBladeAngle(), 0.12);
+        if (!tut.walkIn && !list.some(e => inBlades(e, a))) tut.walkIn = true;
+        if (tut.walkIn) {
+          const p = input.pose, L = bladeReachPx(), step = C.tutWalkInPxPerSec * dt;
+          for (const e of list) {
+            const d = [0.45, 0.68, 0.9][e.tutK] || 0.6, ang = p.theta + [-0.3, 0, 0.3][e.tutK] * a;
+            const tx = p.x + Math.sin(ang) * L * d, ty = p.y - Math.cos(ang) * L * d, dx = tx - e.x, dy = ty - e.y, dist = Math.hypot(dx, dy);
+            e.walking = dist > 2;
+            if (dist > step) { e.x += dx / dist * step; e.y += dy / dist * step; } else { e.x = tx; e.y = ty; }
+            e.px = e.x; e.py = e.y;
+          }
+        }
+      } else for (const e of list) e.walking = false;
+      break;
+    }
+    case 4:
+      if (practice().length) break;
+      if (tut.respawnT > 0) { if ((tut.respawnT -= dt) <= 0) { if (tut.phase === 0) setupRow(); else setupPair(); planGhost(); } break; }
+      if (tut.phase === 0 && tut.wide) { tut.phase = 1; setupPair(); tut.rep = 0; tut.cyc = tut.prevCyc = 0; planGhost(); }
+      else if (tut.phase === 1 && tut.short && tut.wide) tutPass(5);
+      else tut.respawnT = C.tutRespawnMs / 1000;                      // used up without the cut it wanted: set it up again
+      break;
+    case 5:
+      if (tut.spawnLeft > 0 && (tut.spawnT -= dt) <= 0) {
+        const e = spawnEnemy('scrap');
+        if (e) { e.hp = e.maxHp = C.tutScrapHp; e.speed *= C.tutWalkMult; tut.spawnLeft--; tut.spawnT = C.tutFinishGapMs / 1000; }
+      }
+      if (tut.cuts >= C.tutFinishCount) { tut.winT = C.tutWinMs / 1000; tut.burstT = 0; sfxSequence('waveClear'); }
+      break;
+  }
+}
+// Cleared: gold bursts for tutWinMs, then the level map.
+function tutCelebrate(dt) {
+  if ((tut.burstT -= dt) <= 0) {
+    tut.burstT = 0.22;
+    sparks(view.W * (0.2 + Math.random() * 0.6), view.H * (0.2 + Math.random() * 0.5), 16, 3);
+  }
+  if ((tut.winT -= dt) <= 0) finishTutorial();
 }
 export function tutSkip() {
   if (state.mode !== 'TUTORIAL') return;
-  if (tut.step === 2) for (const e of enemies) if (e.on && e.pinned) e.on = false;
-  const next = nextStep(tut.step);
-  if (next >= 5) finishTutorial(); else tutEnter(next);
+  if (tut.winT > 0 || tut.step >= 5) { finishTutorial(); return; }
+  tutEnter(tut.step + 1);
 }
-export function tutSkipAll() { if (state.mode === 'TUTORIAL') finishTutorial(); }
+// Level 0 cleared (or skipped through): the tutorial is done for good, the level is recorded (its reward queues the map's
+// reveal), then main.js opens the map.
 function finishTutorial() {
-  try { localStorage.setItem(ONBOARDED_KEY, '1'); } catch (e) { /* storage blocked */ }
+  Save.tutorialDone = true; persist();
+  state.won = true;
+  const rules = level().starRules || {};
+  state.run.stars = 1 + (rules.noDamage && !state.run.leaks ? 1 : 0) + (rules.noSpecial && !state.run.specials ? 1 : 0);
+  recordLevelResult(view.levelId, true, state.score, state.run.stars, level().unlockOnClear);
+  lastReport = buildReport(); saveRun(lastReport);
   clearWorld();
-  seedRun(state.seed);                                          // the practice Scraps used the spawn stream: restart it
-  resetRun();
-  beginWave(1);
-  showScreens();
+  onTutorialDone();
 }
 
 // ======================= kill impact (tweens) =======================
@@ -391,6 +627,7 @@ const SHAKE_END = { camShake: 0 };
 // ======================= snips =======================
 // Hooked to input's snip detector. (px, py, theta, spread) = pose at the widest point of the close.
 let snipMulti = false;                                        // current snip had >= multiSnipMin enemies in its zone
+let snipInZone = 0, snipKills = 0;                            // enemies in the current snip's zone / cut by it (bosses, level 0)
 function doSnip(px, py, theta, spread, strong) {
   if (!live() || heli.active) return;                          // the Helicopter owns the blades while it spins
   setCutZone(px, py, theta, spread);
@@ -399,19 +636,21 @@ function doSnip(px, py, theta, spread, strong) {
   input.last.power = power;
   fx.cut = 1; fx.flash = (strong ? 1 : 0.5) * (0.5 + 0.5 * power); fx.kick = (strong ? 1 : 0.4) * power;
   state.stats.snips++;
-  if (input.usingTouch && navigator.vibrate) { try { navigator.vibrate(strong ? C.hapticMs : C.weakHapticMs); } catch (e) { /* ignore */ } }
+  if (input.usingTouch && Save.settings.haptics && navigator.vibrate) { try { navigator.vibrate(strong ? C.hapticMs : C.weakHapticMs); } catch (e) { /* ignore */ } }
   burst(input.pose.x, input.pose.y, strong);
-  spawnLabel(input.pose.x, input.pose.y, strong ? LABEL_SNIP : LABEL_NICK);
+  if (!isTutorial()) spawnLabel(input.pose.x, input.pose.y, strong ? LABEL_SNIP : LABEL_NICK);   // level 0 has no words
   const ax = Math.sin(theta), ay = -Math.cos(theta), pad = C.hitPadPx;
   let inZone = 0;
   for (let i = 0; i < enemies.length; i++) { const e = enemies[i]; if (e.on && cutZoneHits(e.x, e.y, e.r, pad)) inZone++; }
-  snipMulti = inZone >= C.multiSnipMin;
+  snipMulti = inZone >= C.multiSnipMin; snipInZone = inZone; snipKills = 0;
   if (snipMulti) state.run.multiSnips++;
   sfxSnip(snipMulti);
   for (let i = 0; i < enemies.length; i++) {
     const e = enemies[i]; if (!e.on) continue;
     if (cutZoneHits(e.x, e.y, e.r, pad)) strike(e, px, py, ax, ay, cut.L, strong, power);
   }
+  if (snipKills > state.run.bestSnipKills) state.run.bestSnipKills = snipKills;
+  if (state.mode === 'TUTORIAL') tutOnSnip(spread, snipKills);
 }
 
 function tooSlow() { if (live() && !heli.active) { fx.tooSlow = 1; sfx('thump'); } }
@@ -474,24 +713,27 @@ function bladeContacts(dt) {
 
 // A snip landing on an enemy. Damage is graded: most at the pivot, least at the tips, scaled by how wide the close
 // began (power) and halved for a nick. Shoves grow toward the tips, along the closing edge.
-// Armored (Brute): the first snip clangs for 0 unless e.slowed. Boss: x seamMult if the closed-blade line crosses the
-// glowing seam, else x offSeamMult; never shoved.
+// Armored (Brute): the first snip clangs for 0 unless e.slowed. Bosses play by their own rules (bossStrike); never shoved.
+// A Sharpening (state.sharpened) multiplies every snip by CONFIG.meta.sharpenMult for the level.
+const gradedDamage = (g, strong, power) =>
+  (C.damageAtPivot + (C.damageAtTip - C.damageAtPivot) * g) * power * weapon.def.damageMult * (strong ? 1 : C.weakDamageMult) *
+  (state.sharpened ? C.meta.sharpenMult : 1);
 function strike(e, px, py, ax, ay, L, strong, power) {
   const t = e.type;
   const rx = e.x - px, ry = e.y - py, d = Math.hypot(rx, ry) || 1;
   const g = Math.pow(clamp(d / L, 0, 1), C.gradeCurve);
+  if (t.boss) { bossStrike(e, px, py, ax, ay, L, strong, power, g); return; }
   if (e.armored) {
     e.armored = false;                                           // armor is spent either way
     if (!e.slowed) { clang(e); return; }
   }
-  let dmg = (C.damageAtPivot + (C.damageAtTip - C.damageAtPivot) * g) * power * weapon.def.damageMult, numG = g;
-  if (!strong) dmg *= C.weakDamageMult;
-  if (t.boss) {
-    // the closed-blade line: pivot to tip, or for a slide weapon the line where its blades meet, across the hole
-    const onSeam = cut.slide ? seamHit(e, px - ax * L, py - ay * L, ax, ay, 2 * L) : seamHit(e, px, py, ax, ay, L);
-    dmg *= onSeam ? C.seamMult : C.offSeamMult;
-    if (onSeam) { numG = 0; sparks(e.x + Math.cos(e.seamA) * e.r, e.y + Math.sin(e.seamA) * e.r, 14, 3); }
-  }
+  // Button Beetle: the Cigar Cutter executes it with its centre inside the hole; it has no weak spot (flat: tip damage
+  // wherever the snip lands). Scrap Snippers: a hit within critZone of the pivot does critMult. Ratchet Pruners: the
+  // hooked jaw holds a survivor in place for holdSec.
+  if (t.ringExecute && cut.slide && d <= L) { state.run.beetleExecutes++; sparks(e.x, e.y, 18, 3); killEnemy(e); return; }
+  const gd = t.flat ? 1 : g, crit = !!weapon.def.critMult && gd <= weapon.def.critZone;
+  const dmg = gradedDamage(gd, strong, power) * (crit ? weapon.def.critMult : 1), numG = crit ? 0 : gd;
+  if (weapon.def.holdSec) e.holdT = Math.max(e.holdT, weapon.def.holdSec);
   let push = C.pushSpeed * g * power * t.pushScale;
   if (!strong) push *= C.weakPushMult;
   e.hp -= dmg;
@@ -515,6 +757,7 @@ function killEnemy(e, bySnip = true) {
 
 // Fire Pin burn tick: dmg to e, ignoring armor. Returns true if it killed e.
 function burn(e, dmg) {
+  if (e.type.boss && bossBlocks(e)) return false;
   e.hp -= dmg;
   sparks(e.x, e.y - e.r * 0.4, 4, 4);
   if (e.hp <= 0.001) { snipMulti = false; killEnemy(e, false); return true; }
@@ -527,9 +770,11 @@ function burn(e, dmg) {
 function awardKill(e, bySnip = true) {
   const t = e.type;
   state.stats.kills++;
+  if (bySnip) snipKills++;
+  if (state.mode === 'TUTORIAL' && !e.pinned) tut.cuts++;
   const pts = Math.round(t.score * (snipMulti ? C.multiSnipMult : 1));
   state.score += pts;
-  spawnPopup(e.x, e.y, pts, snipMulti);
+  if (!isTutorial()) spawnPopup(e.x, e.y, pts, snipMulti);
   if (state.mode !== 'TUTORIAL') {
     state.thread += C.threadPerKill; emit('thread', e.x, e.y, C.threadPerKill);
     if (bySnip && !heli.active) heli.charge = Math.min(C.heliKillsToCharge, heli.charge + 1);
@@ -554,7 +799,114 @@ function clang(e, buzz = true) {
   sparks(e.x, e.y - e.r * 0.7, 12, 0);
   e.hitT = 0.5;
   sfx('clang');
-  if (buzz && input.usingTouch && navigator.vibrate) { try { navigator.vibrate(C.weakHapticMs); } catch (err) { /* ignore */ } }
+  if (buzz && input.usingTouch && Save.settings.haptics && navigator.vibrate) { try { navigator.vibrate(C.weakHapticMs); } catch (err) { /* ignore */ } }
+}
+
+// ======================= bosses =======================
+// Only on boss levels (the last wave is the boss alone, after its intro card). Each tests one skill (CONFIG.bosses):
+//   'seam'  (Seam Ripper; Unstitcher phase 3): timing. Walks the road back and forth (bossTurns). Every seamEverySec its
+//           seam splits open for seamOpenSec: a snip then does openDmg, otherwise closedDmg. Expert (Pinch) controls
+//           must also close the blades across the seam for openDmg (expertOffSeamDmg if not).
+//   'armor' (Brute King; Unstitcher phase 2): timing + patience. Walks forward; every chargeEverySec it lunges chargePx
+//           along the road, then its armor is down for armorDownSec (seams glow): snips do armorDownMult x graded
+//           damage; with the armor on they clang for 0 (needles too).
+//   'swarm' (Unstitcher phase 1): calls a Scrap swarm every swarmEverySec; only a snip with multiMin+ enemies in its
+//           zone hurts it (graded x multiMult).
+// Bosses can't be slowed (Ice, SHRED) or shoved, and their hp isn't scaled per wave. Fire, needles and SHRED hurt them
+// except where the rules above block it (bossBlocks).
+export function bossMode(e) {
+  if (e.name === 'seamRipper') return 'seam';
+  if (e.name === 'bruteKing') return 'armor';
+  return e.bossPhase === 0 ? 'swarm' : e.bossPhase === 1 ? 'armor' : 'seam';
+}
+const expertControls = () => input.usingTouch && !holdTouch();
+// Would a non-snip hit (fire, needle, SHRED) bounce off right now?
+const bossBlocks = e => { const m = bossMode(e); return m === 'swarm' || (m === 'armor' && e.armored); };
+
+function bossStrike(e, px, py, ax, ay, L, strong, power, g) {
+  const def = C.bosses[e.name], mode = bossMode(e);
+  let dmg;
+  if (mode === 'seam') {
+    if (e.seamOpen) {
+      // Expert: the closed-blade line (pivot to tip, or a slide weapon's line across its hole) must cross the seam
+      const over = !expertControls() || (cut.slide ? seamHit(e, px - ax * L, py - ay * L, ax, ay, 2 * L) : seamHit(e, px, py, ax, ay, L));
+      dmg = over ? def.openDmg : def.expertOffSeamDmg;
+      sparks(e.x + Math.cos(e.seamA) * e.r, e.y + Math.sin(e.seamA) * e.r, over ? 16 : 6, 3);
+    } else dmg = def.closedDmg;
+  } else if (mode === 'armor') {
+    if (e.armored) { clang(e); return; }
+    dmg = gradedDamage(g, strong, power) * def.armorDownMult;
+    bossHurt(e, dmg);
+    // the Ratchet Pruners' 3x bite ending the armored phase (the Brute King's death, or the Unstitcher into phase 3)
+    if (weapon.id === 'pruners' && (!e.on || (e.name === 'unstitcher' && e.hp / e.maxHp <= def.phaseAt[1]))) state.run.prunerBite = true;
+    return;
+  } else {
+    if (snipInZone < def.multiMin) { clang(e); return; }
+    dmg = gradedDamage(g, strong, power) * def.multiMult;
+  }
+  bossHurt(e, dmg);
+}
+function bossHurt(e, dmg) {
+  e.hp -= dmg;
+  if (e.hp <= 0.001) { killEnemy(e); return; }
+  sfx('rip');
+  spawnNumber(e.x, e.y - e.r, Math.round(dmg * 10) / 10, 0);
+  e.hitT = Math.min(1, 0.35 + dmg * 0.15);
+  sparks(e.x, e.y, 8, 1);
+}
+
+// Per frame, instead of walking like the others. step = this frame's share of the road at its own speed.
+function bossMove(e, dt, step) {
+  const def = C.bosses[e.name];
+  if (e.name === 'unstitcher') {
+    const f = e.hp / e.maxHp, ph = f <= def.phaseAt[1] ? 2 : f <= def.phaseAt[0] ? 1 : 0;
+    if (ph !== e.bossPhase) {                                     // next phase: roar, reset its clocks, armor on for phase 2
+      e.bossPhase = ph; e.seamT = e.chargeT = e.swarmT = e.armorDownT = 0; e.seamOpen = e.seamWarn = false;
+      e.armored = ph === 1; tweens.cancel(e); e.charging = false;
+      sfx(def.roar, 0); addShake(10, 12); sparks(e.x, e.y, 24, 3);
+    }
+  }
+  const mode = bossMode(e);
+  if (mode === 'armor') {
+    if (e.armorDownT > 0) e.armorDownT = Math.max(0, e.armorDownT - dt);
+    e.armored = e.armorDownT <= 0;
+    if (e.charging) return;                                       // the lunge tween owns u
+    e.u += step;
+    if ((e.chargeT += dt) >= def.chargeEverySec) {
+      e.chargeT = 0; e.charging = true;
+      tween(e, { u: Math.min(1, e.u + def.chargePx / state.paths[e.route].len) }, def.chargeMs, easing.outCubic, chargeDone, e);
+      sfx('thump', 0); addShake(6, 10);
+    }
+    return;
+  }
+  // 'seam' and 'swarm': forward to each bossTurns point, back, then on to the workshop
+  const target = e.leg < C.bossTurns.length ? C.bossTurns[e.leg] : 1;
+  e.u = e.u < target ? Math.min(target, e.u + step) : Math.max(target, e.u - step);
+  if (e.u === target && e.leg < C.bossTurns.length) e.leg++;
+  e.seamA = (e.seamA + TAU * dt / C.seamPeriodSec) % TAU;
+  if (mode === 'seam') {
+    const per = def.seamEverySec, ph = (e.seamT += dt) % per, was = e.seamOpen;
+    e.seamOpen = ph >= per - def.seamOpenSec;
+    e.seamWarn = !e.seamOpen && ph >= per - def.seamOpenSec - def.seamWarnSec;
+    if (e.seamOpen && !was) sfx('seamOpen', 0);
+  } else if ((e.swarmT += dt) >= def.swarmEverySec) {
+    e.swarmT = 0;
+    // a Scrap swarm escorting it on its road, just ahead and behind (it keeps them with it until it dies), so a wide
+    // snip on the boss catches some: the multi-snip it needs
+    const half = Math.ceil(def.swarmSize / 2);
+    for (let i = 0; i < def.swarmSize; i++) {
+      const s = spawnEnemy('scrap'); if (!s) break;
+      s.route = e.route; s.seg = 0; s.escortOf = e; s.escortGen = e.gen;
+      s.escortOff = (i < half ? -(1 + i) : 1 + i - half) * def.swarmGapPx / state.paths[e.route].len;
+      s.u = clamp(e.u + s.escortOff, 0, 0.999); pathPoint(s); s.x = s.px; s.y = s.py;
+    }
+    sfx('pinPop', 0); sparks(e.x, e.y, 10, 2);
+  }
+}
+// The lunge is over: the armor drops for armorDownSec.
+function chargeDone(e) {
+  e.charging = false; e.armorDownT = C.bosses[e.name].armorDownSec; e.armored = false;
+  sfx('armorOff', 0); sparks(e.x, e.y - e.r * 0.8, 12, 3);
 }
 
 // ======================= special: Helicopter =======================
@@ -596,7 +948,9 @@ function heliTick() {
   const p = input.pose, reach = spinReachPx();
   for (let i = 0; i < enemies.length; i++) {
     const e = enemies[i]; if (!e.on || Math.hypot(e.x - p.x, e.y - p.y) > reach + e.r) continue;
-    e.hp -= C.heliTickDamage; e.slowT = C.heliSlowSec; e.slowed = true;
+    if (e.type.boss && bossBlocks(e)) continue;
+    e.hp -= C.heliTickDamage;
+    if (!e.type.boss) { e.slowT = C.heliSlowSec; e.slowed = true; }        // bosses can't be slowed
     snipMulti = false;
     if (e.hp <= 0.001) { killEnemy(e); continue; }
     sfx('rip', 60);
@@ -613,6 +967,8 @@ function heliTick() {
 const towers = state.towers;
 setLevel(view.levelId);
 export const canAfford = type => state.thread >= C.towers[type].cost;
+// Whether this level lets you build a `type` Pin (its allowedPins; null = every Pin).
+export const pinAllowed = type => !level().allowedPins || level().allowedPins.includes(type);
 export const towerReach = type => C.towers[type].radius * view.L;   // a Pin's radius in px
 
 // Build a `type` Pin on spot i (the action bar's spot picker). Returns '' on success, else why not.
@@ -620,22 +976,28 @@ export function buildTower(i, type) {
   const t = towers[i];
   if (state.mode !== 'PLAYING' && state.mode !== 'WAVE_CLEAR') return 'mode';
   if (!t || t.on) return 'taken';
+  if (!pinAllowed(type)) return 'not here';
   if (!canAfford(type)) return 'cost';
   t.on = true; t.type = type; t.timer = 0; t.pulse = 0;
   state.thread -= C.towers[type].cost; state.run.towers[type]++;
   sfx('pinPop', 0); emit('place', t.x, t.y, 0);
   return '';
 }
-// Magnet pull: moves each enemy's place in the line (its road progress u) pullKeep of the way from the Pin's road
-// point (inOutSine), so the ones ahead are dragged back and the ones behind hauled forward: a real clump that keeps
+// Magnet pull: moves each enemy's place in the line (its road progress u) toward the Pin's road point (inOutSine),
+// keeping pullKeep of the gap on the stretch of road nearest the Pin and progressively more out toward the ring's
+// edge (pullFalloff), so the ones ahead are dragged back and the ones behind hauled forward: a real clump that keeps
 // walking together afterwards. Sideways shove offsets shrink by the same factor. The enemy doesn't walk while pulled.
 // Tagged by the enemy so a kill cancels it.
 function pullDone(e) { e.pulling = false; }
 function magnetPull(t) {
-  const def = C.towers.magnet, reach = towerReach('magnet'), k = def.pullKeep;
+  // full strength from the Pin out to its nearest road point (the pad sits beside the road), fading to none at the edge
+  const def = C.towers.magnet, reach = towerReach('magnet'), near = Math.min(Math.hypot(t.fx - t.x, t.fy - t.y), reach * 0.9);
   t.pulse = 1; sfx('magnetHum', 0);
   for (const e of enemies) {
-    if (!e.on || e.pinned || e.type.pushScale <= 0 || Math.hypot(e.x - t.x, e.y - t.y) > reach) continue;
+    const d = Math.hypot(e.x - t.x, e.y - t.y);
+    if (!e.on || e.pinned || e.escortOf || e.type.pushScale <= 0 || d > reach) continue;   // escorts stay with their boss
+    const k = 1 - (1 - def.pullKeep) * Math.pow(1 - clamp((d - near) / (reach - near), 0, 1), def.pullFalloff);   // share of the gap kept
+    if (k > 0.98) continue;                                      // at the very edge: too weak to bother
     tweens.cancel(e);
     e.pulling = true; e.pvx = e.pvy = 0;
     const fu = t.fu[e.route];
@@ -683,7 +1045,8 @@ function updateNeedles(dt) {
 }
 function needleHit(e, dmg) {
   sparks(e.x, e.y, 4, 0);
-  if (e.armored) {                                              // like a snip: the first hit clangs unless slowed, armor spent
+  if (e.type.boss) { if (bossBlocks(e)) { clang(e, false); return; } }
+  else if (e.armored) {                                         // like a snip: the first hit clangs unless slowed, armor spent
     e.armored = false;
     if (!e.slowed) { clang(e, false); return; }
   }
@@ -700,11 +1063,15 @@ const enemies = state.enemies;
 // (slowT seconds left); lets the first snip through a Brute's armor. burning = on fire from a Fire Pin (burnLeft =
 // seconds of burning left once out of its ring, burnT = seconds toward the next burn tick).
 // leg = boss turn index, seamA = boss seam angle, age = seconds alive, pulling = a Magnet Pin is moving it (a tween owns u),
-// pinned = onboarding target that never moves. route = which of the level's paths it walks. gen = bumped on every spawn,
-// so a needle aimed at an earlier occupant of this pool slot knows its target is gone.
+// pinned = a level-0 practice Scrap (stands still unless walking into the player's blades: walking, tutK = its place).
+// route = which of the level's paths it walks. gen = bumped on every spawn, so a needle aimed at an earlier occupant of
+// this pool slot knows its target is gone. Bosses: bossPhase (Unstitcher 0..2), seamT / seamOpen / seamWarn (the opening
+// seam), chargeT / charging / armorDownT (the lunge and the armor-down window after it), swarmT (Scrap swarm clock).
+// escortOf (+ escortGen, escortOff) = the Unstitcher a swarm Scrap keeps its place around (road progress offset).
 for (let i = 0; i < C.maxEnemies; i++) enemies.push({ on: false, type: null, name: '', x: 0, y: 0, px: 0, py: 0, ox: 0, oy: 0,
   u: 0, seg: 0, route: 0, gen: 0, speed: 0, r: 0, hp: 0, maxHp: 0, armored: false, slowed: false, slowT: 0, burning: false, burnLeft: 0, burnT: 0, leg: 0, seamA: 0, age: 0,
-  pvx: 0, pvy: 0, phase: 0, hitT: 0, pulling: false, pinned: false });
+  pvx: 0, pvy: 0, phase: 0, hitT: 0, pulling: false, pinned: false, walking: false, tutK: 0, escortOf: null, escortGen: 0, escortOff: 0,
+  holdT: 0, bossPhase: 0, seamT: 0, seamOpen: false, seamWarn: false, chargeT: 0, charging: false, armorDownT: 0, swarmT: 0 });
 
 // Returns the enemy, or null if the pool is full (the schedule retries next frame).
 function spawnEnemy(name) {
@@ -712,10 +1079,11 @@ function spawnEnemy(name) {
   for (let i = 0; i < enemies.length; i++) if (!enemies[i].on) { e = enemies[i]; break; }
   if (!e) return null;
   const t = C.enemyTypes[name];
-  e.on = true; e.type = t; e.name = name; e.r = t.r; e.hp = e.maxHp = t.hp * (1 + C.hpPerWave * Math.max(0, state.wave - 1));
+  e.on = true; e.type = t; e.name = name; e.r = t.r; e.hp = e.maxHp = t.boss ? t.hp : t.hp * (1 + C.hpPerWave * Math.max(0, state.wave - 1));
   e.armored = !!t.armor; e.slowed = false; e.slowT = 0; e.burning = false; e.burnLeft = 0; e.burnT = 0; e.leg = 0; e.seamA = rng.spawn() * TAU; e.age = 0;
   e.speed = 1 / t.traverseSec; e.u = 0; e.seg = 0; e.ox = 0; e.oy = 0; e.pvx = 0; e.pvy = 0; e.hitT = 0;
-  e.pulling = false; e.pinned = false; e.gen++;
+  e.pulling = false; e.pinned = false; e.walking = false; e.escortOf = null; e.holdT = 0; e.gen++;
+  e.bossPhase = 0; e.seamT = e.chargeT = e.armorDownT = e.swarmT = 0; e.seamOpen = e.seamWarn = e.charging = false;
   e.phase = rng.spawn() * TAU;
   // a fork: pick a route at random (single-route levels draw nothing, so their seeded runs replay as before)
   const nr = state.paths.length;
@@ -739,8 +1107,10 @@ function keepOnRoad(e) {
   if (vn > 0) { e.pvx -= nx * vn; e.pvy -= ny * vn; }
 }
 
+// Level 0: nothing hurts the heart; the Scrap just pops and goes back to the top of the road.
 function reachWorkshop(e) {
   e.on = false; tweens.cancel(e); e.pulling = false;
+  if (state.mode === 'TUTORIAL') { sparks(e.x, e.y, 8, 2); state.run.leaks++; tut.spawnLeft++; return; }
   state.hp = Math.max(0, state.hp - e.type.tier); state.workshopHitT = 1;
   state.thread += C.threadPerLeak; state.run.leaks++; emit('thread', e.x, e.y, C.threadPerLeak);
   sparks(e.x, e.y, 8, 0);
@@ -846,6 +1216,7 @@ export function update(now, dt) {
   state.bannerT = Math.max(0, state.bannerT - ms / C.waveBannerMs);
   state.workshopHitT = Math.max(0, state.workshopHitT - ms / C.workshopHitMs);
   heli.bannerT = Math.max(0, heli.bannerT - ms / C.heliBannerMs);
+  if (state.bossCardT > 0 && (state.bossCardT -= dt) <= 0) showScreens();   // the boss intro card closes
 
   // --- waves / onboarding ---
   if (state.mode === 'PLAYING') {
@@ -855,7 +1226,7 @@ export function update(now, dt) {
     while (spawnIdx < spawnList.length && spawnList[spawnIdx][0] <= state.modeT && spawnEnemy(spawnList[spawnIdx][1])) spawnIdx++;
   } else if (state.mode === 'WAVE_CLEAR') {
     state.modeT += dt;
-    if (state.modeT * 1000 >= C.waveClearMs) { if (state.wave >= C.waves.length) endGame(true); else beginWave(state.wave + 1); }
+    if (state.modeT * 1000 >= C.waveClearMs) { if (state.wave >= levelWaves().length) endGame(true); else beginWave(state.wave + 1); }
   } else if (state.mode === 'TUTORIAL') tutUpdate(dt);
 
   // --- towers ---
@@ -878,7 +1249,7 @@ export function update(now, dt) {
       const e = enemies[i]; if (!e.on) continue;
       e.age += dt;
       if (e.hitT > 0) e.hitT = Math.max(0, e.hitT - dt * 5);
-      if (e.pinned) { alive++; continue; }                        // onboarding targets stay put
+      if (e.pinned) { alive++; continue; }                        // level-0 practice Scraps: the tutorial moves them
       // slowed: inside an Ice Pin aura, or recently hit by the Helicopter. burning: inside a Fire Pin aura, or left one
       // less than burnSec ago.
       let inIce = false, inFire = false;
@@ -887,7 +1258,8 @@ export function update(now, dt) {
         if (t.type === 'ice') inIce = true; else inFire = true;
       }
       if (e.slowT > 0) e.slowT = Math.max(0, e.slowT - dt);
-      e.slowed = inIce || e.slowT > 0;
+      e.slowed = !e.type.boss && (inIce || e.slowT > 0);          // bosses can't be slowed
+      if (e.type.fireImmune) inFire = false;                      // Button Beetle: Fire Pins can't light it
       if (inFire) e.burnLeft = C.towers.fire.burnSec; else if (e.burnLeft > 0) e.burnLeft = Math.max(0, e.burnLeft - dt);
       e.burning = inFire || e.burnLeft > 0;
       if (e.burning) {                                           // burn in whole ticks, counted from catching fire
@@ -895,12 +1267,12 @@ export function update(now, dt) {
         e.burnT += dt;
         if (e.burnT >= tick) { e.burnT -= tick; if (burn(e, def.burnDps * tick)) continue; }
       } else e.burnT = 0;
-      const step = e.speed * dt * (e.slowed ? C.slowSpeedMult : 1);
-      if (e.type.boss) {                                         // walks to each turn point in bossTurns, then to the workshop
-        const target = e.leg < C.bossTurns.length ? C.bossTurns[e.leg] : 1;
-        e.u = e.u < target ? Math.min(target, e.u + step) : Math.max(target, e.u - step);
-        if (e.u === target && e.leg < C.bossTurns.length) e.leg++;
-        e.seamA = (e.seamA + TAU * dt / C.seamPeriodSec) % TAU;
+      if (e.holdT > 0) e.holdT = Math.max(0, e.holdT - dt);
+      const step = e.holdT > 0 ? 0 : e.speed * dt * (e.slowed ? C.slowSpeedMult : 1);   // held by the Ratchet Pruners' jaw
+      if (e.type.boss) bossMove(e, dt, step);                    // its own walk (bosses section)
+      else if (e.escortOf) {                                  // an Unstitcher's swarm: keeps its place round the boss
+        const b = e.escortOf;
+        if (b.on && b.gen === e.escortGen) e.u = clamp(b.u + e.escortOff, 0, 0.999); else e.escortOf = null;
       } else if (!e.pulling) e.u += step;                        // while a Magnet pulls it, its tween owns u, ox, oy
       if (e.u >= 1) { reachWorkshop(e); if (!live()) break; continue; }
       pathPoint(e);

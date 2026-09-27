@@ -7,17 +7,16 @@
 //   Pin (name, effect, cost); tapping an affordable card builds that Pin there. Tapping elsewhere closes it.
 // - Tips: first-time attention for Pins (once a Pin is affordable, the + buttons and the counter pulse plus a tip,
 //   until the first + tap, which pauses the game on a one-time "Pins" explainer; GOT IT resumes with that spot's
-//   picker open) and the first time SHRED is ready (until it has ever been used). The SHRED meter pulses whenever ready, and
+//   picker open) and the first time SHRED is ready (until it has ever been used). Tip flags live in the save (Save.tips). The SHRED meter pulses whenever ready, and
 //   while armed a tip over it says to press where the spin should go.
 import { CONFIG as C } from './config.js';
 import { view, level } from './core.js';
 import { input } from './input.js';
-import { state, canAfford, buildTower, armShred, setPaused } from './game.js';
+import { state, canAfford, pinAllowed, buildTower, armShred, setPaused } from './game.js';
+import { Save, persist } from './save.js';
 
-const TIPS_KEY = 'battleScissors.tips';
-let tips = { pinIntro: false, shred: false };   // pinIntro = the Pin explainer has been seen
-try { tips = Object.assign(tips, JSON.parse(localStorage.getItem(TIPS_KEY) || '{}')); } catch (e) { /* storage blocked */ }
-const saveTips = () => { try { localStorage.setItem(TIPS_KEY, JSON.stringify(tips)); } catch (e) { /* storage blocked */ } };
+const tips = Save.tips;                          // pinIntro = the Pin explainer has been seen, shred = SHRED used once
+const saveTips = persist;
 
 const bar = document.getElementById('tray'), threadEl = document.getElementById('tray-thread'), chip = threadEl.parentElement;
 const shredCard = document.getElementById('shred-card'), shredFill = shredCard.querySelector('.tube > span');
@@ -31,7 +30,7 @@ const PIN_TEXT = {
   needle: d => 'shoots a sewing needle at one enemy in its ring (' + d.damage + ' damage), then reloads for ' + d.cooldownSec + 's. Armor stops the first needle.',
   ice: d => 'enemies in its ring move slower, and a slowed Brute’s armor won’t stop your snip.',
   fire: d => 'sets enemies in its ring on fire: they burn ' + d.burnDps + ' HP a second, armor or not, and keep burning ' + d.burnSec + 's after they leave it.',
-  magnet: d => 'every ' + d.periodSec + 's it pulls nearby enemies into a clump on the road. Snip the clump for a multi-snip.',
+  magnet: d => 'every ' + d.periodSec + 's it pulls enemies in its ring into a clump on the road: hard right beside it, gently near the edge. Snip the clump for a multi-snip.',
 };
 
 // Picker icons (cream on the Pin's felt): threaded needle, snowflake, flame, horseshoe magnet.
@@ -107,6 +106,7 @@ function spotTapped(i) {
 function openPicker(i) {
   closePicker();
   pick.spot = i; spotBtns[i].setAttribute('aria-expanded', 'true');
+  for (const c of pickCards) c.hidden = !pinAllowed(c.dataset.tower);   // only the Pins this level allows
   picker.hidden = false; refreshPicker(true);
   placePicker();
   hideTip();
@@ -202,7 +202,7 @@ export function refreshActionBar() {
   // + buttons: hidden once their spot has a Pin, and all of them while no Pin is affordable (CSS: #spots:not(.can))
   let built = '', can = false;
   for (const t of state.towers) built += t.on ? '1' : '0';
-  for (const type in C.towers) if (canAfford(type)) { can = true; break; }
+  for (const type in C.towers) if (pinAllowed(type) && canAfford(type)) { can = true; break; }
   if (built !== shown.built) {
     shown.built = built;
     spotBtns.forEach((b, i) => { b.hidden = built[i] === '1'; });

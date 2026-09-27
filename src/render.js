@@ -8,10 +8,11 @@ import { CONFIG as C } from './config.js';
 import { view, level, TAU, DEG } from './core.js';
 import { input, holdTouch } from './input.js';
 import { cut, scaleFor, weapon } from './scissors.js';
-import { live, visOpen, bladeTheta, towerReach } from './game.js';
-import { buildEnemySprites, drawEnemySprite, drawEnemyGround, drawBruteArmor, drawSeam } from './enemyArt.js';
+import { live, visOpen, bladeTheta, towerReach, levelWaves, bossMode } from './game.js';
+import { buildEnemySprites, drawEnemySprite, drawEnemyGround, drawBruteArmor, drawSeam, drawArmorSeams } from './enemyArt.js';
 import { buildTowerSprites, drawTower, drawNeedle, towerUnit } from './towerArt.js';
-import { drawWeapon, rasterizeArt } from './weaponArt.js';
+import { drawWeapon, rasterizeArt, setHandleTint } from './weaponArt.js';
+import { cosmeticColor } from './meta.js';
 import { plateFor } from './levelArt.js';
 import { makeTweens, easing } from './tween.js';
 
@@ -50,8 +51,10 @@ export function prerender() {
   renderBackground();
   buildEnemySprites(view.dpr);
   buildTowerSprites(view.dpr);
+  setHandleTint(cosmeticColor('handle'));                         // handle cosmetic (Shop): baked into the weapon art
   rasterizeArt();
   if (C.titleWeapon) rasterizeArt(C.titleWeapon);
+  buildHand(view.dpr);
 }
 
 // Static backdrop, pre-rendered on resize: the level plate (road, Pin spots and the heart-pad workshop are part of the
@@ -126,10 +129,19 @@ function drawEnemies(state) {
     lastHp[i] = e.hp; wasOn[i] = e.on ? 1 : 0;
     if (!e.on) { flashFrames[i] = 0; continue; }
     const t = e.type, step = Math.sin(e.age * 7 + e.phase), rot = t.boss ? 0 : step * wad;
-    drawEnemyGround(ctx, e.name, e.x, e.y, e.pinned ? 0 : 0.55 + 0.35 * Math.abs(step));
+    drawEnemyGround(ctx, e.name, e.x, e.y, e.pinned && !e.walking ? 0 : 0.55 + 0.35 * Math.abs(step));
     drawEnemySprite(ctx, e.name, e.x, e.y, rot);
     if (e.armored) drawBruteArmor(ctx, e, rot);
-    if (t.boss) drawSeam(ctx, e, state.clock);
+    if (t.boss) {                                               // its rules, shown: the opening seam, or glowing seams while armor is down
+      const m = bossMode(e);
+      if (m === 'seam') drawSeam(ctx, e, state.clock);
+      else if (m === 'armor' && !e.armored && !e.charging) drawArmorSeams(ctx, e, state.clock);
+      else if (m === 'swarm') {                                // a shimmering thread shield: only a crowded snip gets through
+        ctx.beginPath(); ctx.arc(e.x, e.y, e.r * 1.18, 0, TAU);
+        ctx.setLineDash(DASH); ctx.lineDashOffset = -state.clock * 30; ctx.globalAlpha = 0.7; ctx.strokeStyle = '#8fe8ff'; ctx.lineWidth = 3; ctx.stroke();
+        ctx.setLineDash(NO_DASH); ctx.lineDashOffset = 0; ctx.globalAlpha = 1;
+      }
+    }
     if (flashFrames[i] > 0) {
       flashFrames[i]--;
       ctx.beginPath(); ctx.arc(e.x, e.y, e.r * 1.02, 0, TAU);
@@ -260,12 +272,26 @@ function drawFingers() {
 
 // ======================= towers (Pins) =======================
 // Auras first (under everything), then the Pins themselves (tall art, drawn after the auras so rings never cross them).
+// The Magnet's aura is even out to its nearest road point and fades from there to its edge, like its pull (the
+// gradient is cached per spot and rebuilt when it moves).
+const magnetGrads = [];
+function magnetGrad(i, t, R, color) {
+  const c = magnetGrads[i];
+  if (c && c.x === t.x && c.y === t.y && c.R === R) return c.g;
+  const g = ctx.createRadialGradient(t.x, t.y, 0, t.x, t.y, R), near = Math.min(Math.hypot(t.fx - t.x, t.fy - t.y) / R, 0.9);
+  g.addColorStop(0, color); g.addColorStop(near, color); g.addColorStop(1, 'rgba(0,0,0,0)');
+  magnetGrads[i] = { x: t.x, y: t.y, R, g };
+  return g;
+}
 function drawTowers(state) {
-  for (const t of state.towers) {
+  for (let i = 0; i < state.towers.length; i++) {
+    const t = state.towers[i];
     if (!t.on) continue;
     const def = C.towers[t.type], R = towerReach(t.type);
     ctx.beginPath(); ctx.arc(t.x, t.y, R, 0, TAU);
-    ctx.globalAlpha = 0.07; ctx.fillStyle = def.color; ctx.fill();
+    if (t.type === 'magnet') { ctx.globalAlpha = 0.28; ctx.fillStyle = magnetGrad(i, t, R, def.color); }
+    else { ctx.globalAlpha = 0.07; ctx.fillStyle = def.color; }
+    ctx.fill();
     ctx.setLineDash(DASH); ctx.globalAlpha = 0.65; ctx.lineWidth = 2; ctx.strokeStyle = def.color; ctx.stroke(); ctx.setLineDash(NO_DASH);
     if (t.pulse > 0) {                                           // magnet pull: a ring collapsing onto its road point
       ctx.beginPath(); ctx.arc(t.fx, t.fy, 14 + R * 0.6 * t.pulse, 0, TAU);
@@ -342,6 +368,22 @@ function trackTrails(a, open, theta, dt) {
   }
   prevA = a; prevOpen = open; prevTheta = theta; prevX = vpose.x; prevY = vpose.y;
 }
+// Blade glow cosmetic (Shop): a soft light along each blade (a ring round a slide weapon's hole), under the art.
+function drawBladeGlow(open, theta, alpha) {
+  const color = cosmeticColor('glow'); if (!color || alpha <= 0.01) return;
+  const def = weapon.def, L = def.bladeLen * view.S, w = L * C.meta.glowWidth, a = open * def.maxOpenDeg * DEG;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = color; ctx.lineCap = 'round';
+  ctx.translate(vpose.x, vpose.y);
+  for (const [k, lw] of [[0.45, 2 * w], [0.8, 0.7 * w]]) {
+    ctx.globalAlpha = C.meta.glowAlpha * alpha * k; ctx.lineWidth = lw;
+    ctx.beginPath();
+    if (def.kind === 'slide') ctx.arc(0, 0, L * (def.ringScale || 1), 0, TAU);
+    else for (const s of [-1, 1]) { ctx.moveTo(0, 0); ctx.lineTo(Math.sin(theta + s * a) * L, -Math.cos(theta + s * a) * L); }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
 function drawWeaponWithTrails(state, dt) {
   const open = visOpen();
   vpose.x = input.pose.x; vpose.y = input.pose.y; vpose.theta = bladeTheta();
@@ -351,6 +393,7 @@ function drawWeaponWithTrails(state, dt) {
     gpose.x = g.x; gpose.y = g.y; gpose.theta = g.theta;
     drawWeapon(ctx, gpose, g.open, g.alpha * input.scAlpha, 0, 0);
   }
+  drawBladeGlow(open, vpose.theta, input.scAlpha);
   drawWeapon(ctx, vpose, open, input.scAlpha, state.fx.flash, state.fx.tooSlow);
 }
 
@@ -393,6 +436,72 @@ function drawTitle(dt) {
   drawWeapon(tctx, tsc, tsc.open, 1, 0, 0, scaleFor(def), C.titleWeapon);
 }
 
+// ======================= level 0: the ghost hand =======================
+// A translucent one-finger hand, drawn from its fingertip (g.x, g.y) with the hand coming up from below-right. It
+// presses (g.down: it drops onto the point and a ripple spreads), a gold ring fills round the fingertip while it holds
+// (g.meter), and ghost scissors rise from the press point and open (g.sc, g.open). Bigger and bolder on each repeat
+// (g.scale, g.alpha). Also: the fading cut zone of its last snip, and step 2's ring round the player's own finger.
+const handCv = document.createElement('canvas');
+const HAND_W = 120, HAND_H = 190, HAND_TIP_X = 30, HAND_TIP_Y = 8;    // sprite size (CSS px) and where the fingertip is in it
+function buildHand(dpr) {
+  handCv.width = Math.ceil(HAND_W * dpr); handCv.height = Math.ceil(HAND_H * dpr);
+  const g = handCv.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, HAND_TIP_X * dpr, HAND_TIP_Y * dpr);
+  const p = new Path2D();
+  p.roundRect(-10, -2, 20, 92, 10);                              // pointing finger
+  p.roundRect(4, 64, 22, 46, 11); p.roundRect(22, 70, 22, 44, 11); p.roundRect(40, 78, 20, 40, 10);   // curled fingers
+  p.moveTo(-8, 96); p.bezierCurveTo(-30, 84, -40, 100, -26, 116); p.lineTo(-4, 138); p.lineTo(-4, 100); p.closePath();   // thumb
+  p.roundRect(-12, 84, 76, 88, 26);                              // palm
+  g.lineJoin = 'round';
+  g.strokeStyle = 'rgba(40,24,10,0.9)'; g.lineWidth = 5; g.stroke(p);
+  g.fillStyle = '#fff6e8'; g.fill(p);
+  g.strokeStyle = 'rgba(160,120,80,0.55)'; g.lineWidth = 1.5;      // knuckle creases and a nail
+  g.beginPath(); g.moveTo(-6, 44); g.lineTo(6, 44); g.moveTo(-6, 60); g.lineTo(6, 60); g.stroke();
+  g.beginPath(); g.roundRect(-6, 2, 12, 12, 5); g.stroke();
+}
+const hpose = { x: 0, y: 0, theta: 0 };
+function drawGhost(state) {
+  const tut = state.tut, g = tut.ghost;
+  if (g.cutT > 0 && g.cutOpen > 0) {                             // its snip: the zone it just cut
+    const L = weapon.def.bladeLen * view.S, a = g.cutOpen * weapon.def.maxOpenDeg * DEG;
+    ctx.beginPath(); ctx.moveTo(g.cx, g.cy); ctx.arc(g.cx, g.cy, L, -Math.PI / 2 - a, -Math.PI / 2 + a); ctx.closePath();
+    ctx.globalAlpha = 0.35 * g.cutT; ctx.fillStyle = '#e8feff'; ctx.fill(); ctx.globalAlpha = 1;
+  }
+  if (tut.step === 2 && tut.meter > 0) {         // the player's own hold: a ring fills round the finger
+    drawHoldRing((input.fAx + input.fBx) / 2, (input.fAy + input.fBy) / 2, 34, tut.meter, tut.ok ? 1 : 0.85, state.clock);
+  }
+  const A = g.a * tut.vis * g.alpha;
+  if (A <= 0.01) return;
+  if (g.sc > 0.01) {                                              // its scissors rise from the press point and open
+    const k = 1 - (1 - g.sc) * (1 - g.sc);
+    hpose.x = g.x; hpose.y = g.y - C.pivotOffsetPx * k; hpose.theta = 0;
+    drawWeapon(ctx, hpose, g.open, A * 0.7 * g.sc, 0, 0);
+  }
+  if (g.down > 0.5) {                                             // press ripples
+    for (let i = 0; i < 2; i++) {
+      const ph = (state.clock * 1.4 + i * 0.5) % 1;
+      ctx.beginPath(); ctx.arc(g.x, g.y, (12 + ph * 30) * g.scale, 0, TAU);
+      ctx.globalAlpha = A * (1 - ph) * 0.8; ctx.strokeStyle = '#fff1c2'; ctx.lineWidth = 3; ctx.stroke();
+    }
+  }
+  if (g.meter > 0) drawHoldRing(g.x, g.y, 30 * g.scale, g.meter, A, state.clock);
+  const lift = 1 - g.down, s = g.scale * (1 + lift * 0.12);
+  ctx.save();
+  ctx.globalAlpha = A; ctx.translate(g.x, g.y + lift * 12); ctx.scale(s, s);
+  ctx.drawImage(handCv, -HAND_TIP_X, -HAND_TIP_Y, HAND_W, HAND_H);
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+// A ring that fills clockwise from the top as a hold goes on (gold; glowing once full).
+function drawHoldRing(x, y, r, f, alpha, clock) {
+  ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.arc(x, y, r, 0, TAU);
+  ctx.globalAlpha = alpha * 0.35; ctx.strokeStyle = '#2a170a'; ctx.lineWidth = 7; ctx.stroke();
+  ctx.beginPath(); ctx.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + TAU * Math.min(1, f));
+  ctx.globalAlpha = alpha; ctx.strokeStyle = f >= 1 ? '#fff1b8' : '#ffc93d'; ctx.lineWidth = f >= 1 ? 6 + Math.sin(clock * 14) * 1.5 : 5; ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+
 // ======================= banners & prompts (the HUD itself is DOM: src/hud.js) =======================
 // Banner strings are rebuilt only when the wave changes.
 const hud = { wave: -1, bannerWave: '', bannerClear: '' };
@@ -405,10 +514,12 @@ function refreshHudText(state) {
 
 function drawBanner(state) {
   let main = '', sub = '', a = 0;
-  if (state.mode === 'PLAYING' && state.bannerT > 0) {
+  if (state.mode === 'TUTORIAL' && state.bannerT > 0) {         // level 0: its name is the only words it shows
+    main = level().name; a = Math.min(1, state.bannerT * 3);
+  } else if (state.mode === 'PLAYING' && state.bannerT > 0) {
     main = hud.bannerWave; a = Math.min(1, state.bannerT * 3);
   } else if (state.mode === 'WAVE_CLEAR') {
-    main = hud.bannerClear; sub = state.wave >= C.waves.length ? 'The drawer is safe!' : 'Next wave incoming…';
+    main = hud.bannerClear; sub = state.wave >= levelWaves().length ? 'The drawer is safe!' : 'Next wave incoming…';
     a = Math.min(1, state.modeT * 4, (C.waveClearMs / 1000 - state.modeT) * 4);
   }
   if (!main || a <= 0) return;
@@ -434,16 +545,26 @@ function drawPrompt(state) {
   }
 }
 
+// Boss HP bar across the top, under the HUD row: its name, a stitched felt bar, and the Unstitcher's phase marks.
 function drawBossBar(state) {
   let boss = null;
   for (let i = 0; i < state.enemies.length; i++) if (state.enemies[i].on && state.enemies[i].type.boss) { boss = state.enemies[i]; break; }
   if (!boss) return;
-  const w = Math.min(view.W - 40, 340), x = (view.W - w) / 2, y = 150;         // below the DOM HUD
-  ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.font = HUD_FONT;
-  ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.strokeText('THE SEAM RIPPER', view.W / 2, y - 4);
-  ctx.fillStyle = '#e0b8ff'; ctx.fillText('THE SEAM RIPPER', view.W / 2, y - 4);
-  ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(x - 2, y - 2, w + 4, 14);
-  ctx.fillStyle = '#b36bff'; ctx.fillRect(x, y, w * Math.max(0, boss.hp / boss.maxHp), 10);
+  const def = C.bosses[boss.name] || {}, name = (def.name || boss.name).toUpperCase();
+  const x = 12, w = view.W - 24, y = 84, h = 14, f = Math.max(0, boss.hp / boss.maxHp);
+  ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'; ctx.font = HUD_FONT; ctx.lineJoin = 'round';
+  ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,0.65)'; ctx.strokeText(name, x + 4, y - 3);
+  ctx.fillStyle = '#ffe4aa'; ctx.fillText(name, x + 4, y - 3);
+  ctx.fillStyle = '#2a170a'; ctx.fillRect(x - 3, y - 3, w + 6, h + 6);
+  ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = boss.type.patch; ctx.fillRect(x, y, w * f, h);
+  ctx.fillStyle = 'rgba(255,255,255,0.25)'; ctx.fillRect(x, y, w * f, h * 0.35);
+  ctx.setLineDash(DASH); ctx.strokeStyle = 'rgba(255,236,196,0.7)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(x + 3, y + h / 2); ctx.lineTo(x + w - 3, y + h / 2); ctx.stroke(); ctx.setLineDash(NO_DASH);
+  if (def.phaseAt) {
+    ctx.fillStyle = '#fff1c2';
+    for (const p of def.phaseAt) ctx.fillRect(x + w * p - 1.5, y - 3, 3, h + 6);
+  }
 }
 
 // ======================= frame =======================
@@ -469,6 +590,7 @@ export function draw(state) {
     drawWeaponWithTrails(state, dt);
   } else prevA = -1;                                             // no trail from wherever the blades were last shown
   drawEffects(state);
+  if (state.mode === 'TUTORIAL') drawGhost(state);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   refreshHudText(state);
   drawBanner(state);

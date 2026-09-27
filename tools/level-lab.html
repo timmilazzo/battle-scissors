@@ -10,6 +10,7 @@
   body { margin: 0; font: 14px system-ui, sans-serif; background: #1b1512; color: #f3e6c8; }
   header { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px; background: #2c1e14; position: sticky; top: 0; z-index: 2; }
   input[type=text] { flex: 1 1 320px; font: 15px ui-monospace, Consolas, monospace; padding: 7px 9px; background: #120d0a; color: #f3e6c8; border: 1px solid #6b4a2e; border-radius: 6px; }
+  select { padding: 7px; background: #120d0a; color: #f3e6c8; border: 1px solid #6b4a2e; border-radius: 6px; }
   input[type=number] { width: 90px; padding: 7px; background: #120d0a; color: #f3e6c8; border: 1px solid #6b4a2e; border-radius: 6px; }
   button, a.btn { font: inherit; padding: 7px 12px; border-radius: 6px; border: 1px solid #c99a3e; background: #5a3a1c; color: #ffe4aa; cursor: pointer; text-decoration: none; }
   label { display: inline-flex; gap: 4px; align-items: center; }
@@ -26,6 +27,7 @@
 <header>
   <input id="recipe" type="text" value="zigzag 2, fork pin, s" spellcheck="false" aria-label="Recipe">
   <label>seed <input id="seed" type="number" value="1"></label>
+  <label>zone <select id="zone"><option>meadow</option><option selected>denim</option><option>lair</option></select></label>
   <button id="build">Build</button>
   <button id="random">Random recipe</button>
   <button id="six">6 seeds</button>
@@ -62,10 +64,13 @@
     cell.append(c, meta);
     return cell;
   }
+  // the level in the chosen zone's look (a level file's `world`)
+  const lvl = (recipe, seed) => Object.assign(buildLevel(recipe, seed), { world: $('zone').value });
+  $('zone').onchange = () => build();
   function playLink(recipe, seed) { $('play').href = '../index.html?recipe=' + encodeURIComponent(recipe) + '&seed=' + seed; }
   function build() {
     const recipe = $('recipe').value, seed = +$('seed').value || 1;
-    out.className = ''; out.replaceChildren(view(buildLevel(recipe, seed)));
+    out.className = ''; out.replaceChildren(view(lvl(recipe, seed)));
     playLink(recipe, seed);
     history.replaceState(null, '', '?recipe=' + encodeURIComponent(recipe) + '&seed=' + seed);
   }
@@ -75,7 +80,7 @@
   $('random').onclick = () => { const s = (Math.random() * 1e6) | 0; $('seed').value = s; $('recipe').value = randomRecipe(s); build(); };
   $('six').onclick = () => {
     const recipe = $('recipe').value, s0 = +$('seed').value || 1;
-    out.className = 'grid'; out.replaceChildren(...[0, 1, 2, 3, 4, 5].map(i => view(buildLevel(recipe, s0 + i))));
+    out.className = 'grid'; out.replaceChildren(...[0, 1, 2, 3, 4, 5].map(i => view(lvl(recipe, s0 + i))));
   };
   const q = new URLSearchParams(location.search);
   if (q.get('recipe')) $('recipe').value = q.get('recipe');

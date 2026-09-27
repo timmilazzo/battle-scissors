@@ -82,10 +82,31 @@ function circleClip(doc, ref) {
   return { cx: Number(c.getAttribute('cx')) || 0, cy: Number(c.getAttribute('cy')) || 0, r: Number(c.getAttribute('r')) || 0 };
 }
 
+// Handle cosmetic (render.js sets it from the save): every weapon's handles are tinted this colour when rasterized
+// ('' = none). The handles are the part of the art below the pivot (tips point up), or for a slide weapon the parts
+// out beyond its hole.
+let handleTint = '';
+export function setHandleTint(color) {
+  if (color === handleTint) return false;
+  handleTint = color;
+  return true;
+}
+function tintHandles(g, def, pw, ph) {
+  const k = pw / def.viewW, vx = def.viewX || 0, vy = def.viewY || 0;
+  g.save();
+  g.globalCompositeOperation = 'source-atop'; g.globalAlpha = C.meta.handleTint; g.fillStyle = handleTint;
+  if (def.kind === 'slide') {
+    const edge = def.bladeLen * 1.3;
+    g.fillRect(0, 0, (def.pivotX - vx - edge) * k, ph);
+    g.fillRect((def.pivotX - vx + edge) * k, 0, pw, ph);
+  } else g.fillRect(0, (def.pivotY - vy + def.bladeLen * 0.12) * k, pw, ph);
+  g.restore();
+}
+
 // Rasterize a weapon's layers (default: the current one) into offscreen canvases at its exact on-screen size (called
 // on resize and weapon change). The previous canvases stay in use until the new set is complete.
 export function rasterizeArt(id = weapon.id) {
-  const def = C.weapons[id], a = arts[id];
+  const def = id === weapon.id ? weapon.def : C.weapons[id], a = arts[id];
   if (!def || !a || !a.layers) return;
   const gen = ++a.gen, S = scaleFor(def);
   const pw = Math.max(1, Math.round(def.viewW * S * view.dpr)), ph = Math.max(1, Math.round(def.viewH * S * view.dpr));
@@ -100,6 +121,7 @@ export function rasterizeArt(id = weapon.id) {
       const c = document.createElement('canvas');
       c.width = pw; c.height = ph;
       c.getContext('2d').drawImage(img, 0, 0, pw, ph);
+      if (handleTint) tintHandles(c.getContext('2d'), def, pw, ph);
       out[i] = c;
       if (--pending === 0) { a.layers.forEach((l, j) => { l.canvas = out[j]; }); a.ready = true; a.state = 'svg'; }
     };
@@ -134,7 +156,7 @@ function drawFallback(ctx, def, theta, open, alpha, S) {
 // shakeT = "too slow" wobble 0..1, S = SVG units -> px (defaults to the game scale view.S), id = which weapon
 // (default: the current one; it must have been rasterized with rasterizeArt(id))
 export function drawWeapon(ctx, pose, open, alpha, flashT, shakeT, S = view.S, id = weapon.id) {
-  const def = C.weapons[id], art = arts[id];
+  const def = id === weapon.id ? weapon.def : C.weapons[id], art = arts[id];
   if (alpha <= 0.001 || !def) return;
   const vx = def.viewX || 0, vy = def.viewY || 0, ox = def.pivotX - vx, oy = def.pivotY - vy;   // pivot within the rasterized box
   const turn = pose.theta + ((def.aimOffsetDeg || 0) + (def.aimOffsetOpenDeg || 0) * open) * DEG;

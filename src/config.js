@@ -8,7 +8,7 @@
 export const FEEDBACK_URL = 'mailto:tim@saltandwisdom.com';
 
 // Shown small at the bottom of Settings and recorded in every run report. Bump it with each published change.
-export const VERSION = '0.1.7';
+export const VERSION = '0.2.0';
 
 export const CONFIG = {
   // --- pose / control mapping ---
@@ -29,29 +29,36 @@ export const CONFIG = {
   // open it closed -> full (lifting snaps it shut). Optional: aimOffsetDeg + aimOffsetOpenDeg x open = extra turn of the whole art, for art whose gap
   // isn't centred on its own axis; kind: 'slide' = no pivot, parts slide apart and the cut zone is a round hole of
   // radius bladeLen at the pivot point (the hole's centre); spinLen = how far the Helicopter spin reaches (SVG units).
+  // signature = the stat its tier-3 upgrade raises (CONFIG.meta): 'angle' maxOpenDeg, 'damage' damageMult, 'crit'
+  // critMult, 'hold' holdSec, 'ring' ringScale, 'all' every stat a little. critZone + critMult (Scrap Snippers): a hit
+  // this close to the pivot (0 pivot .. 1 tips) does critMult x damage. holdSec (Ratchet Pruners): the hooked jaw holds
+  // every regular enemy it hits in place this long. ringScale (Cigar Cutter): the hole's cut radius x this.
   weapons: {
     dagger:  { name: 'Dagger Shears', blurb: 'Long engraved blades that reach deep into the road.',
                svg: 'assets/weapons/dagger-shears.svg', viewW: 800, viewH: 1000, pivotX: 400, pivotY: 440,
-               bladeLen: 370, maxOpenDeg: 32, reachFrac: 0.132, damageMult: 1, openMs: 500 },
+               bladeLen: 370, maxOpenDeg: 32, reachFrac: 0.132, damageMult: 1, openMs: 500, signature: 'all' },
     nippers: { name: 'War Nippers', blurb: 'Short crescent jaws that bite hard. Get close.',
                svg: 'assets/weapons/battle-cuticle-nippers.svg', viewW: 800, viewH: 1000, pivotX: 400, pivotY: 440,
-               bladeLen: 242, maxOpenDeg: 28, reachFrac: 0.088, damageMult: 1.3, openMs: 380 },
+               bladeLen: 242, maxOpenDeg: 28, reachFrac: 0.088, damageMult: 1.3, openMs: 380, signature: 'damage' },
     barber:  { name: 'Split Enders', blurb: 'Opens wide enough to take a whole crowd, but cuts light.',
                svg: 'assets/weapons/barber-scissors.svg', viewX: -80, viewW: 960, viewH: 1000, pivotX: 400, pivotY: 440,
-               bladeLen: 404, maxOpenDeg: 60, reachFrac: 0.12, damageMult: 0.85, openMs: 650 },
+               bladeLen: 404, maxOpenDeg: 60, reachFrac: 0.12, damageMult: 0.85, openMs: 650, signature: 'angle' },
     scrap:   { name: 'Scrap Snippers', blurb: 'Long heavy blades with a narrow bite. Aim true.',
                svg: 'assets/weapons/scrap-shears.svg', viewW: 800, viewH: 1000, pivotX: 400, pivotY: 440,
-               bladeLen: 408, maxOpenDeg: 24, reachFrac: 0.144, damageMult: 1.25, openMs: 580 },
+               bladeLen: 408, maxOpenDeg: 24, reachFrac: 0.144, damageMult: 1.25, openMs: 580,
+               signature: 'crit', critZone: 0.25, critMult: 1.5 },
     // hooked jaw -12deg, blade +76deg, handle +12deg (per-layer data-open-angle). Closed, the blade tip points 41deg
     // left of the art's axis; fully open, the gap spans -40..+22deg (centre -9deg, 62deg wide). The aim offset turns
     // the art 41deg -> 9deg as it opens so the tip, then the gap's centre, lines up with the aim.
     pruners: { name: 'Ratchet Pruners', blurb: 'A hooked jaw holds, one heavy blade bites down. Big hits up close.',
                svg: 'assets/weapons/ratchet-pruners.svg', viewW: 800, viewH: 1000, pivotX: 400, pivotY: 320,
-               bladeLen: 240, maxOpenDeg: 31, aimOffsetDeg: 41, aimOffsetOpenDeg: -32, reachFrac: 0.1, damageMult: 1.4, openMs: 620 },
+               bladeLen: 240, maxOpenDeg: 31, aimOffsetDeg: 41, aimOffsetOpenDeg: -32, reachFrac: 0.1, damageMult: 1.4, openMs: 620,
+               signature: 'hold', holdSec: 0.5 },
     // blades slide 155 units each way inside a 131-unit round window; the finger rings sit about 426 units out
     cigar:   { name: 'Cigar Cutter', blurb: 'No blades to swing: fit them in the hole and slam it shut.',
                svg: 'assets/weapons/cigar-cutter.svg', viewW: 1300, viewH: 640, pivotX: 650, pivotY: 320, kind: 'slide',
-               bladeLen: 131, maxOpenDeg: 0, spinLen: 426, reachFrac: 0.036, damageMult: 2.2, openMs: 440 },
+               bladeLen: 131, maxOpenDeg: 0, spinLen: 426, reachFrac: 0.036, damageMult: 2.2, openMs: 440,
+               signature: 'ring', ringScale: 1 },
   },
   defaultWeapon: 'dagger',   // weapon picked on first launch (afterwards the last choice is remembered)
   statDrawerHeightIn: 24,    // the play area's height in "story" inches; converts reach to inches on the weapon screen
@@ -109,23 +116,49 @@ export const CONFIG = {
   // traverseSec = seconds to walk the whole path, gapMs = spacing between members of one spawn group,
   // pushScale = how far shoves move it (0 = immovable), armor = first snip clangs unless slowed, boss = Seam Ripper rules.
   // color = felt body, patch / patch2 = sewn-on patches (also the kill fragments' colours).
+  // fireImmune = Fire Pins don't burn it; flat = no weak spot (every snip does tip damage, wherever it lands);
+  // ringExecute = a Cigar Cutter snip with its centre inside the hole kills it outright.
   enemyTypes: {
     scrap:      { r: 13, hp: 1,  tier: 1,  score: 10,  traverseSec: 12, gapMs: 300,  pushScale: 1.2,  color: '#eadcc3', patch: '#3f73d8', patch2: '#d8423a' },
     bolster:    { r: 24, hp: 3,  tier: 2,  score: 25,  traverseSec: 26, gapMs: 1400, pushScale: 0.8,  color: '#e6b85c', patch: '#7a4fc9', patch2: '#3f73d8' },
     brute:      { r: 38, hp: 6,  tier: 3,  score: 60,  traverseSec: 32, gapMs: 2500, pushScale: 0.35, armor: true, color: '#b8946a', patch: '#3f6fc4', patch2: '#c0392b' },
+    runner:     { r: 11, hp: 1,  tier: 1,  score: 15,  traverseSec: 6.5, gapMs: 450, pushScale: 1.4, color: '#7fc46a', patch: '#f2c230', patch2: '#d8423a' },
+    beetle:     { r: 34, hp: 10, tier: 3,  score: 80,  traverseSec: 36, gapMs: 3200, pushScale: 0.25, fireImmune: true, flat: true, ringExecute: true, color: '#c8433a', patch: '#f4e3c1', patch2: '#2b1a10' },
+    // bosses (boss: true): their rules are in CONFIG.bosses, and their hp is not scaled by hpPerWave
     seamRipper: { r: 56, hp: 30, tier: 10, score: 500, traverseSec: 30, gapMs: 0,    pushScale: 0,    boss: true,  color: '#6a3596', patch: '#e84a5f', patch2: '#ffd23f' },
+    bruteKing:  { r: 62, hp: 60, tier: 10, score: 800, traverseSec: 70, gapMs: 0,    pushScale: 0,    boss: true,  armor: true, color: '#9c7650', patch: '#3f6fc4', patch2: '#c0392b' },
+    unstitcher: { r: 64, hp: 90, tier: 10, score: 1500, traverseSec: 40, gapMs: 0,   pushScale: 0,    boss: true,  color: '#2e2a4a', patch: '#8fe8ff', patch2: '#e84a5f' },
   },
   hpPerWave: 0.1,            // each wave after the first adds this fraction of base hp (wave 6 = 1.5x); fractional hp means a tip hit no longer kills
   waddleDeg: 6,              // side-to-side rock while walking
   pathReturnRate: 1.6,       // how fast a shoved enemy drifts back onto the road (per second)
 
-  // --- boss: The Seam Ripper ---
-  bossTurns: [0.8, 0.2],     // path progress where it reverses (forward to 80%, back to 20%), then it heads for the workshop
-  seamPeriodSec: 2,          // the glowing seam goes once around the boss in this long
-  seamArcDeg: 22,            // half-width of the glowing seam arc
-  seamHitTolPx: 12,          // the closed-blade line must pass this close to the seam to count as on-seam
-  seamMult: 5,               // a snip on the seam does this many times its normal (graded, powered) damage
-  offSeamMult: 1,            // multiplier for a snip anywhere else on the boss
+  // --- bosses: only on boss levels (the level's last wave is the boss alone). Each tests one skill. ---
+  // name + taunt = the intro card (two short lines, auto-dismissed after bossIntroMs); roar = its sfx.js entry.
+  bossIntroMs: 3000,         // the intro card shows this long; the boss walks on as it closes
+  bossTurns: [0.8, 0.2],     // seam bosses walk forward to 80% of the road, back to 20%, then on to the workshop
+  seamPeriodSec: 2,          // the seam's spot goes once around the body in this long (where Expert blades must cross it)
+  seamArcDeg: 22,            // half-width of the seam arc
+  seamHitTolPx: 12,          // Expert: the closed-blade line must pass this close to the seam to count as over it
+  bosses: {
+    // timing: every seamEverySec its seam splits open for seamOpenSec (a dim shimmer seamWarnSec before). A snip while
+    // it's open does openDmg, otherwise closedDmg (flat). Expert (Pinch) controls: an open-seam snip whose blades don't
+    // cross the seam does expertOffSeamDmg instead.
+    seamRipper: { name: 'The Seam Ripper', taunt: 'I pull every stitch apart!', roar: 'roarRipper',
+                  seamEverySec: 3, seamOpenSec: 1, seamWarnSec: 0.4, openDmg: 5, closedDmg: 1, expertOffSeamDmg: 2 },
+    // timing + patience: armored; every chargeEverySec it lunges chargePx along the road over chargeMs, then its armor
+    // is down for armorDownSec (its seams glow): snips then do armorDownMult x normal damage. Ice and SHRED don't slow it.
+    bruteKing:  { name: 'The Brute King', taunt: 'My armor never breaks!', roar: 'roarKing',
+                  chargeEverySec: 6, chargePx: 200, chargeMs: 450, armorDownSec: 1, armorDownMult: 3 },
+    // three phases, switching at phaseAt (hp fractions). 1: every swarmEverySec calls swarmSize Scraps that escort it
+    // (swarmGapPx apart along the road, half ahead and half behind), and is
+    // only hurt by a snip with multiMin+ enemies in its zone (x multiMult). 2: armored and charging like the Brute King.
+    // 3: an opening seam like the Seam Ripper, faster.
+    unstitcher: { name: 'The Unstitcher', taunt: 'Your whole quilt comes undone!', roar: 'roarUnstitcher',
+                  phaseAt: [0.66, 0.33], swarmEverySec: 5, swarmSize: 4, swarmGapPx: 42, multiMin: 3, multiMult: 2,
+                  chargeEverySec: 5, chargePx: 180, chargeMs: 400, armorDownSec: 1, armorDownMult: 3,
+                  seamEverySec: 2, seamOpenSec: 0.8, seamWarnSec: 0.3, openDmg: 5, closedDmg: 1, expertOffSeamDmg: 2 },
+  },
 
   // --- kill impact ---
   hitStopMs: 60,             // whole-game freeze on a medium+ (tier >= 2) kill
@@ -137,67 +170,21 @@ export const CONFIG = {
   fragmentSpeed: 260,        // px/s shard launch speed
   fragmentLifeMs: 650,       // shard fade time
 
-  // --- levels: each a painted plate with the road, the Pin spots and the workshop (the heart pad) baked in ---
-  // Picked on the select screen (or ?level=id). Everything in a level is in its plate's own pixels ("level units").
-  // The plate is drawn full height and centred (narrow screens crop its sides, wide ones get blurred side bars), so
-  // level units -> screen px = view.L. If a plate's art changes, re-measure its paths and spots.
-  // paths = one or more routes (road centrelines as Catmull-Rom control points), each walked first -> last point (the
-  // heart pad). With several, every enemy picks one at random when it spawns; shared stretches just overlap.
-  levels: {
-    meadow: {
-      name: 'Meadow Road', blurb: 'One winding road.',
-      bg: 'assets/level-bg.webp', w: 941, h: 1672,   // the plate and its pixel size
-      paths: [[
-        [485, -90], [482, 60], [440, 210], [510, 320], [640, 420], [600, 500], [450, 550], [330, 610], [320, 690],
-        [400, 760], [540, 840], [565, 930], [520, 1010], [420, 1090], [420, 1170], [500, 1260], [510, 1380], [501, 1470],
-      ]],
-      spots: [[215, 806], [719, 725], [769, 1101]],  // centres of the fenced round pads where a Pin can be built
-      spotR: 92,             // pad radius: sizes the Pin art standing on it
-      roadHalfWidth: 50,     // shoves can move an enemy's centre at most this far from the road centreline (painted road is ~110-150 wide)
-      workshopR: 118,        // heart pad radius: the red flash when the workshop takes damage
-    },
-    // the road forks around the big button and joins again above the heart pad; each enemy takes a side at random
-    fork: {
-      name: 'Button Fork', blurb: 'The road forks. Enemies pick a side.',
-      bg: 'assets/level2-bg.webp', w: 941, h: 1672,
-      paths: [
-        [[474, -90], [474, 60], [474, 250], [474, 420], [400, 500], [290, 560], [195, 650], [155, 770], [165, 880],
-          [235, 965], [350, 1030], [445, 1075], [474, 1130], [474, 1250], [474, 1380], [474, 1480]],
-        [[474, -90], [474, 60], [474, 250], [474, 420], [548, 500], [658, 560], [753, 650], [793, 770], [783, 880],
-          [713, 965], [598, 1030], [503, 1075], [474, 1130], [474, 1250], [474, 1380], [474, 1480]],
-      ],
-      spots: [[190, 462], [762, 462], [262, 1195], [686, 1195]],
-      spotR: 84,             // pad radius
-      roadHalfWidth: 45,     // the fork's arms are a little narrower than the Meadow road
-      workshopR: 112,        // heart pad radius
-    },
-    // Generated levels (src/levelGen.js builds the road and pads from `recipe`, src/levelArt.js paints the quilt plate).
-    // seed varies the details (unset sides, pad picks, decoration). random: a new recipe from each run's seed.
-    hem: { name: 'Zigzag Hem', blurb: 'Switchbacks, then a fork.', recipe: 'zigzag 2, fork pin', seed: 3 },
-    running: { name: 'Running Stitch', blurb: 'Gentle waves.', recipe: 'wave 3, s', seed: 4 },
-    double: { name: 'Double Seam', blurb: 'A fork, then an S.', recipe: 'fork, s right', seed: 5 },
-    blanket: { name: 'Blanket Stitch', blurb: 'Three switchbacks.', recipe: 'start left, zigzag 3', seed: 6 },
-    loop: { name: 'Button Loop', blurb: 'A Pin pad inside the fork.', recipe: 'bend right, fork pin', seed: 7 },
-    hemline: { name: 'Hemline', blurb: 'An S into switchbacks.', recipe: 's left, zigzag 2, bend center', seed: 8 },
-    cross: { name: 'Crossroads', blurb: 'Two forks: four ways down.', recipe: 'fork wide, fork narrow', seed: 9 },
-    bias: { name: 'Bias Tape', blurb: 'Waves into a Pin fork.', recipe: 'start right, wave 2, fork pin', seed: 10 },
-    selvage: { name: 'Selvage', blurb: 'Switchbacks, then a fork.', recipe: 'zigzag 2, fork', seed: 11 },
-    whip: { name: 'Whipstitch', blurb: 'Wiggles into a wide fork.', recipe: 'wiggle 5, fork wide', seed: 12 },
-    lair: { name: 'Ripper’s Lair', blurb: 'The last stretch.', recipe: 's left, fork pin, zigzag 1', seed: 13 },
-    random: { name: 'Random Quilt', blurb: 'A new road every run.', random: true },
-  },
+  // --- levels: the level data lives in src/levels/ (one file per level; src/levels/index.js loads them) ---
   // The level map (between the title and the shears): its art and a numbered patch per level, in play order.
-  // nodes = [level id, patch centre x, y] in the art's pixels; hitW/hitH = each patch's tap area. locks: true = a level
+  // nodes = [level id (a src/levels/ file), patch centre x, y] in the art's pixels; hitW/hitH = each patch's tap area. locks: true = a level
   // opens only once the one before it is cleared (false keeps every level open for playtesting).
   map: {
     img: 'assets/level-map.webp', w: 936, h: 1681,
-    nodes: [['meadow', 468, 1330], ['fork', 486, 1196], ['hem', 579, 1076], ['running', 410, 978], ['double', 466, 858],
+    // 'first' (level 0) has no patch in the art: the map sews a felt one on there
+    nodes: [['first', 640, 1478], ['meadow', 468, 1330], ['fork', 486, 1196], ['hem', 579, 1076], ['running', 410, 978], ['double', 466, 858],
       ['blanket', 597, 770], ['loop', 494, 666], ['hemline', 354, 574], ['cross', 488, 478], ['bias', 586, 390],
       ['selvage', 422, 300], ['whip', 527, 212], ['lair', 540, 96]],
     hitW: 170, hitH: 110,    // tap area per patch (art px)
     locks: false,            // lock levels until the one before is cleared
   },
   defaultLevel: 'meadow',    // level picked on first launch (afterwards the last choice is remembered)
+  tutLevel: 'first',         // level 0, the no-text tutorial: PLAY opens it until it has been cleared once
 
   // --- level generator (src/levelGen.js): recipe -> road, Pin pads, workshop; all in plate units (941 x 1672) ---
   // Segments stack top to bottom between startY and endY; each gets its minimum height plus a share of what's left
@@ -229,7 +216,7 @@ export const CONFIG = {
     spotXMin: 180, spotXMax: 761, // pad centres stay in this band (narrow phones crop the sides)
     spotYMin: 250, spotYMax: 1330, // pad centres stay out of the HUD row and off the action bar
     maxRoutes: 4,            // at most this many routes (each fork doubles them)
-    buttons: 9,              // decorative buttons scattered on the free denim
+    props: 34,               // kit props tried per plate (src/kit.js: each zone's mix); fewer land if there's no room
     patches: 7,              // fabric patches sewn under the road
   },
   pathSmoothSteps: 16,       // Catmull-Rom samples per path segment (road smoothness)
@@ -239,14 +226,15 @@ export const CONFIG = {
 
   // --- waves & scoring ---
   // One array per wave; each entry is [type, count, atSec]: `count` enemies of `type` starting `atSec` seconds into
-  // the wave, spaced by that type's gapMs (so a scrap group of 6 arrives 300ms apart).
+  // the wave, spaced by that type's gapMs (so a scrap group of 6 arrives 300ms apart). These are the default (Random
+  // Quilt, and any level without its own waves); bosses only come on boss levels, never here.
   waves: [
     [['scrap', 5, 2], ['scrap', 6, 12], ['bolster', 1, 20]],
     [['scrap', 6, 2], ['bolster', 2, 8], ['scrap', 7, 16], ['bolster', 1, 24]],
     [['scrap', 6, 2], ['bolster', 2, 6], ['brute', 1, 12], ['scrap', 8, 18], ['bolster', 2, 26]],
     [['scrap', 7, 2], ['bolster', 3, 6], ['scrap', 6, 14], ['brute', 1, 18], ['scrap', 6, 26], ['bolster', 1, 32]],
     [['scrap', 8, 2], ['brute', 1, 6], ['bolster', 3, 10], ['scrap', 7, 18], ['brute', 1, 24], ['scrap', 8, 30]],
-    [['scrap', 6, 2], ['bolster', 2, 6], ['seamRipper', 1, 10], ['scrap', 7, 20], ['brute', 1, 28], ['scrap', 8, 36]],
+    [['scrap', 6, 2], ['runner', 5, 6], ['bolster', 2, 10], ['scrap', 7, 20], ['brute', 1, 28], ['scrap', 8, 36]],
   ],
   emptyWaveWaitSec: 1,       // if every enemy is dead mid-wave, the next spawn comes within this long (the wave clock skips ahead)
   waveClearMs: 2000,        // WAVE_CLEAR pause between waves
@@ -266,10 +254,11 @@ export const CONFIG = {
   // Built only on the level's spots (tap the + on one). radius is in level units. ice: enemies inside it are slowed
   // (slowSpeedMult) and flagged slowed (lets a snip through Brute armor). fire: enemies inside it catch fire and keep
   // burning burnSec after leaving it, taking burnDps HP per second in burnTickMs ticks (armor doesn't stop it; burn
-  // kills don't charge SHRED). magnet: every
-  // periodSec, pulls every enemy within radius along the road toward the nearest road point to the Pin over pullMs
-  // (the ones ahead back, the ones behind forward), leaving pullKeep of the gap (0 = all onto one spot): a clump
-  // that keeps walking together, set up for a multi-snip. needle (the archer): when an enemy is inside radius, fires one
+  // kills don't charge SHRED). magnet: every periodSec, pulls every enemy within radius along the road toward the
+  // nearest road point to the Pin over pullMs (the ones ahead back, the ones behind forward): a clump that keeps
+  // walking together, set up for a multi-snip. The pull fades out toward the ring's edge: on the stretch of road
+  // nearest the Pin an enemy keeps pullKeep of its gap (0 = all onto one spot), at the edge it isn't moved;
+  // pullFalloff shapes the fade (1 = even, 2 = strong only close in, 0.5 = strong most of the way out). needle (the archer): when an enemy is inside radius, fires one
   // sewing needle at the one furthest along the road (damage, flying needleSpeed level units per second and homing on
   // it), then reloads for cooldownSec. Armor stops a needle like a snip (the Brute's first hit clangs unless slowed, and
   // the armor is spent); needle kills don't charge SHRED.
@@ -278,7 +267,7 @@ export const CONFIG = {
     needle: { name: 'Needle Pin', blurb: 'shoots one enemy, reloads', cost: 90, radius: 380, damage: 1, cooldownSec: 1.4, needleSpeed: 1400, color: '#e6eef5', felt: '#3e8f5a', head: '#f2c230' },
     ice:    { name: 'Ice Pin',    blurb: 'slows, beats armor', cost: 100, radius: 290, color: '#8fe8ff', felt: '#2f63c9', head: '#3d7dff' },
     fire:   { name: 'Fire Pin',   blurb: 'burns what walks by', cost: 110, radius: 290, burnDps: 0.25, burnSec: 1.5, burnTickMs: 500, color: '#ffa04a', felt: '#c8352b', head: '#e0312b' },
-    magnet: { name: 'Magnet Pin', blurb: 'pulls into a clump', cost: 120, radius: 330, periodSec: 3, pullMs: 500, pullKeep: 0.25, color: '#c79bff', felt: '#7b3fc4', head: '#9a4fe0' },
+    magnet: { name: 'Magnet Pin', blurb: 'pulls into a clump', cost: 120, radius: 330, periodSec: 3, pullMs: 500, pullKeep: 0.25, pullFalloff: 1, color: '#c79bff', felt: '#7b3fc4', head: '#9a4fe0' },
   },
   slowSpeedMult: 0.4,        // slowed enemies move at this fraction of their speed
   needleLostSec: 0.4,        // a needle whose target died first flies straight on this long, then vanishes
@@ -297,11 +286,26 @@ export const CONFIG = {
   heliFinalShakePx: 14,      // screen shake on the final close
   heliBannerMs: 1100,        // "SHRED" banner time
 
-  // --- onboarding (first run, or "How to play" on the title) ---
-  tutSpreadFrac: 0.6,        // step 2 passes when the fingers spread past this
-  tutRotateDeg: 45,          // step 5 passes when the aim turns this far
-  tutNagMs: 1800,            // how long "Too fast!" replaces the slow-close prompt before it comes back
-  tutGoMs: 900,              // "Go." shows this long before wave 1
+  // --- level 0: the no-text tutorial (Hold controls only; a ghost hand shows each step) ---
+  tutGhostCycleMs: 4000,     // the ghost hand's demo repeats this often (each repeat holds longer and shows more)
+  tutGhostReturnMs: 900,     // after the player lets go without passing the step, the ghost comes back this soon
+  tutGhostHoldSec: 0.9,      // the ghost's first hold...
+  tutGhostHoldGrow: 0.35,    // ...grows this much each repeat...
+  tutGhostHoldMax: 2.2,      // ...up to this
+  tutGhostOpenMs: 900,       // the ghost's scissors open closed -> full this slowly (easier to watch than a real weapon)
+  tutFingerY: 0.72,          // where the ghost presses in steps 1-2 (fraction of screen height, on the road)
+  tutHoldSec: 0.8,           // step 2 passes after holding this long...
+  tutHoldOpen: 0.5,          // ...with the blades at least this open (the next lift then moves on)
+  tutScrapHp: 0.2,           // tutorial Scraps: any snip that touches one cuts it
+  tutWalkInPxPerSec: 200,    // step 3: Scraps walk into the player's empty blades this fast
+  tutWideMin: 3,             // step 4: a wide cut cuts at least this many at once...
+  tutWideSpread: 0.75,       // ...and opened at least this far (a quick tap can graze 3+ of the row: that isn't the lesson)
+  tutShortSpread: 0.6,       // step 4: a short cut opened less than this
+  tutRespawnMs: 700,         // a used-up practice setup comes back after this
+  tutFinishCount: 6,         // step 5: this many Scraps walk in; the level ends when all are cut
+  tutFinishGapMs: 900,       // step 5: spacing between them
+  tutWalkMult: 0.7,          // step 5: they walk at this fraction of normal Scrap speed
+  tutWinMs: 1800,            // the win celebration before the level map
 
   // --- feel (visual only) ---
   trailMinSpeed: 2.5,        // blade trails appear when the blades open/close/turn faster than this (rad/s)
@@ -310,8 +314,47 @@ export const CONFIG = {
   titleWeapon: 'nippers',    // the real scissors that follow the pointer on the title screen
   titleOpenFrac: 0.6,        // title scissors rest this far open; pressing snaps them shut
 
+  // --- meta economy: Buttons (src/meta.js). Earned only from performance and achievements; nothing waits on a clock and
+  // no reward is random. Thread (in-level) and Buttons (meta) are never converted. Scissors, Pins and stars are never sold.
+  meta: {
+    starButtons: [10, 15, 25], // Buttons for star 1 / 2 / 3 of a level, the first time each is earned (re-earning pays 0)
+    scorePerButton: 100,     // score bonus: floor(score / this) Buttons...
+    scoreBonusCap: 10,       // ...capped at this per level: a run pays only what beats the level's best bonus so far
+    upgradeCosts: [150, 300, 600], // scissors upgrade tiers 1 / 2 / 3 (per weapon, bought in order)
+    reachUp: 0.15,           // tier 1: reach +15%
+    speedUp: 0.2,            // tier 2: close speed +20% (the blades open in openMs / 1.2)
+    signatureUp: 0.3,        // tier 3: the weapon's signature stat +30%
+    allUp: 0.1,              // tier 3 when the signature is 'all' (Dagger Shears): reach, speed, spread and damage +10%
+    sharpenCost: 40,         // Sharpening: price...
+    sharpenMax: 3,           // ...at most this many held...
+    sharpenMult: 1.5,        // ...snip damage multiplier for the one level it's used on (used up at the next level's start)
+    chestButtons: 100,       // a world chest (three-star every level of the world) holds this many Buttons plus its cosmetic
+    // world id (a level file's `world`) -> its name, its chest's cosmetic, and where the chest sits on the map art (px)
+    worlds: {
+      meadow: { name: 'The Meadow', chest: 'cloverHandles', x: 770, y: 800 },
+      denim:  { name: 'The Denim',  chest: 'indigoGlow',    x: 750, y: 420 },
+      lair:   { name: 'The Lair',   chest: 'ripperGlow',    x: 290, y: 190 },
+    },
+    // slot 'handle' tints the handles, 'glow' lights the blades (render.js). price = Buttons in the shop; chest = only
+    // from that world's chest.
+    cosmetics: {
+      brassHandles:  { name: 'Brass Handles',  slot: 'handle', color: '#e0b04a', price: 100 },
+      roseHandles:   { name: 'Rose Handles',   slot: 'handle', color: '#e8698c', price: 100 },
+      emberGlow:     { name: 'Ember Glow',     slot: 'glow',   color: '#ff8a3d', price: 100 },
+      frostGlow:     { name: 'Frost Glow',     slot: 'glow',   color: '#8fe8ff', price: 100 },
+      cloverHandles: { name: 'Clover Handles', slot: 'handle', color: '#5fbf5a', chest: 'meadow' },
+      indigoGlow:    { name: 'Indigo Glow',    slot: 'glow',   color: '#6d7dff', chest: 'denim' },
+      ripperGlow:    { name: 'Ripper Glow',    slot: 'glow',   color: '#c15cff', chest: 'lair' },
+    },
+    handleTint: 0.55,        // how strongly a handle cosmetic colours the handles (0..1)
+    glowAlpha: 0.5,          // blade glow strength
+    glowWidth: 0.1,          // blade glow half-width, as a fraction of blade length
+    tallyStepMs: 450,        // results card: delay between the steps of stars -> Button tally -> total -> unlock reveal
+  },
+
   // --- playtest data ---
   runsKept: 20,              // run reports kept in localStorage
+  saveDebounceMs: 300,       // the save (src/save.js) is written this long after the last change
 
   // --- action bar (thread + SHRED) and Pin spot tips ---
   tipShowMs: 9000,           // how long a "you can afford a Pin" / "SHRED ready" tip stays up (unless acted on)

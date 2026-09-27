@@ -37,8 +37,8 @@ export function applySavedOverrides() {
 }
 
 // resize: re-layout after blade scale changes; loopStats.fps: measured by the game loop; getInfo: snip-feel readout text;
-// onExportRuns: download the stored run reports.
-export function initDebug({ resize, loopStats, getInfo, onExportRuns }) {
+// onExportRuns: download the stored run reports; onWipeSave / onUnlockAll / onAddButtons: the save buttons.
+export function initDebug({ resize, loopStats, getInfo, onExportRuns, onWipeSave, onUnlockAll, onAddButtons }) {
   const panel = document.createElement('div');
   panel.id = 'debug';
   panel.hidden = true;
@@ -67,6 +67,13 @@ export function initDebug({ resize, loopStats, getInfo, onExportRuns }) {
   exportBtn.type = 'button'; exportBtn.className = 'dbg-export'; exportBtn.textContent = 'Export all runs';
   exportBtn.addEventListener('click', () => onExportRuns());
   panel.appendChild(exportBtn);
+  // the player save (src/save.js): wipe it (asks first, then reloads), or open every level, weapon and Pin
+  for (const [label, fn] of [['Wipe save', () => { if (confirm('Wipe the save (progress, settings, unlocks)?')) onWipeSave(); }], ['Unlock all', () => onUnlockAll()], ['+500 Buttons', () => onAddButtons()]]) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'dbg-export'; b.textContent = label;
+    b.addEventListener('click', fn);
+    panel.appendChild(b);
+  }
   document.body.appendChild(panel);
 
   // keep panel interaction from steering the desktop scissors

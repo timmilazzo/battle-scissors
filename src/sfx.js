@@ -36,3 +36,14 @@ export const gameOver = [
 export const arpeggioGapMs = 110;
 // Helicopter: rising whir (saw with a fast repeating tremolo) lasting the whole 1.6s spin.
 export const heliWhir = [0.45, 0, 180, 0.1, 1.3, 0.2, 2, 1, 6, 0, 0, 0, 0.06, 0, 0, 0, 0, 0.7, 0.05, 0.5, 1200];
+// Boss roars (the intro card, and the Unstitcher's phase changes): each boss has its own.
+// Seam Ripper: a tearing, rising screech (noisy saw, pitch sweeping up, a little bit-crushed).
+export const roarRipper = [0.9, 0.05, 160, 0.04, 0.45, 0.5, 2, 1.8, 3, 0, 0, 0, 0, 2.2, 0, 0.12, 0, 0.7, 0.08, 0.35, 0];
+// Brute King: a deep chesty bellow (low square, pitch sagging, heavy tremolo, low-passed).
+export const roarKing = [1.1, 0.03, 70, 0.08, 0.7, 0.6, 3, 2.2, -1.2, 0, 0, 0, 0, 0.8, 0, 0.05, 0, 0.8, 0.1, 0.5, -700];
+// The Unstitcher: an eerie warble that jumps up an interval halfway (sine with modulation, echoing delay).
+export const roarUnstitcher = [0.8, 0.02, 110, 0.1, 0.8, 0.6, 0, 1, 0, 0, 55, 0.35, 0, 0.4, 12, 0, 0.12, 0.7, 0.1, 0.3, 0];
+// A boss's seam splits open (snip now!): a bright rising two-tone chirp.
+export const seamOpen = [0.45, 0, 880, 0, 0.06, 0.12, 0, 1.5, 12, 0, 440, 0.05, 0, 0, 0, 0, 0, 0.6, 0.02];
+// The Brute King's armor drops after a charge: a metallic clatter falling in pitch.
+export const armorOff = [0.55, 0.05, 900, 0, 0.03, 0.25, 1, 1, -18, 0, 0, 0, 0.04, 0.5, 30, 0, 0, 0.5, 0.03];

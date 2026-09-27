@@ -4,8 +4,29 @@
     {
       "name": "battle-scissors",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["tools/serve.js", "8010"],
+      "runtimeArgs": [
+        "tools/serve.js",
+        "8010"
+      ],
       "port": 8010
+    },
+    {
+      "name": "battle-scissors-2",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "tools/serve.js",
+        "8023"
+      ],
+      "port": 8023
+    },
+    {
+      "name": "battle-scissors-meta",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "tools/serve.js",
+        "8031"
+      ],
+      "port": 8031
     }
   ]
 }

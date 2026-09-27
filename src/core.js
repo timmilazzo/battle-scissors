@@ -22,6 +22,6 @@ const cv = document.getElementById('c');
 // levelId: the CONFIG.levels key being played; levelDef: that level as played (the CONFIG entry itself for a painted
 // level, the generated level for a recipe / random one). Both set by game.setLevel.
 export const view = { cv, ctx: cv.getContext('2d'), W: 0, H: 0, dpr: 1, S: 1, L: 1, LX: 0, pickupX: 40, pickupY: 40,
-  levelId: C.defaultLevel, levelDef: C.levels[C.defaultLevel] };
-// The current level (for a painted level, its CONFIG entry itself, so config edits apply live).
+  levelId: C.defaultLevel, levelDef: null };
+// The current level, as src/levels/index.js loadLevel() returned it.
 export const level = () => view.levelDef;

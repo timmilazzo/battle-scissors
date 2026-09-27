@@ -1,5 +1,5 @@
 // Touch / mouse / keyboard -> scissor pose (pivot, aim, spread) + snip detection.
-// Touch has two control modes (input.controls, picked in Settings, remembered in localStorage):
+// Touch has two control modes (input.controls, picked in Settings, kept in the save as settings.grip):
 //   'hold' (default, easy): one finger holds the scissors; holding opens them over the weapon's openMs and lifting
 //     snaps them shut (like the desktop mouse button). A second finger triggers SHRED.
 //   'pinch': two fingers are the HANDLES; spread to open, pinch fast to snip, rotate to aim. A third finger = SHRED.
@@ -9,15 +9,14 @@
 import { CONFIG as C } from './config.js';
 import { view, clamp, lerpK, lerpAngle } from './core.js';
 import { weapon } from './scissors.js';
+import { Save, persist } from './save.js';
 
-const CONTROLS_KEY = 'battleScissors.controls', CONTROLS = ['hold', 'pinch'];
-function savedControls() {
-  try { const m = localStorage.getItem(CONTROLS_KEY); if (CONTROLS.includes(m)) return m; } catch (e) { /* storage blocked */ }
-  return 'hold';
-}
+const CONTROLS = ['hold', 'pinch'];
+const savedControls = () => (CONTROLS.includes(Save.settings.grip) ? Save.settings.grip : 'hold');
 
 export const input = {
   controls: savedControls(),                                               // touch control mode: 'hold' | 'pinch'
+  easyOnly: false,                                                         // level 0: Hold whatever the setting (setEasyOnly)
   tp: { id: [-1, -1], x: [0, 0], y: [0, 0] },                              // two tracked touches ('pinch')
   hand: { id: -1, x: 0, y: 0, dist: 0, down: false, lift: false, fresh: false }, // the one held finger ('hold')
   mouse: { x: 0, y: 0, inside: false, dist: 150, rot: 0, used: false, held: false },
@@ -100,13 +99,18 @@ function beginGrip() {
 }
 function endGrip() { input.gripping = false; bCount = 0; openPeak = 0; }
 
-// Touch in 'hold' mode (one held finger opens the blades)?
-export const holdTouch = () => input.controls === 'hold';
+// Touch in 'hold' mode (one held finger opens the blades)? Level 0 teaches Hold only, so it forces it (easyOnly).
+export const holdTouch = () => input.controls === 'hold' || input.easyOnly;
+const dropTouches = () => { input.tp.id[0] = input.tp.id[1] = -1; input.hand.id = -1; input.hand.down = input.hand.lift = false; };
 export function setControls(mode) {
   if (!CONTROLS.includes(mode)) return;
-  input.controls = mode;
-  input.tp.id[0] = input.tp.id[1] = -1; input.hand.id = -1; input.hand.down = input.hand.lift = false;
-  try { localStorage.setItem(CONTROLS_KEY, mode); } catch (e) { /* storage blocked */ }
+  input.controls = mode; dropTouches();
+  Save.settings.grip = mode; persist();
+}
+// Force Hold controls for now (not saved): level 0 turns it on, leaving the level turns it off.
+export function setEasyOnly(on) {
+  if (input.easyOnly === on) return;
+  input.easyOnly = on; if (input.controls !== 'hold') dropTouches();
 }
 // Held mouse button / held finger: opens closed -> full over the current weapon's openMs.
 const openStep = (dist, dt) => Math.min(C.openDistPx, dist + (C.openDistPx - C.closedDistPx) * dt * 1000 / weapon.def.openMs);

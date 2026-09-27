@@ -1,4 +1,4 @@
-// Level generator: a path recipe (text) -> a playable level in the same shape as the painted ones in CONFIG.levels
+// Level generator: a path recipe (text) -> a playable level in the same shape as the painted level files (src/levels/)
 // (routes, Pin spots, workshop), all in plate units. src/levelArt.js paints its plate. No canvas and no DOM here, so
 // the level lab (tools/level-lab.html) can use it too.
 //
@@ -126,7 +126,7 @@ export function parseRecipe(text, warnings = []) {
 
 // ======================= build =======================
 // recipe + seed -> a level: { name, blurb, gen: true, recipe, seed, w, h, paths, spots, spotR, roadHalfWidth,
-// workshopR, heart, deco, warnings }. `base` supplies name / blurb.
+// workshopR, heart, deco, warnings }. `base` supplies name / blurb, and pads: 0 for a level with no Pin pads.
 export function buildLevel(recipe, seed = 1, base = {}) {
   const G = C.levelGen, rng = makeRng(seed ^ 0x2F6B1D), warnings = [];
   const items = parseRecipe(recipe, warnings);
@@ -162,7 +162,8 @@ export function buildLevel(recipe, seed = 1, base = {}) {
   const paths = routes.map(r => r.map(([px, py]) => [Math.round(px), Math.round(py)]));
   const polys = paths.map(p => curve(p, 10));
   checkClearance(polys, warnings);
-  if (placeSpots(polys, spots, deco, rng) < G.spotsMin) warnings.push('only ' + spots.length + ' Pin pads fit');
+  if (base.pads === 0) spots.length = 0;                          // a level without Pins (level 0)
+  else if (placeSpots(polys, spots, deco, rng) < G.spotsMin) warnings.push('only ' + spots.length + ' Pin pads fit');
   return {
     name: base.name || 'Custom Road', blurb: base.blurb || recipe, gen: true, recipe, seed,
     w: G.w, h: G.h, paths, spots, spotR: G.spotR, roadHalfWidth: G.roadHalfWidth, workshopR: G.workshopR,
@@ -260,28 +261,4 @@ export function randomRecipe(seed) {
     if (name === 'fork') forks++;
   }
   return items.join(', ');
-}
-
-// A CONFIG.levels entry -> the level to play: painted levels as they are, recipe levels built (and cached per recipe +
-// seed), random levels built from a fresh recipe for `seed` (the run's seed).
-const cache = new Map();
-// A random draw that comes out cramped (road too close to itself, too few pads) is redrawn from a derived seed, so a
-// given run seed still always gives the same level.
-export function resolveLevel(entry, seed) {
-  if (!entry.recipe && !entry.random) return entry;
-  const key = (entry.random ? '?' : entry.recipe) + '|' + (entry.random ? seed : entry.seed ?? 1) + '|' + entry.name;
-  if (!cache.has(key)) {
-    if (cache.size > 16) cache.clear();
-    let lv;
-    if (entry.random) {
-      for (let k = 0; k < 6; k++) {
-        const s = (seed + k * 7919) >>> 0;
-        lv = buildLevel(randomRecipe(s), s, entry);
-        if (!lv.warnings.length && lv.spots.length >= C.levelGen.spotsMin) break;
-      }
-    } else lv = buildLevel(entry.recipe, entry.seed ?? 1, entry);
-    if (lv.warnings.length) console.warn('levelGen "' + lv.recipe + '" seed ' + lv.seed + ':', lv.warnings.join('; '));
-    cache.set(key, lv);
-  }
-  return cache.get(key);
 }

@@ -1,17 +1,17 @@
 // Sound playback: every sound is a ZzFX parameter array from sfx.js, played through vendor/zzfx.js. No audio files.
-// Browsers keep audio silent until a user gesture: unlockAudio() is called from the PLAY button. Mute persists.
+// Browsers keep audio silent until a user gesture: unlockAudio() is called from the PLAY button. Mute is kept in the
+// save (settings.sound).
 import { zzfx, zzfxX } from '../vendor/zzfx.js';
 import * as SFX from './sfx.js';
+import { Save, persist } from './save.js';
 
-const MUTE_KEY = 'battleScissors.muted';
-let muted = false;
-try { muted = localStorage.getItem(MUTE_KEY) === '1'; } catch (e) { /* storage blocked */ }
+let muted = !Save.settings.sound;
 const lastPlayed = {};              // name -> ms timestamp, to stop one frame from stacking the same sound
 
 export const isMuted = () => muted;
 export function setMuted(m) {
   muted = m;
-  try { localStorage.setItem(MUTE_KEY, m ? '1' : '0'); } catch (e) { /* storage blocked */ }
+  Save.settings.sound = !m; persist();
 }
 export function unlockAudio() { if (zzfxX.state !== 'running') zzfxX.resume().catch(() => {}); }
 

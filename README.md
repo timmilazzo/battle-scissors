@@ -41,6 +41,16 @@ https://<user>.github.io/<repo>/?recipe=start left, s, fork pin, zigzag 2&seed=3
 
 Segments run top to bottom: `straight`, `bend left|right|center`, `s left|right`, `wave n`, `wiggle n`, `zigzag n`, `fork [wide|narrow] [pin]` (the road splits and each enemy picks a side; `pin` puts a Pin pad inside), plus `start left|right`. The seed varies the details. Locally, `tools/level-lab.html` previews recipes before you play them.
 
+## Buttons (the meta currency)
+
+Thread buys Pins inside a level and is gone when it ends. **Buttons** are what you keep. They are never converted into each other.
+
+- **Earned** only from performance and achievements, with no randomness: 10 / 15 / 25 for the first time you earn each star of a level; a score bonus of floor(score / 100) Buttons, capped at 10 per level (a replay pays only what beats your best bonus there); 14 one-time achievements (listed on the map's Trophies screen, locked ones included); and a chest per world (three-star every level in it: 100 Buttons and a cosmetic, contents shown up front).
+- **Spent** in the Shop (on the map): three upgrade tiers per pair of scissors (150 / 300 / 600), Sharpening (40, +50% snip damage for your next level, hold up to 3) and cosmetics (handle colours, blade glows, 100 each). Scissors, Pins and stars are never for sale.
+- **Total supply: 2,060 Buttons** (stars 650, achievements 980, score bonus 130, world chests 300). `node tools/buttonsupply.js` recomputes it from the game data.
+
+Nothing waits on a clock: no timers, energy, daily rewards or streaks.
+
 ## Playtest questions
 
 <!-- TODO: paste the playtest questions here. -->

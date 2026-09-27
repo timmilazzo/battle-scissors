@@ -2,14 +2,36 @@
 // weaponArt.js / render.js.
 import { CONFIG as C } from './config.js';
 import { view, DEG, segDistSq } from './core.js';
+import { Save } from './save.js';
 
 // ======================= current weapon =======================
-// weapon.def = the CONFIG.weapons entry in use. view.S (set by game.layout) maps its SVG units to CSS px.
+// weapon.def = the weapon in use as played: its CONFIG.weapons entry with the save's upgrades applied (weaponDef).
+// view.S (set by game.layout) maps its SVG units to CSS px. Call setWeapon again after an upgrade is bought.
 export const weapon = { id: '', def: null };
 
 export function setWeapon(id) {
   if (!C.weapons[id]) id = C.defaultWeapon;
-  weapon.id = id; weapon.def = C.weapons[id];
+  weapon.id = id; weapon.def = weaponDef(id);
+}
+
+// Upgrade tier 0..3 bought for weapon id (Save.upgrades; the shop is in shop.js, prices in CONFIG.meta).
+export const upgradeTier = id => Math.max(0, Math.min(3, Save.upgrades[id] | 0));
+// A weapon's stats at an upgrade tier (default: the tier bought): T1 reach, T2 close speed (opens faster), T3 its
+// signature stat (CONFIG.weapons[id].signature). A fresh object; CONFIG itself is never changed.
+export function weaponDef(id, tier = upgradeTier(id)) {
+  const M = C.meta, base = C.weapons[id], d = { ...base, tier };
+  if (tier >= 1) d.reachFrac *= 1 + M.reachUp;
+  if (tier >= 2) d.openMs /= 1 + M.speedUp;
+  if (tier >= 3) {
+    const k = 1 + M.signatureUp, a = 1 + M.allUp;
+    if (base.signature === 'angle') d.maxOpenDeg *= k;
+    else if (base.signature === 'damage') d.damageMult *= k;
+    else if (base.signature === 'crit') d.critMult *= k;
+    else if (base.signature === 'hold') d.holdSec *= k;
+    else if (base.signature === 'ring') d.ringScale *= k;
+    else if (base.signature === 'all') { d.reachFrac *= a; d.openMs /= a; d.maxOpenDeg *= a; d.damageMult *= a; }
+  }
+  return d;
 }
 
 // SVG units -> CSS px for a weapon at this screen size (view.S holds it for the current weapon; the title's scissors
@@ -30,7 +52,7 @@ export const spinReachPx = () => (weapon.def.spinLen || weapon.def.bladeLen) * v
 export const cut = { px: 0, py: 0, lx: 0, ly: 0, rx: 0, ry: 0, theta: 0, a: 0, L: 0, slide: false, ver: 0 };
 
 export function setCutZone(px, py, theta, spread) {
-  const a = spread * weapon.def.maxOpenDeg * DEG, L = bladeReachPx() * C.cutZoneScale;
+  const a = spread * weapon.def.maxOpenDeg * DEG, L = bladeReachPx() * C.cutZoneScale * (isSlide() ? weapon.def.ringScale || 1 : 1);
   cut.slide = isSlide();
   cut.px = px; cut.py = py;
   cut.lx = px + L * Math.sin(theta - a); cut.ly = py - L * Math.cos(theta - a);
