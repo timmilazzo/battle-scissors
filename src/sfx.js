@@ -45,6 +45,8 @@ export const roarKing = [1.1, 0.03, 70, 0.08, 0.7, 0.6, 3, 2.2, -1.2, 0, 0, 0, 0
 export const roarUnstitcher = [0.8, 0.02, 110, 0.1, 0.8, 0.6, 0, 1, 0, 0, 55, 0.35, 0, 0.4, 12, 0, 0.12, 0.7, 0.1, 0.3, 0];
 // A boss's seam splits open (snip now!): a bright rising two-tone chirp.
 export const seamOpen = [0.45, 0, 880, 0, 0.06, 0.12, 0, 1.5, 12, 0, 440, 0.05, 0, 0, 0, 0, 0, 0.6, 0.02];
+// The Brute King winds up for a charge (get ready!): a low rising growl with a heavy tremolo.
+export const kingWindup = [0.7, 0.05, 55, 0.25, 0.7, 0.2, 3, 1.5, 1.5, 0, 0, 0, 0, 0.6, 0, 0, 0, 0.8, 0.2, 0.6, -600];
 // The Brute King's armor drops after a charge: a metallic clatter falling in pitch.
 export const armorOff = [0.55, 0.05, 900, 0, 0.03, 0.25, 1, 1, -18, 0, 0, 0, 0.04, 0.5, 30, 0, 0, 0.5, 0.03];
 // Critter squish (silverfish): a wet crunch: a short noisy crack, low-passed, sagging in pitch with a squelchy wobble.

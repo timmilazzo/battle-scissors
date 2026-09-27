@@ -9,7 +9,7 @@ import { view, level, TAU, DEG } from './core.js';
 import { input, holdTouch } from './input.js';
 import { cut, weapon } from './scissors.js';
 import { live, visOpen, bladeTheta, towerReach, levelWaves, bossMode } from './game.js';
-import { buildEnemySprites, drawEnemySprite, drawEnemyGround, drawBruteArmor, drawSeam, drawArmorSeams } from './enemyArt.js';
+import { buildEnemySprites, drawEnemySprite, drawEnemyGround, drawBruteArmor, drawSeam, drawArmorSeams, drawChargeWarn } from './enemyArt.js';
 import { buildTowerSprites, drawTower, drawNeedle, towerUnit } from './towerArt.js';
 import { drawWeapon, rasterizeArt, setHandleTint } from './weaponArt.js';
 import { cosmeticColor } from './meta.js';
@@ -129,10 +129,14 @@ function drawEnemies(state) {
     if (!e.on) { flashFrames[i] = 0; continue; }
     const t = e.type, step = Math.sin(e.age * 7 + e.phase), rot = t.boss ? 0 : step * wad;
     drawEnemyGround(ctx, e.name, e.x, e.y, e.pinned && !e.walking ? 0 : 0.55 + 0.35 * Math.abs(step));
+    const shake = e.windup ? C.bossTremblePx * Math.sin(state.clock * 70) : 0;   // winding up for a charge: it trembles
+    if (shake) ctx.translate(shake, 0);
     drawEnemySprite(ctx, e.name, e.x, e.y, rot);
     if (e.armored) drawBruteArmor(ctx, e, rot);
+    if (shake) ctx.translate(-shake, 0);
     if (t.boss) {                                               // its rules, shown: the opening seam, or glowing seams while armor is down
       const m = bossMode(e);
+      if (e.windup) { const d = C.bosses[e.name]; drawChargeWarn(ctx, e, (e.chargeT - d.chargeEverySec + d.windupSec) / d.windupSec, state.clock); }
       if (m === 'seam') drawSeam(ctx, e, state.clock);
       else if (m === 'armor' && !e.armored && !e.charging) drawArmorSeams(ctx, e, state.clock);
       else if (m === 'swarm') {                                // a shimmering thread shield: only a crowded snip gets through
@@ -613,9 +617,10 @@ function drawBossBar(state) {
   if (!boss) return;
   const def = C.bosses[boss.name] || {}, name = (def.name || boss.name).toUpperCase();
   const x = 12, w = view.W - 24, y = 84, h = 14, f = Math.max(0, boss.hp / boss.maxHp);
-  ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'; ctx.font = HUD_FONT; ctx.lineJoin = 'round';
-  ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,0.65)'; ctx.strokeText(name, x + 4, y - 3);
-  ctx.fillStyle = '#ffe4aa'; ctx.fillText(name, x + 4, y - 3);
+  // the name sits at the right end, clear of the HUD's level/wave badge top-left
+  ctx.textAlign = 'right'; ctx.textBaseline = 'bottom'; ctx.font = HUD_FONT; ctx.lineJoin = 'round';
+  ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,0.65)'; ctx.strokeText(name, x + w - 4, y - 3);
+  ctx.fillStyle = '#ffe4aa'; ctx.fillText(name, x + w - 4, y - 3);
   ctx.fillStyle = '#2a170a'; ctx.fillRect(x - 3, y - 3, w + 6, h + 6);
   ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(x, y, w, h);
   ctx.fillStyle = boss.type.patch; ctx.fillRect(x, y, w * f, h);

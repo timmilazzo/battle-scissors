@@ -811,8 +811,8 @@ function clang(e, buzz = true) {
 //   'seam'  (Seam Ripper; Unstitcher phase 3): timing. Walks the road back and forth (bossTurns). Every seamEverySec its
 //           seam splits open for seamOpenSec: a snip then does openDmg, otherwise closedDmg. Expert (Pinch) controls
 //           must also close the blades across the seam for openDmg (expertOffSeamDmg if not).
-//   'armor' (Brute King; Unstitcher phase 2): timing + patience. Walks forward; every chargeEverySec it lunges chargePx
-//           along the road, then its armor is down for armorDownSec (seams glow): snips do armorDownMult x graded
+//   'armor' (Brute King; Unstitcher phase 2): timing + patience. Walks forward; every chargeEverySec it trembles for
+//           windupSec, then charges chargePx along the road over chargeSec, then its armor is down for armorDownSec (seams glow): snips do armorDownMult x graded
 //           damage; with the armor on they clang for 0 (needles too).
 //   'swarm' (Unstitcher phase 1): calls a Scrap swarm every swarmEverySec; only a snip with multiMin+ enemies in its
 //           zone hurts it (graded x multiMult).
@@ -866,7 +866,7 @@ function bossMove(e, dt, step) {
     const f = e.hp / e.maxHp, ph = f <= def.phaseAt[1] ? 2 : f <= def.phaseAt[0] ? 1 : 0;
     if (ph !== e.bossPhase) {                                     // next phase: roar, reset its clocks, armor on for phase 2
       e.bossPhase = ph; e.seamT = e.chargeT = e.swarmT = e.armorDownT = 0; e.seamOpen = e.seamWarn = false;
-      e.armored = ph === 1; tweens.cancel(e); e.charging = false;
+      e.armored = ph === 1; tweens.cancel(e); e.charging = e.windup = false;
       sfx(def.roar, 0); addShake(10, 12); sparks(e.x, e.y, 24, 3);
     }
   }
@@ -874,11 +874,21 @@ function bossMove(e, dt, step) {
   if (mode === 'armor') {
     if (e.armorDownT > 0) e.armorDownT = Math.max(0, e.armorDownT - dt);
     e.armored = e.armorDownT <= 0;
-    if (e.charging) return;                                       // the lunge tween owns u
+    if (e.charging) {
+      // the lunge: a burst of speed that swells and fades (sine-shaped) so it covers chargePx in chargeSec. chargeT
+      // counts the lunge's own time here.
+      const T = def.chargeSec, t = Math.min(T, e.chargeT + dt);
+      e.u = Math.min(1, e.u + def.chargePx / state.paths[e.route].len * (Math.cos(Math.PI * e.chargeT / T) - Math.cos(Math.PI * t / T)) / 2);
+      e.chargeT = t;
+      if (t >= T) { e.chargeT = 0; chargeDone(e); }
+      return;
+    }
     e.u += step;
-    if ((e.chargeT += dt) >= def.chargeEverySec) {
-      e.chargeT = 0; e.charging = true;
-      tween(e, { u: Math.min(1, e.u + def.chargePx / state.paths[e.route].len) }, def.chargeMs, easing.outCubic, chargeDone, e);
+    const wasWindup = e.windup;
+    e.windup = (e.chargeT += dt) >= def.chargeEverySec - def.windupSec;   // trembling: a lunge is coming
+    if (e.windup && !wasWindup) sfx('kingWindup', 0);
+    if (e.chargeT >= def.chargeEverySec) {
+      e.chargeT = 0; e.charging = true; e.windup = false;
       sfx('thump', 0); addShake(6, 10);
     }
     return;
@@ -1073,12 +1083,13 @@ const enemies = state.enemies;
 // pinned = a level-0 practice Scrap (stands still unless walking into the player's blades: walking, tutK = its place).
 // route = which of the level's paths it walks. gen = bumped on every spawn, so a needle aimed at an earlier occupant of
 // this pool slot knows its target is gone. Bosses: bossPhase (Unstitcher 0..2), seamT / seamOpen / seamWarn (the opening
-// seam), chargeT / charging / armorDownT (the lunge and the armor-down window after it), swarmT (Scrap swarm clock).
+// seam), chargeT / windup / charging / armorDownT (the tremble before a lunge, the lunge, and the armor-down window
+// after it), swarmT (Scrap swarm clock).
 // escortOf (+ escortGen, escortOff) = the Unstitcher a swarm Scrap keeps its place around (road progress offset).
 for (let i = 0; i < C.maxEnemies; i++) enemies.push({ on: false, type: null, name: '', x: 0, y: 0, px: 0, py: 0, ox: 0, oy: 0,
   u: 0, seg: 0, route: 0, gen: 0, speed: 0, r: 0, hp: 0, maxHp: 0, armored: false, slowed: false, slowT: 0, burning: false, burnLeft: 0, burnT: 0, leg: 0, seamA: 0, age: 0,
   pvx: 0, pvy: 0, phase: 0, hitT: 0, pulling: false, pinned: false, walking: false, tutK: 0, escortOf: null, escortGen: 0, escortOff: 0,
-  holdT: 0, bossPhase: 0, seamT: 0, seamOpen: false, seamWarn: false, chargeT: 0, charging: false, armorDownT: 0, swarmT: 0 });
+  holdT: 0, bossPhase: 0, seamT: 0, seamOpen: false, seamWarn: false, chargeT: 0, charging: false, windup: false, armorDownT: 0, swarmT: 0 });
 
 // Returns the enemy, or null if the pool is full (the schedule retries next frame).
 function spawnEnemy(name) {
@@ -1090,7 +1101,7 @@ function spawnEnemy(name) {
   e.armored = !!t.armor; e.slowed = false; e.slowT = 0; e.burning = false; e.burnLeft = 0; e.burnT = 0; e.leg = 0; e.seamA = rng.spawn() * TAU; e.age = 0;
   e.speed = 1 / t.traverseSec; e.u = 0; e.seg = 0; e.ox = 0; e.oy = 0; e.pvx = 0; e.pvy = 0; e.hitT = 0;
   e.pulling = false; e.pinned = false; e.walking = false; e.escortOf = null; e.holdT = 0; e.gen++;
-  e.bossPhase = 0; e.seamT = e.chargeT = e.armorDownT = e.swarmT = 0; e.seamOpen = e.seamWarn = e.charging = false;
+  e.bossPhase = 0; e.seamT = e.chargeT = e.armorDownT = e.swarmT = 0; e.seamOpen = e.seamWarn = e.charging = e.windup = false;
   e.phase = rng.spawn() * TAU;
   // a fork: pick a route at random (single-route levels draw nothing, so their seeded runs replay as before)
   const nr = state.paths.length;

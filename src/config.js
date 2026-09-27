@@ -8,7 +8,7 @@
 export const FEEDBACK_URL = 'mailto:tim@saltandwisdom.com';
 
 // Shown small at the bottom of Settings and recorded in every run report. Bump it with each published change.
-export const VERSION = '0.2.4';
+export const VERSION = '0.2.5';
 
 export const CONFIG = {
   // --- pose / control mapping ---
@@ -143,7 +143,8 @@ export const CONFIG = {
   // name + taunt = the intro card (two short lines, auto-dismissed after bossIntroMs); roar = its sfx.js entry.
   bossIntroMs: 3000,         // the intro card shows this long; the boss walks on as it closes
   bossTurns: [0.8, 0.2],     // seam bosses walk forward to 80% of the road, back to 20%, then on to the workshop
-  seamPeriodSec: 2,          // the seam's spot goes once around the body in this long (where Expert blades must cross it)
+  bossTremblePx: 3,          // how far an armored boss shakes side to side while winding up for a charge
+  seamPeriodSec: 2,         // the seam's spot goes once around the body in this long (where Expert blades must cross it)
   seamArcDeg: 22,            // half-width of the seam arc
   seamHitTolPx: 12,          // Expert: the closed-blade line must pass this close to the seam to count as over it
   bosses: {
@@ -152,17 +153,19 @@ export const CONFIG = {
     // cross the seam does expertOffSeamDmg instead.
     seamRipper: { name: 'The Seam Ripper', taunt: 'I pull every stitch apart!', roar: 'roarRipper',
                   seamEverySec: 3, seamOpenSec: 1, seamWarnSec: 0.4, openDmg: 5, closedDmg: 1, expertOffSeamDmg: 2 },
-    // timing + patience: armored; every chargeEverySec it lunges chargePx along the road over chargeMs, then its armor
-    // is down for armorDownSec (its seams glow): snips then do armorDownMult x normal damage. Ice and SHRED don't slow it.
-    bruteKing:  { name: 'The Brute King', taunt: 'My armor never breaks!', roar: 'roarKing',
-                  chargeEverySec: 6, chargePx: 200, chargeMs: 450, armorDownSec: 1, armorDownMult: 3 },
+    // timing + patience: armored; every chargeEverySec it charges chargePx along the road over chargeSec (a burst of
+    // speed that swells and fades; the next chargeEverySec starts after it), trembling for
+    // windupSec before, so the player can get ready), then its armor is down for armorDownSec (its seams glow): snips
+    // then do armorDownMult x normal damage. Ice and SHRED don't slow it. The taunt tells the player the rule.
+    bruteKing:  { name: 'The Brute King', taunt: 'My armor only drops after I charge!', roar: 'roarKing',
+                  chargeEverySec: 6, chargePx: 200, chargeSec: 1.4, windupSec: 1.2, armorDownSec: 2.2, armorDownMult: 3 },
     // three phases, switching at phaseAt (hp fractions). 1: every swarmEverySec calls swarmSize Scraps that escort it
     // (swarmGapPx apart along the road, half ahead and half behind), and is
     // only hurt by a snip with multiMin+ enemies in its zone (x multiMult). 2: armored and charging like the Brute King.
     // 3: an opening seam like the Seam Ripper, faster.
     unstitcher: { name: 'The Unstitcher', taunt: 'Your whole quilt comes undone!', roar: 'roarUnstitcher',
                   phaseAt: [0.66, 0.33], swarmEverySec: 5, swarmSize: 4, swarmGapPx: 42, multiMin: 3, multiMult: 2,
-                  chargeEverySec: 5, chargePx: 180, chargeMs: 400, armorDownSec: 1, armorDownMult: 3,
+                  chargeEverySec: 5, chargePx: 180, chargeSec: 1.2, windupSec: 1, armorDownSec: 1.8, armorDownMult: 3,
                   seamEverySec: 2, seamOpenSec: 0.8, seamWarnSec: 0.3, openDmg: 5, closedDmg: 1, expertOffSeamDmg: 2 },
   },
 

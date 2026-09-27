@@ -440,6 +440,15 @@ export function drawSeam(ctx, e, clock) {
 }
 
 // Armor down (Brute King after a charge, the Unstitcher's phase 2): its seams glow hot: hit it now.
+// Wind-up before a charge (f = 0..1 through it): a red ring on the ground tightening onto the boss; the charge comes as
+// it closes.
+export function drawChargeWarn(ctx, e, f, clock) {
+  const pulse = 0.6 + 0.4 * Math.sin(clock * 18);
+  ctx.beginPath(); ctx.arc(e.x, e.y, e.r * (1.9 - 0.75 * f), 0, TAU);
+  ctx.globalAlpha = (0.35 + 0.55 * f) * pulse; ctx.strokeStyle = '#ff4a3d'; ctx.lineWidth = Math.max(3, e.r * 0.1); ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+
 export function drawArmorSeams(ctx, e, clock) {
   const r = e.r, pulse = 0.7 + 0.3 * Math.sin(clock * 20);
   ctx.save();

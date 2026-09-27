@@ -110,6 +110,8 @@
   .hud-wave[hidden] { display: none; }
   .hud-wave { display: flex; flex-direction: column; align-items: center; padding: 5px 13px 7px; border-radius: 14px; line-height: 1; }
   .hud-wave small { font-size: 10px; letter-spacing: 2px; color: #cfe0ff; }
+  .hud-wave .hud-level { font-size: 12px; letter-spacing: 1px; color: #fff1c2; margin-bottom: 3px; }   /* the map level's number, above WAVE */
+  .hud-wave .hud-level[hidden] { display: none; }
   .hud-wave b { font-size: 22px; letter-spacing: 0.5px; font-variant-numeric: tabular-nums; }
   .hud-hearts { display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px 0 10px; border-radius: 999px; outline-offset: -6px; }
   .hud-hearts b { font-size: 19px; font-variant-numeric: tabular-nums; min-width: 1.2em; }
@@ -591,7 +593,7 @@
   </button>
 </div>
 <div id="hud" hidden>
-  <div class="felt blue hud-wave"><small>WAVE</small><b id="hud-wave">1/6</b></div>
+  <div class="felt blue hud-wave"><small class="hud-level" id="hud-level" hidden>LEVEL 1</small><small>WAVE</small><b id="hud-wave">1/6</b></div>
   <div class="felt dark hud-hearts" id="hud-hearts" aria-label="Workshop health"><span class="heart"></span><b id="hud-hp">10</b></div>
   <div class="felt purple hud-sharp" id="hud-sharp" hidden title="Sharpened: extra snip damage this level">SHARP</div>
 </div>
