@@ -266,6 +266,33 @@
   .art-btn:hover { filter: brightness(1.07); }
   .art-btn:active { transform: translateY(3%) scale(0.97); filter: brightness(0.9); }
   .art-btn:focus-visible { outline: 3px solid #ffe27a; outline-offset: 3px; }
+  /* MAP: the level map art (CONFIG.map), full height like the title plate; a transparent button over each numbered patch
+     (levelMap.js sets --x/--y/--w/--h in art px). Cleared = gold check, next = a pulsing glow, locked = dimmed. */
+  #map { padding: 0; gap: 0; overflow: hidden; background: #1c1030; }
+  #map::before { content: ""; position: absolute; inset: -40px; background: var(--plate) center / cover; filter: blur(24px) brightness(0.5); }
+  .map-art { position: relative; flex: none; height: 100%; aspect-ratio: 936 / 1681; background: center / 100% 100% no-repeat; }
+  .map-node {
+    position: absolute; padding: 0; margin: 0; border: 0; background: none; cursor: pointer; border-radius: 38%;
+    left: calc(var(--x) / var(--cw) * 100%); top: calc(var(--y) / var(--ch) * 100%);
+    width: calc(var(--w) / var(--cw) * 100%); height: calc(var(--h) / var(--ch) * 100%);
+    -webkit-tap-highlight-color: transparent; transition: transform 80ms ease-out, filter 80ms;
+  }
+  .map-node:hover { filter: brightness(1.15); background: rgba(255, 240, 190, 0.12); }
+  .map-node:active { transform: scale(0.94); }
+  .map-node:focus-visible { outline: 3px solid #ffe27a; outline-offset: 2px; }
+  .map-node.next { animation: mnext 1.2s ease-in-out infinite; }
+  @keyframes mnext { 50% { box-shadow: 0 0 0 3px rgba(255, 226, 122, 0.9), 0 0 26px 6px rgba(255, 200, 60, 0.85); } }
+  .map-node .check, .map-node .lock { display: none; position: absolute; right: -6%; top: -18%; width: 30%; aspect-ratio: 1; border-radius: 50%;
+    align-items: center; justify-content: center; font: 400 clamp(12px, 2.6vh, 22px) var(--ui-font); }
+  .map-node.cleared .check { display: flex; color: #2a170a; background: radial-gradient(circle at 35% 30%, #fff6c8, #ffc93d); border: 2px solid #6a3a04; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5); }
+  .map-node.locked { background: rgba(12, 6, 24, 0.55); }
+  .map-node.locked .lock { display: flex; right: 35%; top: 20%; background: #2a170a; border: 2px solid #c99a3e; }
+  .map-node.locked .lock::before { content: ""; width: 38%; height: 30%; margin-top: 18%; border-radius: 2px; background: #ffd23f; box-shadow: 0 -0.45em 0 -0.12em transparent; }
+  .map-bar { position: absolute; left: 50%; bottom: calc(12px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 1;
+    display: flex; gap: 10px; align-items: center; }
+  .map-bar .felt-btn { min-width: 0; width: auto; font-size: clamp(16px, 4.5vw, 22px); padding: 11px 18px 12px; }
+  .map-bar .felt-btn.small { font-size: clamp(14px, 3.8vw, 18px); }
+  .map-bar [hidden] { display: none; }
   .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .toast {
     position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); z-index: 40; transform: translateX(-50%);
@@ -355,10 +382,10 @@
   #select { overflow-y: auto; justify-content: safe center; }
   #select .card { width: min(760px, 100%); gap: 12px; }
   #select .card h2 { font-size: clamp(30px, 8.6vw, 50px); margin-top: -58px; }
-  .weapon-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; width: 100%; }
-  @media (min-width: 640px) { .weapon-cards { grid-template-columns: repeat(3, 1fr); } }
+  .weapon-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; width: 100%; }
+  @media (min-width: 640px) { .weapon-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
   .weapon-card {
-    display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 10px 12px; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 10px 12px; cursor: pointer; min-width: 0;
     font: 600 12px "Trebuchet MS", system-ui, sans-serif; color: #fff1c2; text-align: center; border-radius: 18px; touch-action: manipulation;
     background: var(--felt-fuzz), rgba(30, 14, 4, 0.45); border: 3px solid rgba(42, 23, 10, 0.9);
     box-shadow: inset 0 3px 7px rgba(0, 0, 0, 0.5), 0 1px 0 rgba(255, 255, 255, 0.1);
@@ -377,12 +404,7 @@
   .wc-val { font: 400 14px var(--ui-font); color: #ffd23f; font-variant-numeric: tabular-nums; }
   .wc-bar { height: 9px; border-radius: 5px; background: rgba(0, 0, 0, 0.5); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.6); overflow: hidden; }
   .wc-bar > span { display: block; height: 100%; border-radius: 5px; background: linear-gradient(#b8f07a, #5fbf3a); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4); }
-  /* level picker (src/levelSelect.js): the same sunken slots, laid out as a row: plate crop, then name + blurb */
-  .level-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; width: 100%; }
-  .level-card { flex-direction: row; align-items: center; gap: 10px; padding: 8px 10px; text-align: left; }
-  .level-card img { flex: none; width: 58px; height: 72px; aspect-ratio: auto; object-fit: cover; object-position: 50% 45%; border-radius: 10px; border: 2px solid #2a170a; }
-  .lc-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-  .level-card .wc-blurb { min-height: 0; }
+  .select-level { margin: -4px 0 0; font: 400 19px/1.2 var(--ui-font); letter-spacing: 0.4px; text-align: center; color: #ffd23f; text-shadow: 0 2px 0 #3a1d08, 1px 0 0 #3a1d08, -1px 0 0 #3a1d08; }
   .select-actions { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; width: 100%; }
   .card .felt-btn.back { font-size: clamp(20px, 5.5vw, 26px); }
   /* settings: the control-mode options reuse the weapon card's sunken slot and gold "chosen" rim */
@@ -473,12 +495,19 @@
 </div>
 <div id="toast" class="toast" hidden></div>
 
+<div id="map" class="screen" hidden>
+  <div id="map-art" class="map-art" role="group" aria-label="Level map"></div>
+  <div class="map-bar">
+    <button id="map-back" class="felt-btn back" type="button">BACK</button>
+    <button id="map-random" class="felt-btn small" type="button">Random Quilt</button>
+    <button id="map-custom" class="felt-btn small" type="button" hidden>Custom Road</button>
+  </div>
+</div>
+
 <div id="select" class="screen" hidden>
   <div class="card">
     <h2 class="blue" data-text="CHOOSE YOUR SHEARS">CHOOSE YOUR SHEARS</h2>
-    <div class="set-label">Level</div>
-    <div id="level-cards" class="level-cards" role="radiogroup" aria-label="Level"></div>
-    <div class="set-label">Shears</div>
+    <p id="select-level" class="select-level"></p>
     <div id="weapon-cards" class="weapon-cards"></div>
     <div class="select-actions">
       <button id="select-back" class="felt-btn back" type="button">BACK</button>
@@ -565,7 +594,7 @@
     </dl>
     <button id="next" class="felt-btn" type="button" hidden><span class="tri"></span>NEXT LEVEL</button>
     <button id="again" class="felt-btn" type="button"><span class="tri"></span>PLAY AGAIN</button>
-    <button id="over-select" class="felt-btn small" type="button">Change level or shears</button>
+    <button id="over-select" class="felt-btn small" type="button">Level map</button>
     <div class="over-actions">
       <button class="felt-btn small" type="button" data-copy-report>Copy run report</button>
       <button class="felt-btn small" type="button" data-send-feedback>Send feedback</button>

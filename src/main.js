@@ -2,7 +2,7 @@
 // coach, pause, mute, run report) to the game, size the canvas, load weapon art, then run the loop: update then draw every frame.
 import { CONFIG as C, FEEDBACK_URL, VERSION } from './config.js';
 import { input, initInput, setControls } from './input.js';
-import { state, gameHooks, goTitle, goSelect, goSettings, startGame, selectWeapon, setLevel, nextLevelId, layout, update, lastReport,
+import { state, gameHooks, goTitle, goMap, goSelect, goSettings, startGame, selectWeapon, setLevel, setLevelHook, nextLevelId, layout, update, lastReport,
   tutSkip, tutSkipAll, setPaused, togglePause, reportNow } from './game.js';
 import { weapon, setWeapon } from './scissors.js';
 import { view } from './core.js';
@@ -10,7 +10,8 @@ import { draw, sizeCanvas, prerender } from './render.js';
 import { art, preloadWeapons, rasterizeArt } from './weaponArt.js';
 import { applySavedOverrides, initDebug } from './debug.js';
 import { savedWeapon, initWeaponSelect } from './weaponSelect.js';
-import { savedLevel, initLevelSelect, select as selectLevelCard } from './levelSelect.js';
+import { savedLevel, rememberLevel, levelLabel } from './levelSelect.js';
+import { initLevelMap, refreshLevelMap } from './levelMap.js';
 import { isMuted, setMuted, unlockAudio, sfx } from './audio.js';
 import { loadRuns, copyText, downloadJson } from './runlog.js';
 import { initActionBar, refreshActionBar, measureActionBar, buildSpotButtons } from './actionBar.js';
@@ -39,7 +40,7 @@ function showToast(text) {
 const on = (id, fn) => document.getElementById(id).addEventListener('click', fn);
 // Every menu button is a user gesture, so each one also unlocks audio (browsers keep it suspended until then).
 const play = () => { unlockAudio(); toast.hidden = true; startGame(); };
-on('play', () => { unlockAudio(); toast.hidden = true; goSelect(); });
+on('play', () => { unlockAudio(); toast.hidden = true; openMap(); });
 on('how', () => { unlockAudio(); toast.hidden = true; startGame({ tutorial: true }); });
 on('again', play);
 // Settings (title's gear icon): touch control mode (input.js remembers it) and sound.
@@ -50,13 +51,19 @@ const ctlBtns = document.querySelectorAll('[data-controls]');
 function showControls() { for (const b of ctlBtns) b.setAttribute('aria-checked', String(b.dataset.controls === input.controls)); }
 for (const b of ctlBtns) b.addEventListener('click', () => { setControls(b.dataset.controls); showControls(); });
 showControls();
-initWeaponSelect({ onPick: id => { selectWeapon(id); rasterizeArt(); }, onStart: play, onBack: goTitle });
+initWeaponSelect({ onPick: id => { selectWeapon(id); rasterizeArt(); }, onStart: play, onBack: () => openMap() });
 // Level picker (same screen): switch the plate, road(s) and Pin spots, then re-run the resize chain for the new plate.
 function switchLevel(id) { setLevel(id); buildSpotButtons(); resize(); }
-initLevelSelect({ current: view.levelId, onPick: switchLevel });
-// Win card: NEXT LEVEL plays the following level with the same weapon; "Change level or shears" opens the select screen.
-on('next', () => { const id = nextLevelId(); if (!id) return; selectLevelCard(id); switchLevel(id); play(); });
-on('over-select', () => { unlockAudio(); toast.hidden = true; goSelect(); });
+setLevelHook(() => { buildSpotButtons(); resize(); });            // a random level's new road at the start of a run
+// Level map (PLAY on the title): a level opens the shears screen (named there); BACK returns to the title.
+const selectLevel = document.getElementById('select-level');
+function chooseLevel(id) { rememberLevel(id); if (id !== view.levelId || C.levels[id].random) switchLevel(id); selectLevel.textContent = levelLabel(id); goSelect(); }
+function openMap() { refreshLevelMap(); goMap(); }
+initLevelMap({ toast: showToast, onPick: chooseLevel, onBack: goTitle });
+selectLevel.textContent = levelLabel(view.levelId);
+// Win card: NEXT LEVEL plays the next level on the map with the same weapon; "Level map" opens the map.
+on('next', () => { const id = nextLevelId(); if (!id) return; rememberLevel(id); switchLevel(id); selectLevel.textContent = levelLabel(id); play(); });
+on('over-select', () => { unlockAudio(); toast.hidden = true; openMap(); });
 // Pressing anywhere on the title snaps its scissors shut (render.js) with a snip; it's also a gesture that unlocks audio.
 document.getElementById('title').addEventListener('pointerdown', () => { unlockAudio(); sfx('snip'); });
 for (const b of document.querySelectorAll('[data-soon]')) b.addEventListener('click', () => showToast(b.dataset.soon + ': coming soon'));

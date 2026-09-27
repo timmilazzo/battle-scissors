@@ -8,7 +8,7 @@
 export const FEEDBACK_URL = 'mailto:tim@saltandwisdom.com';
 
 // Shown small at the bottom of Settings and recorded in every run report. Bump it with each published change.
-export const VERSION = '0.1.5.1';
+export const VERSION = '0.1.7';
 
 export const CONFIG = {
   // --- pose / control mapping ---
@@ -171,8 +171,67 @@ export const CONFIG = {
       roadHalfWidth: 45,     // the fork's arms are a little narrower than the Meadow road
       workshopR: 112,        // heart pad radius
     },
+    // Generated levels (src/levelGen.js builds the road and pads from `recipe`, src/levelArt.js paints the quilt plate).
+    // seed varies the details (unset sides, pad picks, decoration). random: a new recipe from each run's seed.
+    hem: { name: 'Zigzag Hem', blurb: 'Switchbacks, then a fork.', recipe: 'zigzag 2, fork pin', seed: 3 },
+    running: { name: 'Running Stitch', blurb: 'Gentle waves.', recipe: 'wave 3, s', seed: 4 },
+    double: { name: 'Double Seam', blurb: 'A fork, then an S.', recipe: 'fork, s right', seed: 5 },
+    blanket: { name: 'Blanket Stitch', blurb: 'Three switchbacks.', recipe: 'start left, zigzag 3', seed: 6 },
+    loop: { name: 'Button Loop', blurb: 'A Pin pad inside the fork.', recipe: 'bend right, fork pin', seed: 7 },
+    hemline: { name: 'Hemline', blurb: 'An S into switchbacks.', recipe: 's left, zigzag 2, bend center', seed: 8 },
+    cross: { name: 'Crossroads', blurb: 'Two forks: four ways down.', recipe: 'fork wide, fork narrow', seed: 9 },
+    bias: { name: 'Bias Tape', blurb: 'Waves into a Pin fork.', recipe: 'start right, wave 2, fork pin', seed: 10 },
+    selvage: { name: 'Selvage', blurb: 'Switchbacks, then a fork.', recipe: 'zigzag 2, fork', seed: 11 },
+    whip: { name: 'Whipstitch', blurb: 'Wiggles into a wide fork.', recipe: 'wiggle 5, fork wide', seed: 12 },
+    lair: { name: 'Ripper’s Lair', blurb: 'The last stretch.', recipe: 's left, fork pin, zigzag 1', seed: 13 },
+    random: { name: 'Random Quilt', blurb: 'A new road every run.', random: true },
+  },
+  // The level map (between the title and the shears): its art and a numbered patch per level, in play order.
+  // nodes = [level id, patch centre x, y] in the art's pixels; hitW/hitH = each patch's tap area. locks: true = a level
+  // opens only once the one before it is cleared (false keeps every level open for playtesting).
+  map: {
+    img: 'assets/level-map.webp', w: 936, h: 1681,
+    nodes: [['meadow', 468, 1330], ['fork', 486, 1196], ['hem', 579, 1076], ['running', 410, 978], ['double', 466, 858],
+      ['blanket', 597, 770], ['loop', 494, 666], ['hemline', 354, 574], ['cross', 488, 478], ['bias', 586, 390],
+      ['selvage', 422, 300], ['whip', 527, 212], ['lair', 540, 96]],
+    hitW: 170, hitH: 110,    // tap area per patch (art px)
+    locks: false,            // lock levels until the one before is cleared
   },
   defaultLevel: 'meadow',    // level picked on first launch (afterwards the last choice is remembered)
+
+  // --- level generator (src/levelGen.js): recipe -> road, Pin pads, workshop; all in plate units (941 x 1672) ---
+  // Segments stack top to bottom between startY and endY; each gets its minimum height plus a share of what's left
+  // (by weight). The road enters at the top (startX) and ends on the heart pad (heartX, heartY).
+  levelGen: {
+    w: 941, h: 1672,         // plate size (same as the painted plates)
+    startX: 470,             // where the road enters at the top (a recipe's "start left/right" moves it)
+    startY: 50,              // segments start this far down
+    endY: 1280,              // ...and end here; the road then turns into the heart pad
+    heartX: 470, heartY: 1470, // the workshop (kept above the bottom action bar)
+    workshopR: 112,          // heart pad radius
+    xMin: 175, xMax: 766,    // road centreline stays in this band so narrow phones (which crop the sides) still show it
+    roadHalf: 56,            // painted road half-width (beige part)
+    roadBorder: 10,          // painted brown edge outside that
+    roadHalfWidth: 45,       // gameplay: how far a shove can move an enemy off the centreline
+    roadGap: 30,             // at least this much denim between two stretches of road that aren't joined
+    sAmp: 200,               // "s": how far each swing goes from the middle
+    waveAmp: 160,            // "wave": swing size
+    wiggleAmp: 80,           // "wiggle": swing size
+    zigInset: 70,            // "zigzag": rows stop this far short of the band's edge (the U-turns use the rest)
+    zigRowMin: 205,          // "zigzag": minimum height per row (road width + gap)
+    forkHalfW: 280,          // "fork": arm distance from the middle ("wide" 305, "narrow" 220)
+    forkLead: 110,           // "fork": straight bit before it splits
+    spotR: 84,               // Pin pad radius
+    spotGap: 22,             // denim between a pad and the road edge
+    spotSpacing: 60,         // extra space between two pads
+    spotsMin: 3, spotsMax: 5, // how many pads...
+    spotEveryLen: 650,       // ...about one per this much road
+    spotXMin: 180, spotXMax: 761, // pad centres stay in this band (narrow phones crop the sides)
+    spotYMin: 250, spotYMax: 1330, // pad centres stay out of the HUD row and off the action bar
+    maxRoutes: 4,            // at most this many routes (each fork doubles them)
+    buttons: 9,              // decorative buttons scattered on the free denim
+    patches: 7,              // fabric patches sewn under the road
+  },
   pathSmoothSteps: 16,       // Catmull-Rom samples per path segment (road smoothness)
   workshopHp: 10,            // workshop hit points; an enemy that arrives deals its size tier
   workshopHitMs: 400,        // red flash on the workshop when it takes damage

@@ -10,10 +10,12 @@ import { tween, tweens, makeTweens, easing } from './tween.js';
 import { makeRng } from '../vendor/mulberry32.js';
 import { sfx, sfxSnip, sfxSequence } from './audio.js';
 import { saveRun } from './runlog.js';
+import { resolveLevel } from './levelGen.js';
+import { markCleared } from './levelSelect.js';
 import { KNOB_KEYS } from './debug.js';
 
 // ======================= state =======================
-// mode: 'TITLE' | 'SELECT' | 'SETTINGS' | 'TUTORIAL' | 'PLAYING' | 'WAVE_CLEAR' | 'GAME_OVER'. modeT = seconds in the current mode
+// mode: 'TITLE' | 'MAP' | 'SELECT' | 'SETTINGS' | 'TUTORIAL' | 'PLAYING' | 'WAVE_CLEAR' | 'GAME_OVER'. modeT = seconds in the current mode
 // (wave clock while PLAYING). fx = effect timers/amplitudes read by the renderer. Entity pools hold plain objects
 // with an `on` flag. events = a small ring of one-off happenings for the renderer (thread pickups, placements).
 export const state = {
@@ -61,7 +63,7 @@ function seedRun(seed) {
 }
 
 const els = {
-  title: document.getElementById('title'), select: document.getElementById('select'), settings: document.getElementById('settings'), over: document.getElementById('over'),
+  title: document.getElementById('title'), map: document.getElementById('map'), select: document.getElementById('select'), settings: document.getElementById('settings'), over: document.getElementById('over'),
   reset: document.getElementById('reset'), tray: document.getElementById('tray'), coach: document.getElementById('coach'),
   coachText: document.getElementById('coach-text'), mute: document.getElementById('mute'), pauseBtn: document.getElementById('pause'),
   pause: document.getElementById('pause-screen'), pinsIntro: document.getElementById('pins-intro'), pauseWave: document.getElementById('pause-wave'), pauseScore: document.getElementById('pause-score'),
@@ -73,6 +75,7 @@ const els = {
 function showScreens() {
   const m = state.mode;
   els.title.hidden = m !== 'TITLE';
+  els.map.hidden = m !== 'MAP';
   els.select.hidden = m !== 'SELECT';
   els.settings.hidden = m !== 'SETTINGS';
   els.over.hidden = m !== 'GAME_OVER';
@@ -98,10 +101,11 @@ function placeLevel() { const lv = level(); view.L = view.H / lv.h; view.LX = (v
 export const levelX = x => view.LX + x * view.L, levelY = y => y * view.L;
 
 // Switch levels (select screen): one tower slot per spot of the new level. The caller then re-runs the resize chain
-// (layout, prerender, measureActionBar) and rebuilds the action bar's + buttons.
-export function setLevel(id) {
+// (layout, prerender, measureActionBar) and rebuilds the action bar's + buttons. A generated level is built here
+// (src/levelGen.js); a random one from `seed` (startGame passes the run's seed and calls onLevelBuilt).
+export function setLevel(id, seed = Date.now()) {
   if (!C.levels[id]) id = C.defaultLevel;
-  view.levelId = id;
+  view.levelId = id; view.levelDef = resolveLevel(C.levels[id], seed);
   towers.length = 0;
   for (let i = 0; i < level().spots.length; i++) {
     towers.push({ on: false, type: '', x: 0, y: 0, fx: 0, fy: 0, fu: [], timer: 0, pulse: 0, aim: -Math.PI / 2, kick: 0 });
@@ -182,6 +186,7 @@ function clearWorld() {
 }
 
 export function goTitle() { clearWorld(); state.mode = 'TITLE'; showScreens(); }
+export function goMap() { clearWorld(); state.mode = 'MAP'; showScreens(); }
 export function goSelect() { clearWorld(); state.mode = 'SELECT'; showScreens(); }
 export function goSettings() { clearWorld(); state.mode = 'SETTINGS'; showScreens(); }
 
@@ -189,9 +194,14 @@ const ONBOARDED_KEY = 'battleScissors.onboarded';
 function onboarded() { try { return localStorage.getItem(ONBOARDED_KEY) === '1'; } catch (e) { return true; } }
 
 // Start a run. The coach (onboarding) runs first on the very first play, or when asked (title's "How to play").
+// main.js sets this: after a random level is rebuilt for a new run, re-run the resize chain and the + buttons.
+let onLevelBuilt = () => {};
+export function setLevelHook(fn) { onLevelBuilt = fn; }
+
 export function startGame(opts = {}) {
   clearWorld();
   seedRun(urlSeed !== null ? urlSeed : Date.now());
+  if (C.levels[view.levelId].random) { setLevel(view.levelId, state.seed); onLevelBuilt(); }   // a new road every run
   resetRun();
   if (opts.tutorial || !onboarded()) { state.mode = 'TUTORIAL'; state.wave = 0; tutEnter(0); showScreens(); return; }
   beginWave(1);
@@ -219,8 +229,11 @@ function beginWave(n) {
   state.wave = n; state.mode = 'PLAYING'; state.modeT = 0; state.bannerT = 1;
 }
 
-// The level after the current one in CONFIG.levels order (offered on the win card), or '' after the last.
-export function nextLevelId() { const ids = Object.keys(C.levels); return ids[ids.indexOf(view.levelId) + 1] || ''; }
+// The level after the current one on the level map (offered on the win card), or '' after the last / off the map.
+export function nextLevelId() {
+  const ids = C.map.nodes.map(n => n[0]), i = ids.indexOf(view.levelId);
+  return i >= 0 ? ids[i + 1] || '' : '';
+}
 
 export let lastReport = null;
 function endGame(won) {
@@ -230,6 +243,7 @@ function endGame(won) {
   els.overTitle.dataset.text = els.overTitle.textContent;       // the felt heading's outline layer (index.html .card h2)
   els.overTitle.classList.toggle('win', won); els.overTitle.classList.toggle('lose', !won);
   els.overLevel.textContent = level().name;
+  if (won) markCleared(view.levelId);
   const next = nextLevelId();
   els.next.hidden = !(won && next);
   els.overScore.textContent = String(state.score);
@@ -248,11 +262,12 @@ function buildReport(inProgress = false) {
   const s = state.stats, r = state.run, cfg = {};
   for (const k of KNOB_KEYS) cfg[k] = C[k];
   return {
-    version: VERSION, seed: state.seed, level: view.levelId, weapon: weapon.id, won: state.won, wavesReached: state.wave, score: state.score,
+    version: VERSION, seed: state.seed, level: view.levelId, ...(level().gen ? { recipe: level().recipe } : {}), weapon: weapon.id, won: state.won, wavesReached: state.wave, score: state.score,
     snips: s.snips, kills: s.kills, accuracy: s.snips ? +(s.kills / s.snips).toFixed(3) : 0, multiSnips: r.multiSnips,
     towers: { ...r.towers }, specialUses: r.specials, deathsAtWorkshop: r.leaks,
     durationSec: Math.round((Date.now() - r.t0) / 1000), device: navigator.userAgent, config: cfg,
-    replay: location.origin + location.pathname + '?seed=' + state.seed + '&level=' + view.levelId, endedAt: new Date().toISOString(),
+    replay: location.origin + location.pathname + '?seed=' + state.seed + '&level=' + view.levelId +
+      (view.levelId === 'custom' ? '&recipe=' + encodeURIComponent(level().recipe) : ''), endedAt: new Date().toISOString(),
     ...(inProgress ? { inProgress: true } : {}),
   };
 }

@@ -12,6 +12,7 @@ import { live, visOpen, bladeTheta, towerReach } from './game.js';
 import { buildEnemySprites, drawEnemySprite, drawEnemyGround, drawBruteArmor, drawSeam } from './enemyArt.js';
 import { buildTowerSprites, drawTower, drawNeedle, towerUnit } from './towerArt.js';
 import { drawWeapon, rasterizeArt } from './weaponArt.js';
+import { plateFor } from './levelArt.js';
 import { makeTweens, easing } from './tween.js';
 
 const ctx = view.ctx;
@@ -53,26 +54,27 @@ export function prerender() {
   if (C.titleWeapon) rasterizeArt(C.titleWeapon);
 }
 
-// Static backdrop, pre-rendered on resize: the painted level plate (road, Pin spots and the heart-pad workshop are
-// part of the art), full height and centred. Wider screens get the plate blurred and darkened as side bars; narrower
+// Static backdrop, pre-rendered on resize: the level plate (road, Pin spots and the heart-pad workshop are part of the
+// art: a painted image, or for a generated level the plate levelArt.js paints), full height and centred. Wider screens get the plate blurred and darkened as side bars; narrower
 // ones crop its sides. Until the plate loads, a plain felt green.
 const bgCanvas = document.createElement('canvas');
 const plate = new Image();
 plate.onload = () => { if (view.W > 0) renderBackground(); };
 function renderBackground() {
-  const lv = level();
-  if (plate.getAttribute('src') !== lv.bg) plate.src = lv.bg;       // a level switch: onload redraws once it arrives
+  const lv = level(), gen = lv.gen ? plateFor(lv, () => { if (view.W > 0) renderBackground(); }) : null;
+  if (!lv.gen && plate.getAttribute('src') !== lv.bg) plate.src = lv.bg;   // a level switch: onload redraws once it arrives
+  const img = lv.gen ? gen : plate;
   const W = view.W, H = view.H, dpr = view.dpr, L = view.L, LX = view.LX, pw = lv.w * L, ph = lv.h * L;
   bgCanvas.width = Math.max(1, Math.round(W * dpr)); bgCanvas.height = Math.max(1, Math.round(H * dpr));
   const g = bgCanvas.getContext('2d');
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
   g.fillStyle = '#2f5a1c'; g.fillRect(0, 0, W, H);
-  if (!plate.complete || !plate.naturalWidth || plate.getAttribute('src') !== lv.bg) return;
+  if (lv.gen ? !gen : !plate.complete || !plate.naturalWidth || plate.getAttribute('src') !== lv.bg) return;
   if (LX > 0) {                                                  // side bars: the plate stretched to cover, blurred
     const cover = Math.max(W / lv.w, H / lv.h), cw = lv.w * cover, ch = lv.h * cover;
     g.save();
     if ('filter' in g) g.filter = 'blur(16px) brightness(0.55)';
-    g.drawImage(plate, (W - cw) / 2, (H - ch) / 2, cw, ch);
+    g.drawImage(img, (W - cw) / 2, (H - ch) / 2, cw, ch);
     g.restore();
     if (!('filter' in g)) { g.fillStyle = 'rgba(10,6,2,0.5)'; g.fillRect(0, 0, W, H); }
     const sh = g.createLinearGradient(LX - 24, 0, LX, 0);       // a soft shadow where the plate meets the bars
@@ -80,7 +82,7 @@ function renderBackground() {
     g.fillStyle = sh; g.fillRect(LX - 24, 0, 24, H);
     g.save(); g.translate(W, 0); g.scale(-1, 1); g.fillRect(LX - 24, 0, 24, H); g.restore();
   }
-  g.drawImage(plate, LX, 0, pw, ph);
+  g.drawImage(img, LX, 0, pw, ph);
 }
 
 // ======================= world =======================

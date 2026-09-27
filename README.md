@@ -29,7 +29,17 @@ Every run is seeded, and all gameplay randomness (spawns, which side of a fork e
 https://<user>.github.io/<repo>/?seed=1234
 ```
 
-The seed shows on the game-over card, in the pause menu and in the debug panel. Every run report (*Copy run report* / *Send feedback*) includes a `replay` link with its seed and level (`?level=meadow` or `?level=fork` picks the level), so a tester's bad run can be replayed with the same enemy variation.
+The seed shows on the game-over card, in the pause menu and in the debug panel. Every run report (*Copy run report* / *Send feedback*) includes a `replay` link with its seed and level (`?level=meadow`, `fork`, `hem`, ... or `random` picks the level; the ids are in `CONFIG.levels`), so a tester's bad run can be replayed with the same enemy variation.
+
+## Generated levels
+
+Levels 3 to 13 on the level map, and Random Quilt, are built by a level generator from a short road recipe, and painted in Button Fork's quilt style. Try your own with `?recipe=`:
+
+```
+https://<user>.github.io/<repo>/?recipe=start left, s, fork pin, zigzag 2&seed=3
+```
+
+Segments run top to bottom: `straight`, `bend left|right|center`, `s left|right`, `wave n`, `wiggle n`, `zigzag n`, `fork [wide|narrow] [pin]` (the road splits and each enemy picks a side; `pin` puts a Pin pad inside), plus `start left|right`. The seed varies the details. Locally, `tools/level-lab.html` previews recipes before you play them.
 
 ## Playtest questions
 

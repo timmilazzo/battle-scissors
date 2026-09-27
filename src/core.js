@@ -19,7 +19,9 @@ export function segDistSq(px, py, ax, ay, bx, by) {
 // L = level units (the painted plate's pixels) -> CSS px, LX = screen x of the plate's left edge (its top is y = 0).
 const cv = document.getElementById('c');
 // pickupX/Y: where "+8 thread" pickups fly to (the action bar's thread counter; set by actionBar.js)
-// levelId: the CONFIG.levels key being played (set by game.setLevel)
-export const view = { cv, ctx: cv.getContext('2d'), W: 0, H: 0, dpr: 1, S: 1, L: 1, LX: 0, pickupX: 40, pickupY: 40, levelId: C.defaultLevel };
-// The current level's CONFIG entry (read live, so the debug panel / config edits apply).
-export const level = () => C.levels[view.levelId];
+// levelId: the CONFIG.levels key being played; levelDef: that level as played (the CONFIG entry itself for a painted
+// level, the generated level for a recipe / random one). Both set by game.setLevel.
+export const view = { cv, ctx: cv.getContext('2d'), W: 0, H: 0, dpr: 1, S: 1, L: 1, LX: 0, pickupX: 40, pickupY: 40,
+  levelId: C.defaultLevel, levelDef: C.levels[C.defaultLevel] };
+// The current level (for a painted level, its CONFIG entry itself, so config edits apply live).
+export const level = () => view.levelDef;

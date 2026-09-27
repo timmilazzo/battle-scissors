@@ -1,38 +1,35 @@
-// Level picker on the select screen (above the weapon cards): one card per CONFIG.levels entry, a crop of its plate plus
-// its name and blurb. ?level=id in the URL wins (the run report's replay link carries it); otherwise the last pick,
-// remembered in localStorage (per-device convenience only).
+// Which level is picked and which are cleared (localStorage, per-device convenience only). No DOM: the level map
+// (levelMap.js) shows them. ?level=id in the URL wins (the run report's replay link carries it); otherwise the last
+// pick. ?recipe=... adds a "Custom Road" level built from that recipe (and ?seed=, if given) and picks it: the level
+// lab's "Play it" link.
 import { CONFIG as C } from './config.js';
 
-const STORE_KEY = 'battleScissors.level';
-const urlLevel = new URLSearchParams(location.search).get('level');
+const STORE_KEY = 'battleScissors.level', CLEARED_KEY = 'battleScissors.cleared';
+const q = new URLSearchParams(location.search), urlLevel = q.get('level'), urlRecipe = q.get('recipe');
+if (urlRecipe) C.levels.custom = { name: 'Custom Road', blurb: urlRecipe, recipe: urlRecipe, seed: /^\d+$/.test(q.get('seed') || '') ? +q.get('seed') : 1 };
 
 export function savedLevel() {
+  if (urlRecipe) return 'custom';
   if (urlLevel && C.levels[urlLevel]) return urlLevel;
   try { const id = localStorage.getItem(STORE_KEY); if (id && C.levels[id]) return id; } catch (e) { /* storage blocked */ }
   return C.defaultLevel;
 }
-
-const cards = {};
-
-// onPick(id) when a card is chosen; current = the level already in play.
-export function initLevelSelect({ onPick, current }) {
-  const list = document.getElementById('level-cards');
-  for (const id in C.levels) {
-    const lv = C.levels[id];
-    const card = document.createElement('button');
-    card.type = 'button'; card.className = 'weapon-card level-card'; card.setAttribute('role', 'radio');
-    card.innerHTML = '<img alt=""><span class="lc-text"><span class="wc-name"></span><span class="wc-blurb"></span></span>';
-    card.querySelector('img').src = lv.bg;
-    card.querySelector('.wc-name').textContent = lv.name;
-    card.querySelector('.wc-blurb').textContent = lv.blurb;
-    card.addEventListener('click', () => { if (card.getAttribute('aria-checked') !== 'true') { select(id); onPick(id); } });
-    list.appendChild(card);
-    cards[id] = card;
-  }
-  for (const k in cards) cards[k].setAttribute('aria-checked', String(k === current));
-}
-// Mark `id` as the chosen level and remember it (a card tap, or NEXT LEVEL on the win card).
-export function select(id) {
-  for (const k in cards) cards[k].setAttribute('aria-checked', String(k === id));
+export function rememberLevel(id) {
   try { localStorage.setItem(STORE_KEY, id); } catch (e) { /* storage blocked */ }
+}
+
+// Levels won at least once.
+export function clearedLevels() {
+  try { return new Set(JSON.parse(localStorage.getItem(CLEARED_KEY) || '[]')); } catch (e) { return new Set(); }
+}
+export function markCleared(id) {
+  const s = clearedLevels(); if (s.has(id)) return;
+  s.add(id);
+  try { localStorage.setItem(CLEARED_KEY, JSON.stringify([...s])); } catch (e) { /* storage blocked */ }
+}
+
+// "Level 4: Running Stitch" for a map level, just the name for the others.
+export function levelLabel(id) {
+  const i = C.map.nodes.findIndex(n => n[0] === id), lv = C.levels[id];
+  return lv ? (i >= 0 ? 'Level ' + (i + 1) + ': ' : '') + lv.name : '';
 }
