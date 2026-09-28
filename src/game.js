@@ -37,6 +37,7 @@ export const state = {
   towers: [],                // one per spot of the current level (towers[i] stands on spot i when on)
   // Helicopter: charge = snip kills banked; phase '' | 'open' | 'spin' | 'close'; spread/rot drive the blades while active.
   // armed = the full SHRED meter was tapped: the next press on the table (go) starts the spin where the scissors land.
+  shredOn: false,            // SHRED is in this run's level (shredAllowed(), CONFIG.shredFrom)
   heli: { charge: 0, active: false, phase: '', spread: 0, rot: 0, theta0: 0, tick: 0, bannerT: 0, armed: false, go: false },
   // level 0 (see the tutorial section): step 1..5, rep = ghost repeats this step (it grows more obvious), cyc = seconds
   // into the ghost's demo, vis = ghost fade, away = seconds until it comes back after the player lets go, holdT = the
@@ -236,7 +237,7 @@ export function startGame() {
 }
 function resetRun() {
   state.score = 0; state.hp = C.workshopHp; state.won = false; state.stats.snips = 0; state.stats.kills = 0; state.thread = level().startThread ?? C.startThread;
-  heli.charge = 0;
+  heli.charge = 0; state.shredOn = shredAllowed();
   const r = state.run; r.t0 = Date.now(); r.multiSnips = 0; r.specials = 0; r.leaks = 0; r.stars = 0;
   r.bestSnipKills = 0; r.beetleExecutes = 0; r.prunerBite = false; r.critterKills = 0;
   if (!isTutorial()) planCritters(level(), levelWaves(), rng.critter, n => !!(C.enemyTypes[n] && C.enemyTypes[n].boss));
@@ -282,10 +283,12 @@ export function nextLevelId() {
 }
 
 // A win's stars: 1 for clearing, +1 per star rule met (noDamage: nothing reached the workshop; noSpecial: no SHRED;
+// pin: built at least one Pin;
 // critters: every critter that came was squished, and at least one came).
 function starsEarned() {
   const rules = level().starRules || {}, r = state.run;
   return 1 + (rules.noDamage && !r.leaks ? 1 : 0) + (rules.noSpecial && !r.specials ? 1 : 0) +
+    (rules.pin && Object.values(r.towers).some(n => n > 0) ? 1 : 0) +
     (rules.critters && critterPlan.spawned > 0 && critterPlan.killed >= critterPlan.spawned ? 1 : 0);
 }
 
@@ -784,7 +787,7 @@ function awardKill(e, bySnip = true) {
   if (state.mode !== 'TUTORIAL') {
     const pay = level().threadPerKill ?? C.threadPerKill;   // a level can trim it (its critters make up the difference)
     state.thread += pay; emit('thread', e.x, e.y, pay);
-    if (bySnip && !heli.active) heli.charge = Math.min(C.heliKillsToCharge, heli.charge + 1);
+    if (bySnip && !heli.active && state.shredOn) heli.charge = Math.min(C.heliKillsToCharge, heli.charge + 1);
   }
   if (t.boss || t.tier >= 2) startHitStop((t.boss ? C.bossHitStopMs : C.hitStopMs) / 1000);
   addShake(e.r * C.killShakePerR);
@@ -930,7 +933,7 @@ function chargeDone(e) {
 // Charged by snip kills. Snap fully open (outBack), spin 720° (inOutSine) hitting everything within blade reach every
 // heliTickMs, then snap shut into a normal full-open snip. The pivot still follows the hand; spread and aim don't.
 const HELI_OPEN = { spread: 1 }, HELI_SHUT = { spread: 0 };
-const shredReady = () => live() && state.mode !== 'TUTORIAL' && !heli.active && heli.charge >= C.heliKillsToCharge;
+const shredReady = () => live() && state.shredOn && !heli.active && heli.charge >= C.heliKillsToCharge;
 export function trySpecial() {
   if (!shredReady() || !input.gripping || input.scAlpha < 0.5) return;
   heli.armed = heli.go = false;
@@ -987,8 +990,23 @@ function heliTick() {
 const towers = state.towers;
 setLevel(view.levelId);
 export const canAfford = type => state.thread >= C.towers[type].cost;
-// Whether this level lets you build a `type` Pin (its allowedPins; null = every Pin).
-export const pinAllowed = type => !level().allowedPins || level().allowedPins.includes(type);
+// Progression (CONFIG.pinFrom / shredFrom): a tool introduced at map level id is here on every map level from it on;
+// off the map (Random Quilt, Custom Road) once that level has been cleared. An unknown id never holds anything back.
+const mapIndex = id => C.map.nodes.findIndex(n => n[0] === id);
+function introduced(fromId) {
+  const at = mapIndex(fromId), here = mapIndex(view.levelId);
+  if (at < 0) return true;
+  return here >= 0 ? here >= at : !!(Save.levels[fromId] && Save.levels[fromId].cleared);
+}
+// Whether this level lets you build a `type` Pin: introduced by now (or in Save.unlocks.pins, the debug Unlock all), and
+// in the level's allowedPins (null = every Pin).
+export const pinAllowed = type => (introduced(C.pinFrom[type]) || Save.unlocks.pins.includes(type)) &&
+  (!level().allowedPins || level().allowedPins.includes(type));
+// A Pin (or SHRED) that appears for the first time on this level (the picker and the weapon screen say NEW).
+export const pinIsNew = type => C.pinFrom[type] === view.levelId;
+export const shredIsNew = () => C.shredFrom === view.levelId;
+// Whether SHRED is in this level at all (its meter, charge and triggers; never in level 0).
+export const shredAllowed = () => !isTutorial() && introduced(C.shredFrom);
 export const towerReach = type => C.towers[type].radius * view.L;   // a Pin's radius in px
 
 // Build a `type` Pin on spot i (the action bar's spot picker). Returns '' on success, else why not.

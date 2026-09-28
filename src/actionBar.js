@@ -12,7 +12,7 @@
 import { CONFIG as C } from './config.js';
 import { view, level } from './core.js';
 import { input } from './input.js';
-import { state, canAfford, pinAllowed, buildTower, armShred, setPaused } from './game.js';
+import { state, canAfford, pinAllowed, pinIsNew, buildTower, armShred, setPaused } from './game.js';
 import { Save, persist } from './save.js';
 
 const tips = Save.tips;                          // pinIntro = the Pin explainer has been seen, shred = SHRED used once
@@ -45,7 +45,7 @@ export function initActionBar(opts) {
     const def = C.towers[type], c = document.createElement('button');
     c.type = 'button'; c.className = 'felt pick'; c.dataset.tower = type;
     c.style.setProperty('--tc', def.color); c.style.setProperty('--fc', def.felt); c.style.setProperty('--rim', rimOf(def.felt));
-    c.innerHTML = '<span class="ticon">' + (PIN_ICON[type] || '') + '</span><span class="tname"></span><span class="tsub"></span><span class="tcost"><span class="spool"></span><span></span></span>';
+    c.innerHTML = '<span class="tnew">NEW</span><span class="ticon">' + (PIN_ICON[type] || '') + '</span><span class="tname"></span><span class="tsub"></span><span class="tcost"><span class="spool"></span><span></span></span>';
     c.querySelector('.tname').textContent = def.name;
     c.querySelector('.tsub').textContent = def.blurb;
     c.querySelector('.tcost').lastChild.textContent = def.cost;
@@ -60,6 +60,7 @@ export function initActionBar(opts) {
   const list = document.getElementById('pins-intro-list');
   for (const type in C.towers) {
     const def = C.towers[type], li = document.createElement('li');
+    li.dataset.tower = type;
     li.innerHTML = '<span class="dot"></span><span><b></b>: </span>';
     li.querySelector('.dot').style.setProperty('--tc', def.color);
     li.querySelector('b').textContent = def.name;
@@ -94,7 +95,7 @@ function spotTapped(i) {
 function openPicker(i) {
   closePicker();
   pick.spot = i; spotBtns[i].setAttribute('aria-expanded', 'true');
-  for (const c of pickCards) c.hidden = !pinAllowed(c.dataset.tower);   // only the Pins this level allows
+  for (const c of pickCards) { c.hidden = !pinAllowed(c.dataset.tower); c.classList.toggle('new', pinIsNew(c.dataset.tower)); }   // this level's Pins; NEW on its first level
   picker.hidden = false; refreshPicker(true);
   placePicker();
   hideTip();
@@ -134,6 +135,7 @@ let introSpot = -1;
 function openPinIntro(i) {
   tips.pinIntro = true; saveTips();
   introSpot = i; hideTip(); setAttn(false);
+  for (const li of document.querySelectorAll('#pins-intro-list li[data-tower]')) li.hidden = !pinAllowed(li.dataset.tower);   // this level's Pins only
   setPaused(true, 'pins');
 }
 function closePinIntro() {
@@ -165,7 +167,7 @@ export function measureActionBar() {
 }
 
 // ---- per-frame refresh (only touches the DOM when something changed) ----
-const shown = { visible: false, thread: -1, charge: -1, ready: null, armed: null, can: null, built: '' };
+const shown = { visible: false, shred: null, thread: -1, charge: -1, ready: null, armed: null, can: null, built: '' };
 const tip = { kind: '', until: 0, anchor: null };
 let runT0 = -1, tipPinsDone = false, tipShredDone = false, specialsSeen = 0, attn = false;
 function setAttn(on) { attn = on; bar.classList.toggle('pin-attn', on); spotsEl.classList.toggle('attn', on); }
@@ -173,10 +175,13 @@ function setAttn(on) { attn = on; bar.classList.toggle('pin-attn', on); spotsEl.
 export function refreshActionBar() {
   const visible = !bar.hidden;
   if (visible !== shown.visible) {
-    shown.visible = visible; spotsEl.hidden = shredCard.hidden = !visible;
+    shown.visible = visible; spotsEl.hidden = !visible;
     if (visible) measureActionBar(); else closePicker();
   }
-  if (!visible) { hideTip(); return; }
+  if (!visible) { hideTip(); }
+  const shredShown = visible && state.shredOn;                    // no SHRED before its level (CONFIG.shredFrom)
+  if (shredShown !== shown.shred) { shown.shred = shredShown; shredCard.hidden = !shredShown; }
+  if (!visible) return;
   if (state.run.t0 !== runT0) {                                  // a new run: tips may show once more
     runT0 = state.run.t0; tipPinsDone = tipShredDone = false; specialsSeen = 0;
   }

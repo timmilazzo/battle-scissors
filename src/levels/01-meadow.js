@@ -31,5 +31,5 @@ export default {
   ],
   unlockOnClear: null,       // e.g. { scissors: 'cigar' } or { pin: 'magnet' }: added to the save's unlocks on a first win
   signText: '',              // a line for this level's sign (not shown yet)
-  starRules: { noDamage: true, noSpecial: true },   // each rule met on a win adds a star to the one for clearing
+  starRules: { noDamage: true, pin: true },   // each rule met on a win adds a star: 3rd = build a Pin (no SHRED here yet)
 };

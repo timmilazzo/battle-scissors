@@ -8,7 +8,7 @@
 export const FEEDBACK_URL = 'mailto:tim@saltandwisdom.com';
 
 // Shown small at the bottom of Settings and recorded in every run report. Bump it with each published change.
-export const VERSION = '0.3.1';
+export const VERSION = '0.3.2';
 
 export const CONFIG = {
   // --- pose / control mapping ---
@@ -59,7 +59,7 @@ export const CONFIG = {
     pruners: { name: 'Ratchet Pruners', blurb: 'A hooked jaw holds, one heavy blade bites down. Big hits up close.',
                svg: 'assets/weapons/ratchet-pruners.svg', viewW: 800, viewH: 1000, pivotX: 400, pivotY: 320,
                bladeLen: 240, maxOpenDeg: 31, aimOffsetDeg: 41, aimOffsetOpenDeg: -32, reachFrac: 0.1, damageMult: 1.4, openMs: 620,
-               signature: 'hold', holdSec: 0.5, shop: 400, shopAfter: 'cross' },
+               signature: 'hold', holdSec: 0.5, shop: 400, shopAfter: 'selvage' },
     // blades slide 155 units each way inside a 131-unit round window; the finger rings sit about 426 units out
     cigar:   { name: 'Cigar Cutter', blurb: 'No blades to swing: fit them in the hole and slam it shut.',
                svg: 'assets/weapons/cigar-cutter.svg', viewW: 1300, viewH: 640, pivotX: 650, pivotY: 320, kind: 'slide',
@@ -315,6 +315,13 @@ export const CONFIG = {
   needleLostSec: 0.4,        // a needle whose target died first flies straight on this long, then vanishes
   needleMuzzle: 1.0,         // needles leave the Needle Pin this many pad radii above the pad's centre (its loaded needle)
   spotBtnPx: 42,             // size of the + button on an empty Pin spot
+
+  // --- progression: the map level (id) where each Pin and SHRED first appear; they stay on every map level after it.
+  // Off the map (Random Quilt, Custom Road) they're there once that level has been cleared. One new tool at a time,
+  // each beside the problem it answers: Needle with the first road, SHRED with the fast Runners, Ice with the armored
+  // Brute, Fire with the new world's crowds, Magnet with four roads to herd (and the Unstitcher's multi-snip test).
+  pinFrom: { needle: 'meadow', ice: 'double', fire: 'loop', magnet: 'cross' },   // L1, L5, L7, L9
+  shredFrom: 'hem',          // L3: the first four-wave level (L1-L2 are too short to charge it)
 
   // --- special: Helicopter ---
   heliKillsToCharge: 25,     // snip kills to fill the charge bar

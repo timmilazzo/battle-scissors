@@ -75,12 +75,20 @@ function playTutorial() {
 }
 setTutorialDoneHook(() => { useWeapon(savedWeapon()); openMap(); });
 // Level map (PLAY on the title): a level opens the shears screen (named there); BACK returns to the title.
-const selectLevel = document.getElementById('select-level');
+const selectLevel = document.getElementById('select-level'), selectNew = document.getElementById('select-new');
+// What level id brings for the first time: its new Pins and SHRED (CONFIG.pinFrom / shredFrom), on the weapon screen.
+function showLevelName(id) {
+  selectLevel.textContent = levelLabel(id);
+  const news = Object.keys(C.pinFrom).filter(t => C.pinFrom[t] === id && C.towers[t]).map(t => C.towers[t].name);
+  if (C.shredFrom === id) news.push('SHRED');
+  selectNew.hidden = !news.length; selectNew.textContent = 'NEW HERE: ' + news.join(', ');
+  return news.length > 0;
+}
 function chooseLevel(id) {
   if (id === C.tutLevel) { playTutorial(); return; }
   rememberLevel(id); if (id !== view.levelId || levelInfo(id).random) switchLevel(id);
   useWeapon(savedWeapon()); refreshWeaponSelect();
-  selectLevel.textContent = levelLabel(id); goSelect();
+  showLevelName(id); goSelect();
 }
 function openMap() { refreshLevelMap(); goMap(); }
 initLevelMap({ toast: showToast, onPick: chooseLevel, onBack: goTitle });
@@ -100,9 +108,11 @@ initArmory({ toast: showToast, onChange: metaChanged, onClose: metaClosed,
   onEquip: id => { Save.equippedScissors = id; persist(); useWeapon(id); refreshWeaponSelect(); } });
 // The run is over: the results card plays its Button tally.
 setRunEndHook(() => showResults(state.tally));
-selectLevel.textContent = levelLabel(view.levelId);
+showLevelName(view.levelId);
 // Win card: NEXT LEVEL plays the next level on the map with the same weapon; "Level map" opens the map.
-on('next', () => { const id = nextLevelId(); if (!id) return; rememberLevel(id); switchLevel(id); selectLevel.textContent = levelLabel(id); play(); });
+// (a level that brings a new Pin or SHRED opens the weapon screen first, which says so)
+on('next', () => { const id = nextLevelId(); if (!id) return; if (C.shredFrom === id || Object.values(C.pinFrom).includes(id)) { unlockAudio(); toast.hidden = true; chooseLevel(id); return; }
+  rememberLevel(id); switchLevel(id); showLevelName(id); play(); });
 on('over-select', () => { unlockAudio(); toast.hidden = true; openMap(); });
 // Pressing anywhere on the title is a gesture that unlocks audio.
 document.getElementById('title').addEventListener('pointerdown', () => unlockAudio());

@@ -1,6 +1,6 @@
 # Battle Scissors
 
-A 2D mobile canvas game prototype built around one mechanic: your fingers work a pair of scissors that snip whatever sits between the blades. Plush ragdoll enemies walk a road (on the second level, a road that forks) toward your workshop; you snip them, build Pins (Needle, Ice, Fire, Magnet) on the pads beside the road, and bank kills for SHRED, a spinning special.
+A 2D mobile canvas game prototype built around one mechanic: your fingers work a pair of scissors that snip whatever sits between the blades. Plush ragdoll enemies walk a road (on the second level, a road that forks) toward your workshop; you snip them, build Pins on the pads beside the road, and bank kills for SHRED, a spinning special. The tools arrive one at a time: the Needle Pin on level 1, SHRED on level 3, then the Ice (5), Fire (7) and Magnet (9) Pins.
 
 Plain ES modules, no build step, no dependencies. Made for phones; a mouse and keyboard fallback exists for desktop.
 

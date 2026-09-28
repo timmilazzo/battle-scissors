@@ -191,6 +191,9 @@
   #picker { position: fixed; z-index: 16; display: flex; flex-direction: column; gap: 8px; padding: 10px 10px 12px; border-radius: 18px; outline-offset: -8px; }
   #picker[hidden] { display: none; }
   #picker .pick[hidden] { display: none; }
+  /* a Pin on the first level it appears (game.js pinIsNew) */
+  #picker .pick .tnew { display: none; position: absolute; top: -8px; right: -6px; z-index: 1; padding: 2px 7px 3px; border-radius: 8px; font: 400 12px var(--ui-font); letter-spacing: 0.8px; color: #2a170a; background: #ffd23f; box-shadow: 0 2px 0 #2a170a; }
+  #picker .pick.new .tnew { display: block; }
   #picker::after { content: ""; position: absolute; top: calc(100% + 3px); left: var(--arrow, 50%); margin-left: -10px; border: 10px solid transparent; border-top-color: #2a170a; }
   #picker.below::after { top: auto; bottom: calc(100% + 3px); border-top-color: transparent; border-bottom-color: #2a170a; }
   #picker .tcap { text-align: center; padding: 2px 0 0; font-size: 12px; color: #ffc93d; }
@@ -620,6 +623,9 @@
   .wc-bar { height: 9px; border-radius: 5px; background: rgba(0, 0, 0, 0.5); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.6); overflow: hidden; }
   .wc-bar > span { display: block; height: 100%; border-radius: 5px; background: linear-gradient(#b8f07a, #5fbf3a); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4); }
   .select-level { margin: -4px 0 0; font: 400 19px/1.2 var(--ui-font); letter-spacing: 0.4px; text-align: center; color: #ffd23f; text-shadow: 0 2px 0 #3a1d08, 1px 0 0 #3a1d08, -1px 0 0 #3a1d08; }
+  /* what this level brings for the first time (main.js: CONFIG.pinFrom / shredFrom) */
+  .select-new { margin: -8px 0 0; padding: 3px 12px 4px; border-radius: 10px; flex-shrink: 0; font: 400 15px var(--ui-font); letter-spacing: 0.4px; color: #2a170a; background: #ffd23f; box-shadow: 0 2px 0 #2a170a; }
+  .select-new[hidden] { display: none; }
   .select-actions { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; width: 100%; }
   .card .felt-btn.back { font-size: clamp(20px, 5.5vw, 26px); }
   /* settings: the control-mode options reuse the weapon card's sunken slot and gold "chosen" rim */
@@ -755,6 +761,7 @@
   <div class="card">
     <h2 class="blue" data-text="CHOOSE YOUR SHEARS">CHOOSE YOUR SHEARS</h2>
     <p id="select-level" class="select-level"></p>
+    <p id="select-new" class="select-new" hidden></p>
     <!-- the chosen pair, large (src/weaponSelect.js fills it); the Sharpen quick action sits under its stats -->
     <div id="sel-hero" class="sel-hero">
       <img alt="">
@@ -801,9 +808,7 @@
       <path d="M104 48 l14 -6 v12 z" fill="#1c1107" fill-opacity="0.9"/>
       <rect x="118" y="12" width="190" height="66" rx="12" fill="#1c1107" fill-opacity="0.9"/>
       <g font-family="Trebuchet MS, sans-serif" font-size="11" font-weight="700" fill="#fff1c2" text-anchor="middle">
-        <circle cx="152" cy="38" r="10" fill="#8fe8ff"/><text x="152" y="66">Ice</text>
-        <circle cx="213" cy="38" r="10" fill="#ffa04a"/><text x="213" y="66">Fire</text>
-        <circle cx="274" cy="38" r="10" fill="#c79bff"/><text x="274" y="66">Magnet</text>
+        <circle cx="213" cy="38" r="10" fill="#e6eef5"/><text x="213" y="66">Needle Pin</text>
       </g>
     </svg>
     <ul id="pins-intro-list">
