@@ -6,16 +6,17 @@
 import { CONFIG as C, VERSION } from './config.js';
 import { view, level, TAU, DEG, clamp, segDistSq } from './core.js';
 import { input, updateInput, resetSnipBuffer, holdTouch, setEasyOnly } from './input.js';
-import { weapon, scaleFor, setWeapon, bladeReachPx, spinReachPx, isSlide, cut, setCutZone, cutZoneHits } from './scissors.js';
+import { weapon, scaleFor, setWeapon, bladeReachPx, spinReachPx, isSlide, cut, setCutZone, cutZoneHits, sharpness, sharpMult } from './scissors.js';
 import { tween, tweens, makeTweens, easing } from './tween.js';
 import { makeRng } from '../vendor/mulberry32.js';
 import { sfx, sfxSnip, sfxSequence } from './audio.js';
 import { saveRun } from './runlog.js';
+import { UI_ART, uiUrl } from './kit.js';
 import { loadLevel, hasLevel, levelInfo } from './levels/index.js';
 import { recordLevelResult } from './levelSelect.js';
 import { Save, persist } from './save.js';
 import { KNOB_KEYS } from './debug.js';
-import { levelBefore, settleRun, useSharpen } from './meta.js';
+import { levelBefore, settleRun, wearBlade } from './meta.js';
 import { critters, splats, plan as critterPlan, planCritters, critterWave, critterWaveEnd, updateCritters, snipCritters, clearCritters, introActive } from './critters.js';
 
 // ======================= state =======================
@@ -50,7 +51,8 @@ export const state = {
   // Cutter's ring, prunerBite = a Ratchet Pruners armor-down bite ended a boss's armored phase (achievements.js)
   // critterKills = critters squished this run (src/critters.js)
   run: { t0: 0, multiSnips: 0, towers: {}, specials: 0, leaks: 0, stars: 0, bestSnipKills: 0, beetleExecutes: 0, prunerBite: false, critterKills: 0 },
-  sharpened: false,          // this level used up a Sharpening (CONFIG.meta.sharpenMult on snip damage)
+  sharpMult: 1,              // snip damage multiplier from the weapon's edge at the run's start (sharpMult in scissors.js; x1 in level 0)
+  sharpAtStart: 0,           // that edge, 0 (dull) .. 1 (sharp), for the run report
   tally: null,               // the finished run's Buttons (meta.js settleRun), for the results card
   events: { seq: 0, list: [] },
   critters, splats,          // src/critters.js pools: bonus targets only a manual snip hits, and their squish splats
@@ -83,7 +85,7 @@ function seedRun(seed) {
 const els = {
   title: document.getElementById('title'), map: document.getElementById('map'), select: document.getElementById('select'), settings: document.getElementById('settings'), over: document.getElementById('over'),
   reset: document.getElementById('reset'), tray: document.getElementById('tray'), tutSkip: document.getElementById('tut-skip'),
-  bossCard: document.getElementById('boss-card'), bossName: document.getElementById('boss-name'), bossTaunt: document.getElementById('boss-taunt'), mute: document.getElementById('mute'), pauseBtn: document.getElementById('pause'),
+  bossCard: document.getElementById('boss-card'), bossName: document.getElementById('boss-name'), bossPortrait: document.getElementById('boss-portrait'), bossTaunt: document.getElementById('boss-taunt'), mute: document.getElementById('mute'), pauseBtn: document.getElementById('pause'),
   pause: document.getElementById('pause-screen'), pinsIntro: document.getElementById('pins-intro'), pauseWave: document.getElementById('pause-wave'), pauseScore: document.getElementById('pause-score'),
   pauseAcc: document.getElementById('pause-acc'), pauseSeed: document.getElementById('pause-seed'),
   overTitle: document.getElementById('over-title'), overScore: document.getElementById('over-score'), overLevel: document.getElementById('over-level'),
@@ -238,7 +240,7 @@ function resetRun() {
   const r = state.run; r.t0 = Date.now(); r.multiSnips = 0; r.specials = 0; r.leaks = 0; r.stars = 0;
   r.bestSnipKills = 0; r.beetleExecutes = 0; r.prunerBite = false; r.critterKills = 0;
   if (!isTutorial()) planCritters(level(), levelWaves(), rng.critter, n => !!(C.enemyTypes[n] && C.enemyTypes[n].boss));
-  state.sharpened = !isTutorial() && useSharpen(); state.tally = null;
+  state.sharpAtStart = sharpness(weapon.id); state.sharpMult = isTutorial() ? 1 : sharpMult(state.sharpAtStart); state.tally = null;
   for (const k in C.towers) r.towers[k] = 0;
 }
 
@@ -267,7 +269,7 @@ function beginWave(n) {
 }
 function showBossCard(name) {
   const def = C.bosses[name]; if (!def) return;
-  els.bossName.textContent = def.name; els.bossTaunt.textContent = def.taunt;
+  els.bossPortrait.src = uiUrl(UI_ART.portraits[name] || UI_ART.portraits.seamRipper); els.bossName.textContent = def.name; els.bossTaunt.textContent = def.taunt;
   state.bossCardT = C.bossIntroMs / 1000;
   sfx(def.roar, 0); addShake(8, 8);
   showScreens();
@@ -324,7 +326,7 @@ function buildReport(inProgress = false) {
     snips: s.snips, kills: s.kills, accuracy: s.snips ? +(s.kills / s.snips).toFixed(3) : 0, multiSnips: r.multiSnips,
     towers: { ...r.towers }, specialUses: r.specials, deathsAtWorkshop: r.leaks, stars: r.stars,
     boss: levelWaves().some(w => w.some(([n]) => C.enemyTypes[n] && C.enemyTypes[n].boss)), bestSnipKills: r.bestSnipKills,
-    beetleExecutes: r.beetleExecutes, prunerBite: r.prunerBite, critterKills: r.critterKills, critterSpawns: critterPlan.spawned, upgradeTier: weapon.def.tier | 0, sharpened: state.sharpened,
+    beetleExecutes: r.beetleExecutes, prunerBite: r.prunerBite, critterKills: r.critterKills, critterSpawns: critterPlan.spawned, upgradeTier: weapon.def.tier | 0, sharpness: +state.sharpAtStart.toFixed(3),
     durationSec: Math.round((Date.now() - r.t0) / 1000), device: navigator.userAgent, config: cfg,
     replay: location.origin + location.pathname + '?seed=' + state.seed + '&level=' + view.levelId +
       (view.levelId === 'custom' ? '&recipe=' + encodeURIComponent(level().recipe) : ''), endedAt: new Date().toISOString(),
@@ -628,6 +630,7 @@ function doSnip(px, py, theta, spread, strong) {
   input.last.power = power;
   fx.cut = 1; fx.flash = (strong ? 1 : 0.5) * (0.5 + 0.5 * power); fx.kick = (strong ? 1 : 0.4) * power;
   state.stats.snips++;
+  if (!isTutorial()) wearBlade(weapon.id);                     // every snip attempt wears the edge a little (level 0 doesn't)
   if (input.usingTouch && Save.settings.haptics && navigator.vibrate) { try { navigator.vibrate(strong ? C.hapticMs : C.weakHapticMs); } catch (e) { /* ignore */ } }
   burst(input.pose.x, input.pose.y, strong);
   if (!isTutorial()) spawnLabel(input.pose.x, input.pose.y, strong ? LABEL_SNIP : LABEL_NICK);   // level 0 has no words
@@ -717,10 +720,10 @@ function bladeContacts(dt) {
 // A snip landing on an enemy. Damage is graded: most at the pivot, least at the tips, scaled by how wide the close
 // began (power) and halved for a nick. Shoves grow toward the tips, along the closing edge.
 // Armored (Brute): the first snip clangs for 0 unless e.slowed. Bosses play by their own rules (bossStrike); never shoved.
-// A Sharpening (state.sharpened) multiplies every snip by CONFIG.meta.sharpenMult for the level.
+// The weapon's edge (state.sharpMult, fixed for the run) scales every snip: sharpDullMult (dull) .. sharpSharpMult (sharp).
 const gradedDamage = (g, strong, power) =>
   (C.damageAtPivot + (C.damageAtTip - C.damageAtPivot) * g) * power * weapon.def.damageMult * (strong ? 1 : C.weakDamageMult) *
-  (state.sharpened ? C.meta.sharpenMult : 1);
+  state.sharpMult;
 function strike(e, px, py, ax, ay, L, strong, power) {
   const t = e.type;
   const rx = e.x - px, ry = e.y - py, d = Math.hypot(rx, ry) || 1;

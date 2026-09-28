@@ -11,7 +11,7 @@
 //   buttons,                                         the meta currency (meta.js: earned from stars, score, achievements, chests)
 //   achievements: [id],                              achievements earned (src/achievements.js)
 //   chests: [world],                                 world chests opened
-//   sharpen,                                         Sharpenings held (used up one per level start)
+//   sharpness: { scissorsId: 0..1 },                 each pair's edge (missing = CONFIG.meta.sharpStart; worn by snips, meta.js)
 //   cosmetics: { owned: [id], handle, glow },        cosmetics owned and the one equipped per slot ('' = none)
 //   unlocks: { scissors: [], pins: [], levels: [] }, extra unlocks (levels: opened early, e.g. by "Unlock all")
 //   upgrades: { scissorsId: tier },                  scissors upgrade tier 0..3 (meta.js)
@@ -23,10 +23,10 @@
 // }
 import { CONFIG as C } from './config.js';
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 const KEY = 'battleScissors.save';
 const defaults = () => ({
-  version: SAVE_VERSION, levels: {}, buttons: 0, achievements: [], chests: [], sharpen: 0,
+  version: SAVE_VERSION, levels: {}, buttons: 0, achievements: [], chests: [], sharpness: {},
   cosmetics: { owned: [], handle: '', glow: '' }, unlocks: { scissors: [], pins: [], levels: [] }, upgrades: {},
   equippedScissors: '', lastLevel: '', settings: { sound: true, haptics: true, leftHanded: false, grip: 'hold' },
   tutorialDone: false, tips: { pinIntro: false, shred: false }, reveals: [], critterKills: 0,
@@ -37,6 +37,9 @@ export const Save = defaults();
 export function migrate(old) {
   const s = old && typeof old === 'object' ? old : {};
   if ((s.version | 0) < 2) { delete s.scrap; s.version = 2; }       // v2: Buttons replace the unused "scrap" field
+  if ((s.version | 0) < 3) {                                        // v3: each pair's own sharpness replaces held
+    s.buttons = (s.buttons | 0) + (s.sharpen | 0) * 40; delete s.sharpen;   // Sharpenings, refunded at their old price
+  }
   s.version = SAVE_VERSION;
   return s;
 }
@@ -45,7 +48,7 @@ export function migrate(old) {
 function adopt(data) {
   const d = defaults();
   Object.assign(Save, d, data);
-  for (const k of ['unlocks', 'settings', 'tips', 'cosmetics']) Save[k] = Object.assign(d[k], data[k]);
+  for (const k of ['unlocks', 'settings', 'tips', 'cosmetics', 'sharpness']) Save[k] = Object.assign(d[k], data[k]);
   for (const k of ['achievements', 'chests']) Save[k] = Array.isArray(data[k]) ? data[k] : [];
   Save.levels = Object.assign({}, data.levels);
   Save.reveals = Array.isArray(data.reveals) ? data.reveals : [];

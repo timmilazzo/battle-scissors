@@ -7,12 +7,12 @@
 //   world chests  three-star every level of a world: chestButtons + that world's cosmetic, once
 // Only the numbered map levels earn (not level 0, Random Quilt or a ?recipe= road), so the total supply is a fixed
 // number: tools/buttonsupply.js prints it. Buttons buy the Shop's scissors (CONFIG.weapons[id].shop), scissors
-// upgrades, Sharpening and cosmetics (shop.js); Pins and stars are never for sale. Nothing here waits on a clock or rolls a die. No DOM.
+// upgrades and Sharpen (armory.js), cosmetics (shop.js); Pins and stars are never for sale. Nothing here waits on a clock or rolls a die. No DOM.
 import { CONFIG as C } from './config.js';
 import { Save, persist, levelRecord } from './save.js';
 import { levelInfo } from './levels/index.js';
 import { ACHIEVEMENTS } from './achievements.js';
-import { upgradeTier } from './scissors.js';
+import { upgradeTier, sharpness, canSharpen } from './scissors.js';
 import { weaponLocked, shopOpen } from './weaponSelect.js';
 
 // The levels that pay Buttons: every map level but level 0, in map order.
@@ -94,10 +94,12 @@ export function buyWeapon(id) {
   Save.buttons -= price; Save.unlocks.scissors.push(id); Save.reveals.push({ scissors: id }); persist();
   return '';
 }
-export function buySharpen() {
-  if (Save.sharpen >= C.meta.sharpenMax) return 'max';
+// Sharpen weapon id's edge back to 1 (sharp). Offered only below sharpenFrom (canSharpen).
+export function buySharpen(id) {
+  if (weaponLocked(id)) return 'locked';
+  if (!canSharpen(id)) return 'sharp';
   if (Save.buttons < C.meta.sharpenCost) return 'buttons';
-  Save.buttons -= C.meta.sharpenCost; Save.sharpen++; persist();
+  Save.buttons -= C.meta.sharpenCost; Save.sharpness[id] = 1; persist();
   return '';
 }
 export function buyCosmetic(id) {
@@ -119,9 +121,7 @@ export function cosmeticColor(slot) {
   const c = C.meta.cosmetics[Save.cosmetics[slot]];
   return c ? c.color : '';
 }
-// Level start: use up one Sharpening if any are held. Returns whether this level is sharpened.
-export function useSharpen() {
-  if (Save.sharpen <= 0) return false;
-  Save.sharpen--; persist();
-  return true;
+// One snip attempt with weapon id (hit or miss): its edge wears by sharpWearPerSnip, never below 0 (dull).
+export function wearBlade(id) {
+  Save.sharpness[id] = Math.max(0, sharpness(id) - C.meta.sharpWearPerSnip); persist();
 }

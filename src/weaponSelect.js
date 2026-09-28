@@ -1,11 +1,14 @@
-// Weapon select screen (between the MAP and PLAYING): one card per CONFIG.weapons entry showing its art and stats.
+// Weapon select screen (between the MAP and PLAYING): the chosen pair large (art, stats, its sharpness meter and a quick
+// Sharpen button, sharpMeter.js) over a strip of every pair (a thin bar under each held one shows its edge; a locked one
+// previews greyed with how it's won).
 // The pick is remembered in the save (Save.equippedScissors). Only the default weapon starts unlocked; the rest are a
 // map level's reward (its unlockOnClear) or bought in the Shop (CONFIG.weapons[id].shop, once shopAfter is cleared),
 // and either way join Save.unlocks.scissors.
 import { CONFIG as C } from './config.js';
 import { Save, persist } from './save.js';
 import { rewardLevelOf } from './levels/index.js';
-import { weaponDef } from './scissors.js';
+import { weaponDef, sharpness, sharpBandIndex } from './scissors.js';
+import { sharpMeter, setSharpMeter, sharpenButton, setSharpenButton } from './sharpMeter.js';
 // Stats show the weapon as upgraded (weaponDef; the tier shows as pips after its name).
 // Each stat is either a readout (text) or a bar (value, drawn relative to the best un-upgraded weapon in that stat).
 // Reach: blade length in story inches (play area = statDrawerHeightIn tall). Spread: full angle between the open blades.
@@ -34,44 +37,67 @@ export function savedWeapon() {
   return C.weapons[Save.equippedScissors] && !weaponLocked(Save.equippedScissors) ? Save.equippedScissors : C.defaultWeapon;
 }
 
-// onPick(id) when a card is chosen, onStart() / onBack() for the two buttons.
-export function initWeaponSelect({ onPick, onStart, onBack }) {
-  const list = document.getElementById('weapon-cards');
+// onPick(id) when a pair is chosen, onStart() / onBack() for the two buttons, onSharpen(id) for the quick Sharpen
+// (returns '' when it went through, else why not).
+export function initWeaponSelect({ onPick, onStart, onBack, onSharpen }) {
+  const strip = document.getElementById('weapon-cards');
+  const hero = document.getElementById('sel-hero'), heroImg = hero.querySelector('img'), heroLock = document.getElementById('sel-lock');
+  const bal = document.getElementById('sel-buttons'), startBtn = document.getElementById('select-start');
   const best = STATS.map(s => s.bar ? Math.max(...Object.values(C.weapons).map(s.bar)) : 0);
-  const cards = {};
+  const meter = sharpMeter(), sharpen = sharpenButton(() => { if (!onSharpen(shownId)) { hero.classList.remove('honed'); void hero.offsetWidth; hero.classList.add('honed'); } refreshLocks(); });
+  document.getElementById('sel-sharp').append(meter, sharpen);
+  const thumbs = {};
+  let shownId = '';
   for (const id in C.weapons) {
     const w = C.weapons[id];
-    const card = document.createElement('button');
-    card.type = 'button'; card.className = 'weapon-card';
-    card.innerHTML = '<img alt=""><span class="wc-name"></span><span class="wc-lock"></span><span class="wc-blurb"></span><span class="wc-stats"></span>';
-    card.querySelector('img').src = w.svg;
-    card.querySelector('.wc-name').textContent = w.name;
-    card.querySelector('.wc-blurb').textContent = w.blurb;
-    fillStats(card, id, best);
-    card.addEventListener('click', () => { if (weaponLocked(id)) return; select(id); onPick(id); });
-    card.addEventListener('dblclick', () => { if (!weaponLocked(id)) onStart(); });
-    list.appendChild(card);
-    cards[id] = card;
+    const t = document.createElement('button');
+    t.type = 'button'; t.className = 'weapon-thumb';
+    t.innerHTML = '<img alt=""><span class="wt-name"></span><span class="wt-edge"><span></span></span><span class="wt-lock"></span>';
+    t.querySelector('img').src = w.svg;
+    t.querySelector('.wt-name').textContent = w.name;
+    // a locked pair still previews (START stays off until it's won)
+    t.addEventListener('click', () => { show(id); if (!weaponLocked(id)) { select(id); onPick(id); } });
+    t.addEventListener('dblclick', () => { if (!weaponLocked(id)) onStart(); });
+    strip.appendChild(t);
+    thumbs[id] = t;
   }
   function select(id) {
-    for (const k in cards) cards[k].setAttribute('aria-pressed', String(k === id));
+    for (const k in thumbs) thumbs[k].setAttribute('aria-pressed', String(k === id));
     if (Save.equippedScissors !== id) { Save.equippedScissors = id; persist(); }
   }
-  document.getElementById('select-start').addEventListener('click', () => onStart());
+  // The big panel: pair id's art, name, blurb, stats and sharpness (a locked pair: how it's won, no sharpness).
+  function show(id) {
+    shownId = id;
+    const locked = weaponLocked(id);
+    heroImg.src = C.weapons[id].svg;
+    hero.querySelector('.wc-blurb').textContent = C.weapons[id].blurb;
+    fillStats(hero, id, best);
+    hero.classList.toggle('locked', locked);
+    heroLock.textContent = locked ? '🔒 ' + unlockHint(id) : '';
+    setSharpMeter(meter, id); setSharpenButton(sharpen, id);
+    bal.textContent = String(Save.buttons);
+    startBtn.disabled = locked;
+    for (const k in thumbs) thumbs[k].classList.toggle('shown', k === id);
+  }
+  startBtn.addEventListener('click', () => { if (!weaponLocked(shownId)) onStart(); });
   document.getElementById('select-back').addEventListener('click', () => onBack());
-  select(savedWeapon());
   refreshLocks = () => {
-    for (const k in cards) {
-      cards[k].classList.toggle('locked', weaponLocked(k)); cards[k].disabled = weaponLocked(k); fillStats(cards[k], k, best);
-      cards[k].querySelector('.wc-lock').textContent = weaponLocked(k) ? '🔒 ' + unlockHint(k) : '';
+    for (const k in thumbs) {
+      const t = thumbs[k], locked = weaponLocked(k), s = sharpness(k), w = weaponDef(k);
+      t.classList.toggle('locked', locked);
+      t.querySelector('.wt-name').textContent = w.name + (w.tier ? ' ' + '★'.repeat(w.tier) : '');
+      t.querySelector('.wt-lock').textContent = locked ? '🔒' : '';
+      t.querySelector('.wt-edge').dataset.band = String(sharpBandIndex(s));
+      t.querySelector('.wt-edge > span').style.width = Math.round(s * 100) + '%';
     }
-    select(savedWeapon());
-    // the grid scrolls on its own (START stays on screen): open it scrolled to the equipped pair
-    requestAnimationFrame(() => cards[savedWeapon()]?.scrollIntoView({ block: 'nearest' }));
+    const id = savedWeapon();
+    select(id); show(shownId && !weaponLocked(shownId) ? shownId : id);
+    // the strip scrolls sideways: open it scrolled to the equipped pair
+    requestAnimationFrame(() => thumbs[id]?.scrollIntoView({ block: 'nearest', inline: 'nearest' }));
   };
   refreshLocks();
 }
-// A card's name (with upgrade pips) and stat rows, for the weapon as upgraded now.
+// The panel's name (with upgrade stars) and stat rows, for pair id as upgraded now.
 function fillStats(card, id, best) {
   const w = weaponDef(id), stats = card.querySelector('.wc-stats');
   card.querySelector('.wc-name').textContent = w.name + (w.tier ? ' ' + '★'.repeat(w.tier) : '');
@@ -86,6 +112,6 @@ function fillStats(card, id, best) {
     stats.appendChild(row);
   });
 }
-// Re-check the locks and upgrades (each time the screen opens: a level may have been cleared, or an upgrade bought).
+// Re-check locks, upgrades, sharpness and Buttons (each time the screen opens, and after a quick Sharpen).
 let refreshLocks = () => {};
 export const refreshWeaponSelect = () => refreshLocks();

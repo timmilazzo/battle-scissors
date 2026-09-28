@@ -26,7 +26,7 @@ function loadImage(key, file) {
   return loading[key];
 }
 function neededFor(zone) {
-  const z = ZONES[zone], keys = new Set(['pinPad', 'heartPad', 'forkButton']), tex = new Set(['roadFelt', 'roadEdge', z.ground, ...z.patches]);
+  const z = ZONES[zone], keys = new Set([zone + 'PinPad', zone + 'HeartPad', 'forkButton']), tex = new Set(['roadFelt', 'roadEdge', z.ground, ...z.patches]);
   for (const [set] of z.sets) for (const [k] of set) keys.add(k);
   return { keys, tex };
 }
@@ -127,8 +127,9 @@ export function paintLevel(def) {
   g.drawImage(st, 0, 0);
 
   // 5. Pin pads, the heart pad
-  for (const [x, y] of def.spots) sprite(g, 'pinPad', x, y, def.spotR / SPRITES.pinPad[5] * 1.04, rng() * TAU, 1);
-  sprite(g, 'heartPad', def.heart[0], def.heart[1], def.workshopR / SPRITES.heartPad[5] * 1.04, 0, 1);
+  const pinKey = zoneOf(def) + 'PinPad', heartKey = zoneOf(def) + 'HeartPad';
+  for (const [x, y] of def.spots) sprite(g, pinKey, x, y, def.spotR / SPRITES[pinKey][5] * 1.04, rng() * TAU, 1);
+  sprite(g, heartKey, def.heart[0], def.heart[1], def.workshopR / SPRITES[heartKey][5] * 1.04, 0, 1);
 
   // 6. props on the free ground: picked by weight from the zone's sets, placed biggest first, each clear of the road,
   // the pads, the heart, the fork buttons and each other (props may hang off the plate's edges)

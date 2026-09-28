@@ -35,7 +35,7 @@ console.log('  world chests  ' + String(chests).padStart(5));
 console.log('  TOTAL         ' + String(supply).padStart(5));
 console.log('');
 console.log('Spending: upgrade tree ' + upgrades + ' (' + Object.keys(C.weapons).length + ' weapons x ' + sum(M.upgradeCosts) +
-  '), Shop scissors ' + shopScissors + ', cosmetics ' + cosmetics + ', Sharpening ' + M.sharpenCost + ' each');
+  '), Shop scissors ' + shopScissors + ', cosmetics ' + cosmetics + ', Sharpen ' + M.sharpenCost + ' a time');
 
 // A full playthrough averaging 2.2 stars per level: 40% of levels three-starred, 40% two, 20% one. Three-starring
 // is spread evenly, so a world's chest and its "three-star a world" achievement only come if a whole world is

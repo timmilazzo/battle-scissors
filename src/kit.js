@@ -10,6 +10,13 @@ export const SPRITES = {
   pinPad:      ['fixed/sewing_pin_pad_01.webp', 340, 340, 175, 163, 150.9],
   heartPad:    ['fixed/sewing_heart_pad_01.webp', 460, 460, 238, 223, 205.9],
   forkButton:  ['fixed/sewing_fork_centrepiece_01.webp', 720, 720, 372, 360, 323.6],
+  // per-zone pads (round 2; the fixed pinPad / heartPad above are the old zone-less ones)
+  meadowPinPad:   ['09_zone_pads/meadow_pin_pad_01.png', 340, 340, 170, 169.5, 164],
+  denimPinPad:    ['09_zone_pads/denim_pin_pad_01.png', 340, 340, 170, 169.5, 164],
+  lairPinPad:     ['09_zone_pads/lair_pin_pad_01.png', 340, 340, 170, 169.5, 164],
+  meadowHeartPad: ['09_zone_pads/meadow_heart_pad_01.png', 460, 460, 230, 229.5, 222],
+  denimHeartPad:  ['09_zone_pads/denim_heart_pad_01.png', 460, 460, 230, 229.5, 222],
+  lairHeartPad:   ['09_zone_pads/lair_heart_pad_01.png', 460, 460, 230, 230, 222],
   // sewing props (every zone)
   buttonBlue:   ['sewing/sewing_button_blue_01.webp', 140, 140, 69, 67.5, 66.8],
   buttonWood:   ['sewing/sewing_button_wood_01.webp', 140, 140, 69, 69.5, 66.7],
@@ -108,3 +115,32 @@ export const ZONES = {
   denim:  { ground: 'denim', seams: true, stitch: '#6e4524', patches: ['patchRedPlaid', 'patchBluePlaid', 'patchGingham', 'patchPolka'], sets: [[SEWING, 1]] },
   lair:   { ground: 'lair', seams: false, stitch: '#4a2a50', patches: ['patchBluePlaid', 'patchPolka'], sets: [[LAIR, 0.75], [SEWING, 0.25]] },
 };
+
+// Round-2 UI and character art (assets/kit/NN_section/), addressed by short name. uiImage(name) loads each once and
+// returns the <img> (its .complete tells whether it has decoded yet); DOM code uses uiUrl(name) in CSS/src.
+export const UI_ART = {
+  silverfish: [1, 2, 3, 4].map(n => '10_characters/sewing_silverfish_walk_0' + n + '.png'),   // 240x120, faces right
+  splat: ['10_characters/sewing_silverfish_splat_01.png', '10_characters/sewing_silverfish_splat_02.png'],   // 200x200
+  gloveUp: '10_characters/ui_tutorial_glove_up.png', glovePress: '10_characters/ui_tutorial_glove_pressing.png',   // 300x360, one wrist anchor
+  heart: '07_icons/ui_icon_heart_full_01.png', heartCracked: '07_icons/ui_icon_heart_cracked_01.png',
+  check: '06_markers/ui_check_badge_01.png', lock: '06_markers/ui_lock_badge_01.png', here: '06_markers/ui_you_are_here_01.png',
+  button: '03_currency/ui_currency_button_01.png',
+  portraits: { seamRipper: '11_portraits/lair_seam_ripper_portrait_01.png', bruteKing: '11_portraits/lair_brute_king_portrait_01.png',
+               unstitcher: '11_portraits/lair_unstitcher_portrait_01.png' },   // 600x600, by boss key
+  // achievement id -> badge (08_trophies/ui_achievement_<name>.png); anything unlisted keeps the trophy emoji
+  achievements: { snip6: 'half_dozen', snip10: 'tailors_ten', 'boss-no-needle': 'no_needles_needed', 'one-pin': 'one_trick',
+    'no-pins': 'bare_blades', 'cigar-beetle': 'cigar_cut', 'pruner-bite': 'ratchet_bite', 'squish-level': 'pest_control',
+    'squish-25': 'silverfish_squasher', 'clear-meadow': 'meadow_mended', 'clear-denim': 'denim_darned', 'clear-lair': 'lair_unravelled',
+    'stars-meadow': 'golden_meadow', 'stars-denim': 'golden_denim', 'stars-lair': 'golden_lair', 'beat-l12': 'the_quilt_is_safe' },
+  achievementLocked: '08_trophies/ui_achievement_locked_blank.png',
+  // cosmetic id -> swatch (08_trophies/ui_swatch_<name>_01.png)
+  swatches: { brassHandles: 'brass', roseHandles: 'rose', emberGlow: 'ember', frostGlow: 'frost', cloverHandles: 'clover', indigoGlow: 'indigo', ripperGlow: 'ripper' },
+};
+export const achievementArt = id => UI_ART.achievements[id] ? '08_trophies/ui_achievement_' + UI_ART.achievements[id] + '.png' : '';
+export const swatchArt = id => UI_ART.swatches[id] ? '08_trophies/ui_swatch_' + UI_ART.swatches[id] + '_01.png' : '';
+const uiImgs = {};
+export const uiUrl = file => KIT_DIR + file;
+export function uiImage(file) {
+  if (!uiImgs[file]) { const i = new Image(); i.src = KIT_DIR + file; uiImgs[file] = i; }
+  return uiImgs[file];
+}

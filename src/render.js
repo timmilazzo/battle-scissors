@@ -15,6 +15,7 @@ import { drawWeapon, rasterizeArt, setHandleTint } from './weaponArt.js';
 import { cosmeticColor } from './meta.js';
 import { plateFor } from './levelArt.js';
 import { makeTweens, easing } from './tween.js';
+import { UI_ART, uiImage } from './kit.js';
 
 const ctx = view.ctx;
 const vfx = makeTweens();                                        // render-only tweens
@@ -53,7 +54,6 @@ export function prerender() {
   buildTowerSprites(view.dpr);
   setHandleTint(cosmeticColor('handle'));                         // handle cosmetic (Shop): baked into the weapon art
   rasterizeArt();
-  buildHand(view.dpr);
 }
 
 // Static backdrop, pre-rendered on resize: the level plate (road, Pin spots and the heart-pad workshop are part of the
@@ -197,86 +197,32 @@ function drawFlames(e, clock) {
 }
 
 // ======================= critters (src/critters.js) =======================
-// Silverfish: a flat, tapering, segmented silver-grey body with a glossy spine, twitching antennae, three long tail
-// bristles and three pairs of short legs that scurry fast (faster still mid-skitter). Drawn along its heading.
+// Silverfish: the kit's four-frame crawl cycle (faces right, so it is drawn along its heading), cycling faster mid-skitter.
+// A squish: one of the kit's two splats, fading over splatSec.
+const SF_IMG_W = 170, SF_FPS = 9, SF_FPS_FAST = 18;                // visible body width in the 240x120 frames; frames per second
+const SPLAT_PX = 62;                                              // on-screen width of a splat's 200px art
 function drawCritters(state) {
   for (const c of state.critters) if (c.on) drawSilverfish(c.x, c.y, c.ang, c.age, c.skT > 0);
 }
-const SF_SEGS = 9;
-const sfWave = (t, i) => Math.sin(t * 20 - i * 0.8) * 1.4;           // the body's crawling wriggle, head (0) to tail
 function drawSilverfish(x, y, ang, t, fast) {
-  const L = C.critters.silverfish.len, seg = L / SF_SEGS, maxW = L * 0.13, legRate = fast ? 75 : 45;
-  ctx.save(); ctx.translate(x, y); ctx.rotate(ang);                  // local +x = forward
+  const img = uiImage(UI_ART.silverfish[Math.floor(t * (fast ? SF_FPS_FAST : SF_FPS)) % UI_ART.silverfish.length]);
+  if (!img.complete || !img.naturalWidth) return;
+  const L = C.critters.silverfish.len, k = L / SF_IMG_W;
+  ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
   ctx.globalAlpha = 0.28; ctx.fillStyle = '#000';
-  ctx.beginPath(); ctx.ellipse(-L * 0.05, 3, L * 0.5, maxW * 1.3, 0, 0, TAU); ctx.fill();
-  ctx.globalAlpha = 1; ctx.lineCap = 'round';
-  // tail bristles: three long feelers off the tail tip, flicking
-  const tx = -L / 2, ty = sfWave(t, SF_SEGS);
-  ctx.strokeStyle = '#7b838a'; ctx.lineWidth = 1.1;
-  for (let k = -1; k <= 1; k++) {
-    const a = Math.PI + k * 0.4 + Math.sin(t * 9 + k * 1.7) * 0.07, bl = L * (k === 0 ? 0.45 : 0.52);
-    ctx.beginPath(); ctx.moveTo(tx + 3, ty);
-    ctx.quadraticCurveTo(tx + Math.cos(a) * bl * 0.5, ty + Math.sin(a) * bl * 0.5 - k * 2, tx + Math.cos(a) * bl, ty + Math.sin(a) * bl);
-    ctx.stroke();
-  }
-  // legs: three pairs under the front half, each a knee-bent stroke, alternating sides in a fast scurry
-  ctx.strokeStyle = '#646c73'; ctx.lineWidth = 1.4;
-  for (let i = 0; i < 3; i++) {
-    const bx = L * 0.28 - i * seg * 1.15, by = sfWave(t, i + 1);
-    for (let sd = -1; sd <= 1; sd += 2) {
-      const sw = Math.sin(t * legRate + i * 2.1 + (sd > 0 ? Math.PI : 0)) * 0.5;
-      const a = sd * (Math.PI / 2 + 0.25 + i * 0.3) + sw, kx = bx + Math.cos(a) * maxW * 1.5, ky = by + Math.sin(a) * maxW * 1.5;
-      ctx.beginPath(); ctx.moveTo(bx, by + sd * maxW * 0.5); ctx.lineTo(kx, ky);
-      ctx.lineTo(kx - maxW * 0.9, ky + sd * maxW * 0.6); ctx.stroke();
-    }
-  }
-  // body: overlapping scaly segments, tail first so the head sits on top
-  ctx.lineWidth = 1;
-  for (let i = SF_SEGS - 1; i >= 1; i--) {
-    const sx = L / 2 - i * seg - seg * 0.2, sy = sfWave(t, i), w = maxW * (i <= 2 ? 1 : 1 - (i - 2) / (SF_SEGS - 1) * 0.85);
-    ctx.fillStyle = i & 1 ? '#a3abb2' : '#8f979f'; ctx.strokeStyle = '#555c63';
-    ctx.beginPath(); ctx.ellipse(sx, sy, seg * 0.8, w, 0, 0, TAU); ctx.fill(); ctx.stroke();
-  }
-  // glossy spine and a few dark speckles: wet, a bit gross
-  ctx.strokeStyle = 'rgba(236,243,248,0.6)'; ctx.lineWidth = 1.6;
-  ctx.beginPath();
-  for (let i = 1; i < SF_SEGS - 1; i++) { const sx = L / 2 - i * seg, sy = sfWave(t, i) - maxW * 0.3; if (i === 1) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy); }
-  ctx.stroke();
-  ctx.fillStyle = 'rgba(52,48,40,0.55)';
-  for (let i = 2; i < SF_SEGS - 1; i += 2) { ctx.beginPath(); ctx.arc(L / 2 - i * seg, sfWave(t, i) + maxW * 0.35, 1.1, 0, TAU); ctx.fill(); }
-  // head, eyes, antennae (twitching)
-  const hx = L / 2 - seg * 0.3, hy = sfWave(t, 0);
-  ctx.fillStyle = '#868e95'; ctx.strokeStyle = '#555c63';
-  ctx.beginPath(); ctx.ellipse(hx, hy, seg * 0.7, maxW * 0.75, 0, 0, TAU); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = '#1c1c1c';
-  ctx.beginPath(); ctx.arc(hx + seg * 0.25, hy - maxW * 0.4, 1.1, 0, TAU); ctx.arc(hx + seg * 0.25, hy + maxW * 0.4, 1.1, 0, TAU); ctx.fill();
-  ctx.strokeStyle = '#7b838a'; ctx.lineWidth = 1;
-  for (let sd = -1; sd <= 1; sd += 2) {
-    const a = sd * (0.32 + 0.1 * Math.sin(t * 31 + sd)), al = L * 0.55;
-    ctx.beginPath(); ctx.moveTo(hx + seg * 0.5, hy + sd * 1.5);
-    ctx.quadraticCurveTo(hx + al * 0.5, hy + sd * al * 0.1, hx + Math.cos(a) * al, hy + Math.sin(a) * al);
-    ctx.stroke();
-  }
+  ctx.beginPath(); ctx.ellipse(-L * 0.05, 3, L * 0.5, L * 0.16, 0, 0, TAU); ctx.fill();
+  ctx.globalAlpha = 1; ctx.drawImage(img, -120 * k, -60 * k, 240 * k, 120 * k);
   ctx.restore();
 }
-// A squish: a grey-yellow wet smear with droplets, crushed silver scales and a snapped bristle, fading over splatSec.
 function drawSplats(state) {
   for (const s of state.splats) {
     if (!s.on) continue;
+    const img = uiImage(UI_ART.splat[s.k0 < 0.5 ? 0 : 1]);
+    if (!img.complete || !img.naturalWidth) continue;
+    const w = SPLAT_PX * (0.9 + 0.2 * s.k1);
     ctx.save(); ctx.translate(s.x, s.y); ctx.rotate(s.rot);
-    ctx.globalAlpha = 0.9 * (1 - s.t) * (1 - s.t * 0.3);
-    ctx.fillStyle = '#a19f7e';
-    ctx.beginPath(); ctx.ellipse(0, 0, 15 + 6 * s.k0, 9 + 4 * s.k1, 0, 0, TAU); ctx.fill();
-    for (let j = 0; j < 6; j++) {
-      const a = j * 1.05 + s.k2 * 3, d = 15 + ((j * 37 + s.k3 * 50) % 11), r = 1.6 + ((j * 13 + s.k0 * 20) % 3);
-      ctx.beginPath(); ctx.arc(Math.cos(a) * d * 1.2, Math.sin(a) * d * 0.8, r, 0, TAU); ctx.fill();
-    }
-    ctx.fillStyle = '#6c6a4f';
-    ctx.beginPath(); ctx.ellipse(2, 1, 8 + 3 * s.k2, 5, 0.3, 0, TAU); ctx.fill();
-    ctx.fillStyle = '#d3dadf';
-    for (let j = 0; j < 4; j++) { ctx.beginPath(); ctx.ellipse(-8 + j * 5 + s.k3 * 3, (j & 1 ? 4 : -3) * (0.5 + s.k1), 2.4, 1.3, j + s.k0, 0, TAU); ctx.fill(); }
-    ctx.strokeStyle = '#7b838a'; ctx.lineWidth = 1; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(-12, 2); ctx.lineTo(-24 - 6 * s.k1, 6 + 4 * s.k2); ctx.stroke();
+    ctx.globalAlpha = 0.95 * (1 - s.t) * (1 - s.t * 0.3);
+    ctx.drawImage(img, -w / 2, -w / 2, w, w);
     ctx.restore();
   }
   ctx.globalAlpha = 1;
@@ -506,24 +452,7 @@ function drawShredBanner(state) {
 // presses (g.down: it drops onto the point and a ripple spreads), a gold ring fills round the fingertip while it holds
 // (g.meter), and ghost scissors rise from the press point and open (g.sc, g.open). Bigger and bolder on each repeat
 // (g.scale, g.alpha). Also: the fading cut zone of its last snip, and step 2's ring round the player's own finger.
-const handCv = document.createElement('canvas');
-const HAND_W = 120, HAND_H = 190, HAND_TIP_X = 30, HAND_TIP_Y = 8;    // sprite size (CSS px) and where the fingertip is in it
-function buildHand(dpr) {
-  handCv.width = Math.ceil(HAND_W * dpr); handCv.height = Math.ceil(HAND_H * dpr);
-  const g = handCv.getContext('2d');
-  g.setTransform(dpr, 0, 0, dpr, HAND_TIP_X * dpr, HAND_TIP_Y * dpr);
-  const p = new Path2D();
-  p.roundRect(-10, -2, 20, 92, 10);                              // pointing finger
-  p.roundRect(4, 64, 22, 46, 11); p.roundRect(22, 70, 22, 44, 11); p.roundRect(40, 78, 20, 40, 10);   // curled fingers
-  p.moveTo(-8, 96); p.bezierCurveTo(-30, 84, -40, 100, -26, 116); p.lineTo(-4, 138); p.lineTo(-4, 100); p.closePath();   // thumb
-  p.roundRect(-12, 84, 76, 88, 26);                              // palm
-  g.lineJoin = 'round';
-  g.strokeStyle = 'rgba(40,24,10,0.9)'; g.lineWidth = 5; g.stroke(p);
-  g.fillStyle = '#fff6e8'; g.fill(p);
-  g.strokeStyle = 'rgba(160,120,80,0.55)'; g.lineWidth = 1.5;      // knuckle creases and a nail
-  g.beginPath(); g.moveTo(-6, 44); g.lineTo(6, 44); g.moveTo(-6, 60); g.lineTo(6, 60); g.stroke();
-  g.beginPath(); g.roundRect(-6, 2, 12, 12, 5); g.stroke();
-}
+const GLOVE_W = 150, GLOVE_H = 180, GLOVE_TIP_X = 62, GLOVE_UP_TIP_Y = 3, GLOVE_PRESS_TIP_Y = 35;   // kit glove art (300x360) drawn at half size; where the fingertip is in it
 const hpose = { x: 0, y: 0, theta: 0 };
 function drawGhost(state) {
   const tut = state.tut, g = tut.ghost;
@@ -553,7 +482,8 @@ function drawGhost(state) {
   const lift = 1 - g.down, s = g.scale * (1 + lift * 0.12);
   ctx.save();
   ctx.globalAlpha = A; ctx.translate(g.x, g.y + lift * 12); ctx.scale(s, s);
-  ctx.drawImage(handCv, -HAND_TIP_X, -HAND_TIP_Y, HAND_W, HAND_H);
+  const glove = uiImage(g.down > 0.5 ? UI_ART.glovePress : UI_ART.gloveUp);
+  if (glove.complete && glove.naturalWidth) ctx.drawImage(glove, -GLOVE_TIP_X, -(g.down > 0.5 ? GLOVE_PRESS_TIP_Y : GLOVE_UP_TIP_Y), GLOVE_W, GLOVE_H);
   ctx.restore();
   ctx.globalAlpha = 1;
 }

@@ -1,30 +1,19 @@
-// The Shop and Trophies screens (DOM only), both opened from the level map (the Shop also from the title's Shop and
-// Upgrades tiles) and closed back to whichever opened them.
-// Shop: scissors (a Shop weapon's price once it's on sale; a level-reward one shows the level that wins it), their
-// upgrades (3 tiers each), Sharpening,
+// The Shop and Trophies screens (DOM only), both opened from the level map (the Shop also from the title's Shop tile)
+// and closed back to whichever opened them.
+// Shop: the Shop's scissors (price once on sale, else when; upgrades and Sharpen are in Your Scissors, armory.js) and
 // cosmetics (chest-only ones say which chest). Trophies: every achievement, earned or not, with its reward, so the
 // total is knowable; then the world chests with their fixed contents and progress. Prices and rewards: CONFIG.meta.
 import { CONFIG as C } from './config.js';
 import { Save } from './save.js';
-import { upgradeTier } from './scissors.js';
 import { weaponLocked, shopOpen, unlockHint } from './weaponSelect.js';
 import { ACHIEVEMENTS } from './achievements.js';
-import { upgradeCost, buyUpgrade, buyWeapon, buySharpen, buyCosmetic, equipCosmetic, worldIds, worldLevels, chestState } from './meta.js';
+import { buyWeapon, buyCosmetic, equipCosmetic, worldIds, worldLevels, chestState } from './meta.js';
 import { sfx, unlockAudio } from './audio.js';
+import { UI_ART, uiUrl, achievementArt, swatchArt } from './kit.js';
 
 const shopEl = document.getElementById('shop'), shopBody = document.getElementById('shop-body'), shopBal = document.getElementById('shop-buttons');
 const trophiesEl = document.getElementById('trophies'), trophiesBody = document.getElementById('trophies-body'), trophiesSum = document.getElementById('trophies-sum');
 let onChange = () => {}, toast = () => {};
-
-const pct = x => '+' + Math.round(x * 100) + '%';
-const SIGNATURE = { angle: 'cut angle', damage: 'damage', crit: 'crit damage', hold: 'jaw hold time', ring: 'ring size' };
-// What tier n (1..3) of weapon id does, in words.
-function tierText(id, n) {
-  const M = C.meta, sig = C.weapons[id].signature;
-  if (n === 1) return pct(M.reachUp) + ' reach';
-  if (n === 2) return pct(M.speedUp) + ' close speed';
-  return sig === 'all' ? pct(M.allUp) + ' to everything' : pct(M.signatureUp) + ' ' + SIGNATURE[sig];
-}
 
 function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
 // A row: [icon] [name + lines] [action].
@@ -49,36 +38,18 @@ function renderShop() {
   shopBal.textContent = Save.buttons;
   shopBody.textContent = '';
   const M = C.meta;
-  shopBody.append(el('h3', '', 'Scissors & upgrades'), el('p', 'hint', 'Tier 1: ' + pct(M.reachUp) + ' reach. Tier 2: ' + pct(M.speedUp) +
-    ' close speed. Tier 3: each weapon’s signature stat ' + pct(M.signatureUp) + '.'));
+  shopBody.append(el('h3', '', 'Scissors'), el('p', 'hint', 'Upgrade and sharpen the pairs you hold in Your Scissors (the map, or Upgrades on the title).'));
   for (const id in C.weapons) {
-    const w = C.weapons[id], img = el('img'); img.src = w.svg; img.alt = '';
-    const tier = upgradeTier(id), pips = el('span', 'pips');
-    for (let i = 1; i <= 3; i++) pips.append(i <= tier ? '●' : el('i', '', '○'));
-    let action, lines;
-    if (weaponLocked(id) && shopOpen(id)) {
-      action = priceBtn(w.shop, Save.buttons >= w.shop, () => buy(() => buyWeapon(id)));
-      lines = [w.blurb];
-    } else if (weaponLocked(id)) {
-      action = el('span', 'tag', unlockHint(id)); lines = [pips];
-    } else if (tier >= 3) {
-      action = el('span', 'tag', 'Maxed'); lines = [pips];
-    } else {
-      const cost = upgradeCost(id);
-      action = priceBtn(cost, Save.buttons >= cost, () => buy(() => buyUpgrade(id)));
-      lines = [pips, el('span', '', ' Next: ' + tierText(id, tier + 1))];
-    }
-    shopBody.append(metaRow(img, w.name, lines, action, weaponLocked(id) ? 'lockd' : tier >= 3 ? 'done' : ''));
+    const w = C.weapons[id]; if (!w.shop) continue;           // the rest are level rewards (Your Scissors lists them)
+    const img = el('img'); img.src = w.svg; img.alt = '';
+    const owned = !weaponLocked(id);
+    const action = owned ? el('span', 'tag', 'Owned') : shopOpen(id) ? priceBtn(w.shop, Save.buttons >= w.shop, () => buy(() => buyWeapon(id))) : el('span', 'tag', unlockHint(id));
+    shopBody.append(metaRow(img, w.name, [w.blurb], action, owned ? 'done' : shopOpen(id) ? '' : 'lockd'));
   }
-  shopBody.append(el('h3', '', 'Sharpening'));
-  const full = Save.sharpen >= M.sharpenMax;
-  shopBody.append(metaRow(el('span', 'ico', '✦'), 'Sharpening',
-    [pct(M.sharpenMult - 1) + ' snip damage for your next level only. Held: ' + Save.sharpen + ' / ' + M.sharpenMax + '.'],
-    full ? el('span', 'tag', 'Full') : priceBtn(M.sharpenCost, Save.buttons >= M.sharpenCost, () => buy(buySharpen))));
   shopBody.append(el('h3', '', 'Cosmetics'), el('p', 'hint', 'Tap an owned one to wear it (tap again to take it off).'));
   for (const id in M.cosmetics) {
     const c = M.cosmetics[id], sw = el('span', 'sw'), owned = Save.cosmetics.owned.includes(id), worn = Save.cosmetics[c.slot] === id;
-    sw.style.background = c.slot === 'glow' ? 'radial-gradient(circle, #fff 0 12%, ' + c.color + ' 40%, #2a170a 80%)' : c.color;
+    if (swatchArt(id)) { sw.style.background = 'url(' + uiUrl(swatchArt(id)) + ') center / contain no-repeat'; sw.style.border = '0'; } else sw.style.background = c.slot === 'glow' ? 'radial-gradient(circle, #fff 0 12%, ' + c.color + ' 40%, #2a170a 80%)' : c.color;
     let action;
     if (owned) {
       action = el('button', 'felt-btn small buy', worn ? 'Worn' : 'Wear'); action.type = 'button';
@@ -87,6 +58,12 @@ function renderShop() {
     else action = priceBtn(c.price, Save.buttons >= c.price, () => buy(() => buyCosmetic(id)));
     shopBody.append(metaRow(sw, c.name, [c.slot === 'glow' ? 'Blade glow' : 'Handle colour'], action, worn ? 'done' : ''));
   }
+}
+
+// a trophy badge from the kit, or the fallback glyph when there's no art for it
+function badgeIcon(file, glyph) {
+  if (!file) return el('span', 'ico', glyph);
+  const i = new Image(); i.src = uiUrl(file); i.alt = ''; return i;
 }
 
 function renderTrophies() {
@@ -98,7 +75,7 @@ function renderTrophies() {
   for (const a of ACHIEVEMENTS) {
     const done = Save.achievements.includes(a.id), tag = el('span', 'tag');
     tag.innerHTML = '<span class="bt"></span> '; tag.append(done ? '✓ ' + a.reward : String(a.reward));
-    trophiesBody.append(metaRow(el('span', 'ico', done ? '\u{1F3C6}' : '\u{1F512}'), a.name, [a.description], tag, done ? 'done' : 'lockd'));
+    trophiesBody.append(metaRow(badgeIcon(done ? achievementArt(a.id) : UI_ART.achievementLocked, done ? '\u{1F3C6}' : '\u{1F512}'), a.name, [a.description], tag, done ? 'done' : 'lockd'));
   }
   trophiesBody.append(el('h3', '', 'World chests'), el('p', 'hint', 'Three-star every level of a world and its chest opens on the map. The contents are fixed.'));
   for (const w of worldIds()) {

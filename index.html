@@ -84,6 +84,7 @@
   .felt.blue { --fc: #2f5fc0; --rim: #142c62; }
   .felt.green { --fc: #3f9a2c; --rim: #17450f; }
   .felt.purple { --fc: #7a3fb8; --rim: #331560; }
+  .felt.red { --fc: #b8402c; --rim: #4d140c; }
 
   /* top-right controls: pause, sound, back to title (above every screen, so they work on the pause card too) */
   #topbar {
@@ -116,9 +117,9 @@
   .hud-hearts { display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px 0 10px; border-radius: 999px; outline-offset: -6px; }
   .hud-hearts b { font-size: 19px; font-variant-numeric: tabular-nums; min-width: 1.2em; }
   .hud-hearts.low b { color: #ff8a8a; }
-  .heart { width: 22px; height: 20px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 28'%3E%3Cpath d='M15 27C13 25 1 17 1 9 1 4 5 1 9 1c3 0 5 2 6 4 1-2 3-4 6-4 4 0 8 3 8 8 0 8-12 16-14 18z' fill='%23e8323f' stroke='%236a0f16' stroke-width='2'/%3E%3Cpath d='M15 22C11 19 5 14 5 9.5 5 6.5 7 5 9 5c2.5 0 4.5 2 6 4.5C16.5 7 18.5 5 21 5c2 0 4 1.5 4 4.5 0 4.5-6 9.5-10 12.5z' fill='none' stroke='%23ffd9d9' stroke-width='1.3' stroke-dasharray='2 2'/%3E%3C/svg%3E") center / contain no-repeat;
+  .heart { width: 26px; height: 26px; background: url(assets/kit/07_icons/ui_icon_heart_full_01.png) center / contain no-repeat;
     transition: transform 150ms, filter 150ms, opacity 150ms; }
-  .heart.lost { filter: grayscale(1) brightness(0.55); opacity: 0.55; transform: scale(0.85); }
+  .heart.lost { background-image: url(assets/kit/07_icons/ui_icon_heart_cracked_01.png); filter: grayscale(0.6) brightness(0.7); opacity: 0.7; transform: scale(0.85); }
   .heart.pop { animation: hpop 420ms ease-out; }
   @keyframes hpop { 30% { transform: scale(1.6); filter: brightness(2); } }
   .bump { animation: tbump 260ms ease-out; }
@@ -240,6 +241,7 @@
     width: min(360px, calc(100vw - 32px)); box-sizing: border-box; padding: 16px 18px 18px; border-radius: 20px; text-align: center;
     outline-offset: -10px; animation: bosscard 3s ease-out both; }
   #boss-card[hidden] { display: none; }
+  #boss-card img { display: block; width: 120px; height: 120px; margin: -50px auto 0; object-fit: contain; filter: drop-shadow(0 4px 4px rgba(0, 0, 0, 0.55)); }
   #boss-card h3 { margin: 0 0 6px; font: 400 30px/1.1 var(--ui-font); color: #ffc93d; letter-spacing: 0.5px; text-shadow: 0 3px 0 #2a170a; }
   #boss-card p { margin: 0; font: 400 20px/1.25 var(--ui-font); color: #fff1c2; }
   @keyframes bosscard { 0% { transform: translate(-50%, -50%) scale(0.6); opacity: 0; } 10% { transform: translate(-50%, -50%) scale(1.06); opacity: 1; }
@@ -264,29 +266,32 @@
   @keyframes rvfloat { 50% { transform: translateY(-8px) rotate(-3deg); } }
 
   /* Buttons (the meta currency): a little gold four-hole button icon, the map's top row, results, shop, trophies */
-  .bt { display: inline-block; width: 1.05em; height: 1.05em; flex: none; border-radius: 50%; vertical-align: -0.16em;
-    background: radial-gradient(circle at 36% 36%, #5a3208 0 9%, transparent 11%), radial-gradient(circle at 64% 36%, #5a3208 0 9%, transparent 11%),
-      radial-gradient(circle at 36% 64%, #5a3208 0 9%, transparent 11%), radial-gradient(circle at 64% 64%, #5a3208 0 9%, transparent 11%),
-      radial-gradient(circle, #ffd96a 0 52%, #c98a1c 56% 66%, #ffe89a 70%, #a8680e 100%);
-    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.45); }
-  .map-top { position: absolute; left: calc(10px + env(safe-area-inset-left)); top: calc(10px + env(safe-area-inset-top)); z-index: 1; display: flex; gap: 8px; align-items: center; }
-  .map-top .felt-btn { min-width: 0; width: auto; font-size: clamp(14px, 3.8vw, 18px); padding: 9px 14px 10px; }
+  .bt { display: inline-block; width: 1.15em; height: 1.15em; flex: none; vertical-align: -0.22em;
+    background: url(assets/kit/03_currency/ui_currency_button_01.png) center / contain no-repeat; filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.45)); }
+  .map-top { position: absolute; left: calc(10px + env(safe-area-inset-left)); top: calc(10px + env(safe-area-inset-top)); right: calc(10px + env(safe-area-inset-right)); z-index: 1; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; pointer-events: none; }
+  .map-top > * { pointer-events: auto; }
+  .map-top .felt-btn { min-width: 0; width: auto; font-size: clamp(13px, 3.6vw, 18px); padding: 9px 10px 10px; }
   .bt-chip { display: flex; align-items: center; gap: 6px; height: 38px; padding: 0 14px 0 10px; border-radius: 999px; font: 400 19px var(--ui-font); color: #ffd23f; outline-offset: -6px; }
   .bt-chip .bt { font-size: 22px; }
   .map-chest { position: absolute; padding: 0; margin: 0; border: 0; background: none; cursor: pointer; -webkit-tap-highlight-color: transparent;
     left: calc(var(--x) / var(--cw) * 100%); top: calc(var(--y) / var(--ch) * 100%); width: calc(120 / var(--cw) * 100%); aspect-ratio: 1;
     transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; justify-content: center; }
-  .map-chest .ch { width: 78%; aspect-ratio: 1.3; border-radius: 22% 22% 12% 12%; border: 3px solid #2a170a; box-sizing: border-box; position: relative;
-    background: linear-gradient(#b86a2c 0 38%, #2a170a 38% 44%, #9a5522 44%); box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5); }
-  .map-chest .ch::after { content: ""; position: absolute; left: 50%; top: 30%; width: 22%; height: 26%; transform: translateX(-50%); border-radius: 3px; background: #ffd23f; border: 2px solid #6a3a04; }
+  .map-chest .ch { width: 100%; aspect-ratio: 1.2; background: center / contain no-repeat; filter: drop-shadow(0 4px 5px rgba(0, 0, 0, 0.5)); }
+  .map-chest.meadow.locked .ch { background-image: url(assets/kit/04_chests/meadow_chest_locked.png); }
+  .map-chest.meadow.ready .ch { background-image: url(assets/kit/04_chests/meadow_chest_ready.png); }
+  .map-chest.meadow.opened .ch { background-image: url(assets/kit/04_chests/meadow_chest_open.png); }
+  .map-chest.denim.locked .ch { background-image: url(assets/kit/04_chests/denim_chest_locked.png); }
+  .map-chest.denim.ready .ch { background-image: url(assets/kit/04_chests/denim_chest_ready.png); }
+  .map-chest.denim.opened .ch { background-image: url(assets/kit/04_chests/denim_chest_open.png); }
+  .map-chest.lair.locked .ch { background-image: url(assets/kit/04_chests/lair_chest_locked.png); }
+  .map-chest.lair.ready .ch { background-image: url(assets/kit/04_chests/lair_chest_ready.png); }
+  .map-chest.lair.opened .ch { background-image: url(assets/kit/04_chests/lair_chest_open.png); }
   .map-chest .cap { margin-top: 2px; padding: 1px 7px 2px; border-radius: 8px; background: rgba(30, 14, 4, 0.8); font: 400 clamp(10px, 1.6vh, 14px) var(--ui-font); color: #ffe4aa; white-space: nowrap; }
-  .map-chest.locked .ch { filter: grayscale(0.6) brightness(0.8); }
-  .map-chest.ready .ch { animation: mnext 1.2s ease-in-out infinite; }
-  .map-chest.opened .ch { background: linear-gradient(#2a170a 0 20%, #9a5522 20%); opacity: 0.7; }
+    .map-chest.ready .ch { animation: mnext 1.2s ease-in-out infinite; }
   .map-chest:active { transform: translate(-50%, -50%) scale(0.94); }
   .map-chest:focus-visible { outline: 3px solid #ffe27a; outline-offset: 2px; }
-  .hud-sharp { display: flex; align-items: center; height: 36px; padding: 0 12px; border-radius: 999px; font: 400 15px var(--ui-font); letter-spacing: 1px; color: #fff1c2; outline-offset: -6px; }
-  .hud-sharp[hidden] { display: none; }
+  .hud-dull { display: flex; align-items: center; height: 36px; padding: 0 12px; border-radius: 999px; font: 400 15px var(--ui-font); letter-spacing: 1px; color: #fff1c2; outline-offset: -6px; }
+  .hud-dull[hidden] { display: none; }
   #over { overflow-y: auto; justify-content: safe center; }
   #over .card { gap: 10px; }
   #over .card dt, #over .card dd { padding: 4px 0 3px; }
@@ -343,10 +348,6 @@
   .meta-row.lockd { opacity: 0.6; }
   .meta-row .ico { width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; font: 400 26px var(--ui-font); color: #ffd23f; }
 
-  /* weapon select: a reward weapon not won yet */
-  .weapon-card.locked { filter: grayscale(0.9) brightness(0.6); cursor: not-allowed; }
-  .weapon-card .wc-lock { display: none; font: 700 12px/1.2 var(--ui-font); color: #ffc93d; }
-  .weapon-card.locked .wc-lock { display: block; }
 
 
   /* title scissors: real weapon art following the pointer, above the art and buttons but never catching clicks */
@@ -414,10 +415,9 @@
   .map-node.cleared .stars { display: flex; }
   .map-node .stars i { width: clamp(12px, 2.4vh, 22px); aspect-ratio: 1; background: url(assets/kit/sewing/sewing_star_empty_01.webp) center / contain no-repeat; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.6)); }
   .map-node .stars i.on { background-image: url(assets/kit/sewing/sewing_star_gold_01.webp); }
-  .map-node.cleared .check { display: flex; color: #2a170a; background: radial-gradient(circle at 35% 30%, #fff6c8, #ffc93d); border: 2px solid #6a3a04; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5); }
+  .map-node.cleared .check { display: flex; font-size: 0; background: url(assets/kit/06_markers/ui_check_badge_01.png) center / contain no-repeat; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5)); }
   .map-node.locked { background: rgba(12, 6, 24, 0.55); }
-  .map-node.locked .lock { display: flex; right: 35%; top: 20%; background: #2a170a; border: 2px solid #c99a3e; }
-  .map-node.locked .lock::before { content: ""; width: 38%; height: 30%; margin-top: 18%; border-radius: 2px; background: #ffd23f; box-shadow: 0 -0.45em 0 -0.12em transparent; }
+  .map-node.locked .lock { display: flex; right: 30%; top: 15%; width: 40%; background: url(assets/kit/06_markers/ui_lock_badge_01.png) center / contain no-repeat; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5)); }
   .map-bar { position: absolute; left: 50%; bottom: calc(12px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 1;
     display: flex; gap: 10px; align-items: center; }
   .map-bar .felt-btn { min-width: 0; width: auto; font-size: clamp(16px, 4.5vw, 22px); padding: 11px 18px 12px; }
@@ -508,17 +508,97 @@
   #pins-intro .lead { margin: 0; font: 400 18px/1.2 var(--ui-font); letter-spacing: 0.3px; text-align: center; color: #fff1c2; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45); }
   @media (max-height: 640px) { #pins-intro .pin-diagram { display: none; } }
 
-  /* weapon select (cards built by src/weaponSelect.js): sunken felt slots; the chosen one gets a gold stitched rim */
-  /* The card never grows past the screen: the heading and BACK / START stay put and only the weapon grid scrolls,
-     so START is always on screen after picking. */
+  /* weapon select (src/weaponSelect.js): the chosen pair large in a gold-rimmed felt slot, with its sharpness meter and
+     the Sharpen quick action under its stats, then a sideways strip of every pair to switch. The card never grows past
+     the screen (the hero scrolls inside itself first), so BACK / START stay on screen. */
   #select { justify-content: center; }
-  #select .card { width: min(760px, 100%); gap: 12px; max-height: calc(100% - 34px); min-height: 0; }
+  #select .card { width: min(560px, 100%); gap: 12px; max-height: calc(100% - 34px); min-height: 0; }
   #select .card h2 { font-size: clamp(30px, 8.6vw, 50px); margin-top: -58px; flex-shrink: 0; }
   #select .select-level, #select .select-actions { flex-shrink: 0; }
-  .weapon-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; width: 100%; }
-  #select .weapon-cards { flex: 0 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box;
-    padding: 6px; margin: -6px; width: calc(100% + 12px); border-radius: 18px; }
-  @media (min-width: 640px) { .weapon-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .sel-hero { width: 100%; box-sizing: border-box; display: grid; grid-template-columns: minmax(84px, 34%) minmax(0, 1fr); gap: 8px 14px; align-items: center;
+    padding: 12px 14px 14px; border-radius: 18px; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+    background: var(--felt-fuzz), radial-gradient(100% 80% at 25% 30%, rgba(255, 210, 63, 0.24), rgba(255, 210, 63, 0.05)), rgba(30, 14, 4, 0.45);
+    border: 3px solid #ffc93d; outline: 2px dashed rgba(255, 230, 150, 0.85); outline-offset: -8px;
+    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.35), 0 0 18px rgba(255, 210, 63, 0.35); }
+  .sel-hero > img { width: 100%; height: clamp(96px, 24vh, 230px); object-fit: contain; filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.5)); }
+  .sel-info { display: flex; flex-direction: column; gap: 6px; min-width: 0; text-align: left; font: 600 12px "Trebuchet MS", system-ui, sans-serif; color: #fff1c2; }
+  .sel-info .wc-name { font-size: 22px; }
+  .sel-info .wc-blurb { min-height: 0; }
+  .sel-lock { font: 400 15px var(--ui-font); color: #ffc93d; }
+  .sel-lock:empty { display: none; }
+  .sel-hero.locked { border-color: rgba(42, 23, 10, 0.9); outline-color: rgba(255, 228, 170, 0.2); box-shadow: inset 0 3px 7px rgba(0, 0, 0, 0.5);
+    background: var(--felt-fuzz), rgba(30, 14, 4, 0.45); }
+  .sel-hero.locked > img, .sel-hero.locked .wc-stats { filter: grayscale(0.9) brightness(0.6); }
+  .sel-hero.locked .sel-sharp { display: none; }
+  .sel-sharp { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: center;
+    padding-top: 10px; border-top: 2px dashed rgba(255, 228, 170, 0.25); }
+  .sel-sharp .sharp-meter { grid-column: 1 / -1; grid-row: 1; }
+  .sel-sharp .sharpen-btn { grid-column: 2; grid-row: 2; margin-top: 4px; }
+  .sel-bal { grid-column: 1; grid-row: 2; justify-self: start; display: flex; align-items: center; gap: 4px; font: 400 13px var(--ui-font); color: #ffe4aa; }
+  .sel-bal::before { content: "You have"; margin-right: 2px; }
+  .sel-hero.honed .sm-track { animation: hone 800ms ease-out; }
+  @keyframes hone { 0% { box-shadow: 0 0 0 0 rgba(255, 255, 220, 0.9), inset 0 2px 3px rgba(0, 0, 0, 0.6); filter: brightness(1.8); } 100% { box-shadow: 0 0 0 10px rgba(255, 255, 220, 0), inset 0 2px 3px rgba(0, 0, 0, 0.6); } }
+  @media (max-height: 740px) { .sel-hero .wc-blurb { display: none; } .sel-hero > img { height: clamp(80px, 15vh, 230px); } }   /* short phones: keep Sharpen in view */
+  /* wide screens (and a phone on its side): the sharpness column sits beside the stats instead of under them */
+  @media (min-width: 700px) { #select .card { width: min(800px, 100%); } .sel-hero { grid-template-columns: minmax(90px, 22%) minmax(0, 1fr) minmax(0, 1fr); }
+    .sel-sharp { grid-column: 3; grid-row: 1; padding: 0 0 0 14px; border-top: 0; border-left: 2px dashed rgba(255, 228, 170, 0.25); } }
+  .weapon-strip { display: flex; gap: 8px; flex-shrink: 0; box-sizing: border-box; width: calc(100% + 12px); margin: -6px; padding: 6px;
+    overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; }
+  .weapon-thumb { position: relative; flex: 0 0 auto; width: 84px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 6px 6px 8px; border-radius: 14px; cursor: pointer; touch-action: manipulation; scroll-snap-align: start; color: #fff1c2;
+    background: var(--felt-fuzz), rgba(30, 14, 4, 0.45); border: 3px solid rgba(42, 23, 10, 0.9); box-shadow: inset 0 3px 7px rgba(0, 0, 0, 0.5);
+    transition: transform 80ms; }
+  .weapon-thumb:active { transform: scale(0.96); }
+  .weapon-thumb img { height: 52px; aspect-ratio: 4 / 5; object-fit: contain; pointer-events: none; filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.5)); }
+  .wt-name { min-height: 2.1em; display: flex; align-items: center; font: 400 12px/1.05 var(--ui-font); text-align: center; color: #ffd23f; }
+  .wt-edge { width: 100%; height: 5px; border-radius: 3px; background: rgba(0, 0, 0, 0.55); overflow: hidden; }
+  .wt-edge > span { display: block; height: 100%; border-radius: 3px; background: var(--edge); }
+  .wt-lock { position: absolute; top: 3px; right: 4px; font-size: 13px; }
+  .weapon-thumb.locked img, .weapon-thumb.locked .wt-name { filter: grayscale(0.9) brightness(0.6); }
+  .weapon-thumb.locked .wt-edge { visibility: hidden; }
+  .weapon-thumb[aria-pressed="true"] { border-color: #ffc93d; box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.35), 0 0 12px rgba(255, 210, 63, 0.45);
+    background: var(--felt-fuzz), radial-gradient(100% 80% at 50% 30%, rgba(255, 210, 63, 0.3), rgba(255, 210, 63, 0.08)); }
+  .weapon-thumb.shown:not([aria-pressed="true"]) { border-color: rgba(255, 228, 170, 0.55); }
+  .select-actions .felt-btn:disabled { filter: grayscale(0.8) brightness(0.75); cursor: default; }
+
+  /* sharpness (src/sharpMeter.js): the band's colour (--edge), a track running red (Dull) to green (Sharp) that's dark past
+     the edge (--p), a notch per band; and the green Sharpen button, which pulses on a Dull or Worn pair */
+  [data-band="0"] { --edge: #ef4a2e; } [data-band="1"] { --edge: #f5902c; } [data-band="2"] { --edge: #f5cd3c; }
+  [data-band="3"] { --edge: #a6db4e; } [data-band="4"] { --edge: #55d13c; }
+  .sharp-meter { display: grid; gap: 3px; min-width: 0; font-family: var(--ui-font); text-align: left; }
+  .sm-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; }
+  .sm-label { font-size: 12px; letter-spacing: 0.8px; text-transform: uppercase; color: #ffe4aa; }
+  .sm-band { font-weight: 400; font-size: 19px; color: var(--edge); text-shadow: 0 2px 0 #2a170a, 1px 0 0 #2a170a, -1px 0 0 #2a170a, 0 -1px 0 #2a170a; }
+  .sm-eff { margin-left: auto; font-size: 12.5px; color: #ffe4aa; }
+  .sm-track { position: relative; height: 14px; border-radius: 9px; border: 2px solid #2a170a; overflow: hidden; box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.6);
+    background: linear-gradient(90deg, #ef4a2e, #f5902c 25%, #f5cd3c 50%, #a6db4e 75%, #55d13c); }
+  .sm-track::after { content: ""; position: absolute; top: 0; bottom: 0; left: var(--p, 50%); right: 0; background: rgba(24, 12, 4, 0.84); box-shadow: inset 2px 0 0 #fff6dc; }
+  .sm-track i { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: rgba(42, 23, 10, 0.55); z-index: 1; }
+  .sm-ends { display: flex; justify-content: space-between; font-size: 11px; letter-spacing: 0.5px; color: rgba(255, 228, 170, 0.7); }
+  .card .felt-btn.small.sharpen-btn { --fc: #43a332; --rim: #1a4d12; width: auto; display: flex; align-items: center; gap: 6px; padding: 9px 12px 10px; font-size: 16px; white-space: nowrap; }
+  .sb-price { display: inline-flex; align-items: center; gap: 3px; }
+  .sb-price[hidden] { display: none; }
+  .card .felt-btn.small:disabled { filter: grayscale(0.8) brightness(0.75); cursor: default; }
+  .sharp-meter:is([data-band="0"], [data-band="1"]) + .sharpen-btn:not(:disabled) { animation: sbpulse 1.3s ease-in-out infinite; }
+  @keyframes sbpulse { 50% { transform: scale(1.06); filter: brightness(1.15); } }
+
+  /* Your Scissors (src/armory.js): a panel per pair held (the equipped one gold-rimmed), then the ones not held yet */
+  .arm-card { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 12px; align-items: start; padding: 12px; border-radius: 16px; color: #fff1c2;
+    background: var(--felt-fuzz), rgba(30, 14, 4, 0.45); box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.45); font: 600 12.5px/1.3 "Trebuchet MS", system-ui, sans-serif; }
+  .arm-card.on { outline: 2px solid rgba(255, 210, 63, 0.7); outline-offset: -3px; }
+  .arm-card > img { width: 64px; height: 84px; object-fit: contain; filter: drop-shadow(0 4px 5px rgba(0, 0, 0, 0.5)); }
+  .arm-main { display: grid; gap: 10px; min-width: 0; }
+  .arm-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 34px; }
+  .arm-head .nm { font: 400 18px/1.1 var(--ui-font); letter-spacing: 0.3px; color: #ffd23f; }
+  .arm-eq { font: 400 12px var(--ui-font); letter-spacing: 0.8px; padding: 3px 8px 4px; border-radius: 8px; background: #ffd23f; color: #2a170a; }
+  .card .arm-card .felt-btn.small { width: auto; display: flex; align-items: center; gap: 5px; padding: 8px 12px 9px; font-size: 15px; white-space: nowrap; }
+  .arm-sharp { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+  .arm-up { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; padding-top: 8px; border-top: 2px dashed rgba(255, 228, 170, 0.2); }
+  .arm-up .pips { display: block; letter-spacing: 2px; color: #ffd23f; }
+  .arm-up .pips i { font-style: normal; color: rgba(255, 228, 170, 0.3); }
+  .arm-up .tag { font: 400 13px var(--ui-font); color: #ffc93d; }
+  @media (max-width: 400px) { .arm-card { grid-template-columns: 44px minmax(0, 1fr); gap: 10px; padding: 10px; } .arm-card > img { width: 44px; height: 60px; }
+    .arm-sharp, .arm-up { grid-template-columns: 1fr; } .card .arm-card :is(.arm-sharp, .arm-up) .felt-btn.small { justify-content: center; } }
   .weapon-card {
     display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 10px 12px; cursor: pointer; min-width: 0;
     font: 600 12px "Trebuchet MS", system-ui, sans-serif; color: #fff1c2; text-align: center; border-radius: 18px; touch-action: manipulation;
@@ -553,7 +633,7 @@
   .ctl-tag.pro { background: #c79bff; }
   #settings .felt-btn.small { width: 100%; }
   .version { margin: -4px 0 0; font: 600 11px system-ui, sans-serif; letter-spacing: 0.5px; color: rgba(255, 228, 170, 0.55); }
-  @media (max-height: 520px) { #select .card { padding: 22px 14px 14px; gap: 8px; } .wc-blurb { display: none; } #select .card h2 { font-size: 28px; margin-top: -50px; } }
+  @media (max-height: 520px) { #select .card { padding: 22px 14px 14px; gap: 8px; } .wc-blurb { display: none; } #select .card h2 { font-size: 28px; margin-top: -50px; } .sel-hero > img { height: 80px; } }
 
   /* debug panel (built by src/debug.js) */
   #debug {
@@ -599,7 +679,7 @@
   <div class="felt blue hud-wave"><small class="hud-level" id="hud-level" hidden>LEVEL 1</small><small>WAVE</small><b id="hud-wave">1/6</b></div>
   <div class="felt dark hud-hearts" id="hud-hearts" aria-label="Workshop health"><span class="heart"></span><b id="hud-hp">10</b></div>
   <button id="shred-card" class="felt purple" type="button" aria-label="SHRED" hidden><span class="ring"></span><span class="ticon">✂</span></button>
-  <div class="felt purple hud-sharp" id="hud-sharp" hidden title="Sharpened: extra snip damage this level">SHARP</div>
+  <div class="felt red hud-dull" id="hud-dull" hidden title="Dull blades: less snip damage. Sharpen them before a level.">DULL</div>
 </div>
 <div id="spots" hidden></div>
 <div id="picker" class="felt brown" role="dialog" aria-label="Build a Pin" hidden><div class="tcap">BUILD A PIN</div><div class="tcards"></div></div>
@@ -611,7 +691,7 @@
 </div>
 <div id="tip" hidden><span id="tip-text"></span></div>
 <button id="tut-skip" class="felt brown" type="button" aria-label="Skip this step" hidden><span>›</span></button>
-<div id="boss-card" class="felt purple" role="status" hidden><h3 id="boss-name"></h3><p id="boss-taunt"></p></div>
+<div id="boss-card" class="felt purple" role="status" hidden><img id="boss-portrait" alt="" width="120" height="120"><h3 id="boss-name"></h3><p id="boss-taunt"></p></div>
 <div id="reveal" role="dialog" aria-label="Reward" hidden><div class="rv-card felt brown"><div class="rv-rays"></div><div id="reveal-body"></div></div></div>
 
 <div id="title" class="screen">
@@ -633,6 +713,7 @@
   <div id="map-art" class="map-art" role="group" aria-label="Level map"></div>
   <div class="map-top">
     <span class="felt dark bt-chip" aria-label="Buttons"><span class="bt"></span><b id="map-buttons">0</b></span>
+    <button id="map-armory" class="felt-btn small" type="button">Scissors</button>
     <button id="map-shop" class="felt-btn small" type="button">Shop</button>
     <button id="map-trophies" class="felt-btn small" type="button">Trophies</button>
   </div>
@@ -643,13 +724,22 @@
   </div>
 </div>
 
-<!-- Shop and Trophies: opened from the map (src/shop.js builds their contents) -->
+<!-- Shop and Trophies: opened from the map (src/shop.js builds their contents); the title's Shop tile opens the Shop too -->
 <div id="shop" class="screen meta-screen" hidden>
   <div class="card">
     <h2 class="blue" data-text="SHOP">SHOP</h2>
     <p class="meta-bal"><span class="bt"></span><b id="shop-buttons">0</b> Buttons</p>
     <div id="shop-body" class="meta-body"></div>
     <button id="shop-back" class="felt-btn back" type="button">BACK</button>
+  </div>
+</div>
+<!-- Your Scissors: the weapon inventory, upgrades and Sharpen (src/armory.js builds it); from the map and the title's Upgrades tile -->
+<div id="armory" class="screen meta-screen" hidden>
+  <div class="card">
+    <h2 class="blue" data-text="YOUR SCISSORS">YOUR SCISSORS</h2>
+    <p class="meta-bal"><span class="bt"></span><b id="armory-buttons">0</b> Buttons</p>
+    <div id="armory-body" class="meta-body"></div>
+    <button id="armory-back" class="felt-btn back" type="button">BACK</button>
   </div>
 </div>
 <div id="trophies" class="screen meta-screen" hidden>
@@ -665,7 +755,13 @@
   <div class="card">
     <h2 class="blue" data-text="CHOOSE YOUR SHEARS">CHOOSE YOUR SHEARS</h2>
     <p id="select-level" class="select-level"></p>
-    <div id="weapon-cards" class="weapon-cards"></div>
+    <!-- the chosen pair, large (src/weaponSelect.js fills it); the Sharpen quick action sits under its stats -->
+    <div id="sel-hero" class="sel-hero">
+      <img alt="">
+      <div class="sel-info"><span class="wc-name"></span><span id="sel-lock" class="sel-lock"></span><span class="wc-blurb"></span><span class="wc-stats"></span></div>
+      <div id="sel-sharp" class="sel-sharp"><span class="sel-bal"><span class="bt"></span><b id="sel-buttons">0</b></span></div>
+    </div>
+    <div id="weapon-cards" class="weapon-strip" role="group" aria-label="Your scissors"></div>
     <div class="select-actions">
       <button id="select-back" class="felt-btn back" type="button">BACK</button>
       <button id="select-start" class="felt-btn" type="button"><span class="tri"></span>START</button>

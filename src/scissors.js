@@ -16,6 +16,16 @@ export function setWeapon(id) {
 
 // Upgrade tier 0..3 bought for weapon id (Save.upgrades; the shop is in shop.js, prices in CONFIG.meta).
 export const upgradeTier = id => Math.max(0, Math.min(3, Save.upgrades[id] | 0));
+// Sharpness of weapon id's edge, 0 (dull) .. 1 (sharp) (Save.sharpness; wear and Sharpen are in meta.js).
+export const sharpness = id => { const s = Save.sharpness[id]; return typeof s === 'number' ? Math.max(0, Math.min(1, s)) : C.meta.sharpStart; };
+// Snip damage multiplier for an edge: sharpDullMult at 0 to sharpSharpMult at 1.
+export const sharpMult = s => C.meta.sharpDullMult + (C.meta.sharpSharpMult - C.meta.sharpDullMult) * s;
+// The edge's name (CONFIG.meta.sharpBands, equal steps) and its index (0 = dullest).
+export const sharpBandIndex = s => Math.min(C.meta.sharpBands.length - 1, Math.floor(s * C.meta.sharpBands.length));
+export const sharpBand = s => C.meta.sharpBands[sharpBandIndex(s)];
+// Sharpen (meta.js buySharpen) is offered only below sharpenFrom.
+export const canSharpen = id => sharpness(id) < C.meta.sharpenFrom;
+
 // A weapon's stats at an upgrade tier (default: the tier bought): T1 reach, T2 close speed (opens faster), T3 its
 // signature stat (CONFIG.weapons[id].signature). A fresh object; CONFIG itself is never changed.
 export function weaponDef(id, tier = upgradeTier(id)) {

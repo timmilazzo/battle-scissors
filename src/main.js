@@ -14,12 +14,14 @@ import { savedLevel, rememberLevel, levelLabel } from './levelSelect.js';
 import { levelIds, levelInfo } from './levels/index.js';
 import { Save, persist, wipeSave, unlockAll } from './save.js';
 import { initLevelMap, refreshLevelMap } from './levelMap.js';
-import { isMuted, setMuted, unlockAudio } from './audio.js';
+import { isMuted, setMuted, unlockAudio, sfx } from './audio.js';
 import { loadRuns, copyText, downloadJson } from './runlog.js';
 import { initActionBar, refreshActionBar, measureActionBar, buildSpotButtons } from './actionBar.js';
 import { refreshHud } from './hud.js';
 import { showResults } from './results.js';
 import { initShop, openShop, openTrophies } from './shop.js';
+import { initArmory, openArmory } from './armory.js';
+import { buySharpen } from './meta.js';
 
 applySavedOverrides();
 // The canvas draws banners and labels in the felt font (Lilita One, index.html); ask for it now so it's ready.
@@ -43,11 +45,7 @@ function showToast(text) {
 }
 const on = (id, fn) => document.getElementById(id).addEventListener('click', fn);
 // Every menu button is a user gesture, so each one also unlocks audio (browsers keep it suspended until then).
-// A level that used up a Sharpening says so as it starts (the HUD keeps a SHARP badge up).
-const play = () => {
-  unlockAudio(); toast.hidden = true; startGame();
-  if (state.sharpened) showToast('Sharpened: +' + Math.round((C.meta.sharpenMult - 1) * 100) + '% snip damage this level (' + Save.sharpen + ' left)');
-};
+const play = () => { unlockAudio(); toast.hidden = true; startGame(); };
 // PLAY: level 0 (the tutorial) until it has been cleared once, then the level map. How to play: level 0 again.
 on('play', () => { unlockAudio(); toast.hidden = true; if (Save.tutorialDone) openMap(); else playTutorial(); });
 on('how', () => { unlockAudio(); toast.hidden = true; playTutorial(); });
@@ -60,7 +58,10 @@ const ctlBtns = document.querySelectorAll('[data-controls]');
 function showControls() { for (const b of ctlBtns) b.setAttribute('aria-checked', String(b.dataset.controls === input.controls)); }
 for (const b of ctlBtns) b.addEventListener('click', () => { setControls(b.dataset.controls); showControls(); });
 showControls();
-initWeaponSelect({ onPick: id => { selectWeapon(id); rasterizeArt(); }, onStart: play, onBack: () => openMap() });
+// The quick Sharpen on the weapon screen (a failed one says why).
+const sharpenFail = { buttons: 'Not enough Buttons', sharp: 'Already sharp', locked: 'Not yours yet' };
+initWeaponSelect({ onPick: id => { selectWeapon(id); rasterizeArt(); }, onStart: play, onBack: () => openMap(),
+  onSharpen: id => { unlockAudio(); const why = buySharpen(id); if (why) showToast(sharpenFail[why] || why); else sfx('pinPop', 0); return why; } });
 // Level picker (same screen): switch the plate, road(s) and Pin spots, then re-run the resize chain for the new plate.
 function switchLevel(id) { setLevel(id); buildSpotButtons(); resize(); }
 setLevelHook(() => { buildSpotButtons(); resize(); });            // a random level's new road at the start of a run
@@ -83,15 +84,20 @@ function chooseLevel(id) {
 }
 function openMap() { refreshLevelMap(); goMap(); }
 initLevelMap({ toast: showToast, onPick: chooseLevel, onBack: goTitle });
-// Shop and Trophies (map, top left; the title's Shop and Upgrades tiles open the same Shop, whose top section is the
-// scissors and their upgrades). A purchase re-applies the weapon's upgrades and the cosmetics (a resize re-rasterizes).
-// Closing returns to whichever screen opened it (the map refreshes, since a purchase can change it).
-const shopFromTitle = () => { unlockAudio(); toast.hidden = true; openShop(); };
-on('map-shop', () => { unlockAudio(); toast.hidden = true; openShop(); });
-on('title-shop', shopFromTitle);
-on('title-upgrades', shopFromTitle);
+// Your Scissors, Shop and Trophies (map, top left; the title's Upgrades tile opens Your Scissors, its Shop tile the Shop).
+// A purchase re-applies the weapon's upgrades and the cosmetics (a resize re-rasterizes). Closing returns to whichever
+// screen opened it (the map refreshes, since a purchase can change it).
+const openScreen = fn => () => { unlockAudio(); toast.hidden = true; fn(); };
+on('map-armory', openScreen(openArmory));
+on('title-upgrades', openScreen(openArmory));
+on('map-shop', openScreen(openShop));
+on('title-shop', openScreen(openShop));
 on('map-trophies', () => { unlockAudio(); toast.hidden = true; openTrophies(); });
-initShop({ toast: showToast, onChange: () => { selectWeapon(weapon.id); resize(); }, onClose: () => { if (state.mode === 'MAP') refreshLevelMap(); } });
+const metaChanged = () => { selectWeapon(weapon.id); resize(); refreshWeaponSelect(); };
+const metaClosed = () => { if (state.mode === 'MAP') refreshLevelMap(); };
+initShop({ toast: showToast, onChange: metaChanged, onClose: metaClosed });
+initArmory({ toast: showToast, onChange: metaChanged, onClose: metaClosed,
+  onEquip: id => { Save.equippedScissors = id; persist(); useWeapon(id); refreshWeaponSelect(); } });
 // The run is over: the results card plays its Button tally.
 setRunEndHook(() => showResults(state.tally));
 selectLevel.textContent = levelLabel(view.levelId);

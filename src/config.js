@@ -8,7 +8,7 @@
 export const FEEDBACK_URL = 'mailto:tim@saltandwisdom.com';
 
 // Shown small at the bottom of Settings and recorded in every run report. Bump it with each published change.
-export const VERSION = '0.2.8';
+export const VERSION = '0.3.1';
 
 export const CONFIG = {
   // --- pose / control mapping ---
@@ -38,7 +38,7 @@ export const CONFIG = {
   weapons: {
     safety:  { name: 'Safety Firsts', blurb: 'Round tips, crayon-box grip. Every hero starts somewhere.',
                svg: 'assets/weapons/safety-firsts.svg', viewW: 800, viewH: 1000, pivotX: 400, pivotY: 440,
-               bladeLen: 250, maxOpenDeg: 26, reachFrac: 0.105, damageMult: 0.85, openMs: 560, signature: 'all' },
+               bladeLen: 274, maxOpenDeg: 28, reachFrac: 0.105, damageMult: 0.85, openMs: 560, signature: 'all' },
     dagger:  { name: 'Dagger Shears', blurb: 'Long engraved blades that reach deep into the road.',
                svg: 'assets/weapons/dagger-shears.svg', viewW: 800, viewH: 1000, pivotX: 400, pivotY: 440,
                bladeLen: 370, maxOpenDeg: 32, reachFrac: 0.132, damageMult: 1, openMs: 500, signature: 'all' },
@@ -361,9 +361,14 @@ export const CONFIG = {
     speedUp: 0.2,            // tier 2: close speed +20% (the blades open in openMs / 1.2)
     signatureUp: 0.3,        // tier 3: the weapon's signature stat +30%
     allUp: 0.1,              // tier 3 when the signature is 'all' (Dagger Shears): reach, speed, spread and damage +10%
-    sharpenCost: 40,         // Sharpening: price...
-    sharpenMax: 3,           // ...at most this many held...
-    sharpenMult: 1.5,        // ...snip damage multiplier for the one level it's used on (used up at the next level's start)
+    // Sharpness: each pair of scissors has its own edge, 0 (dull) .. 1 (sharp), kept in the save (Save.sharpness).
+    sharpStart: 0.5,         // a pair's edge when first held (half sharp = snip damage x1, the game's balance point)
+    sharpWearPerSnip: 0.0004, // edge lost per snip attempt, hit or miss (~1250 snips from half to dull; not in level 0)
+    sharpDullMult: 0.8,      // snip damage multiplier at 0 (dull)...
+    sharpSharpMult: 1.2,     // ...and at 1 (sharp), in a straight line between
+    sharpenCost: 40,         // Sharpen: price in Buttons; puts the edge back to 1 (sharp)
+    sharpenFrom: 0.9,        // Sharpen is offered only below this edge (nothing to buy on a nearly sharp pair)
+    sharpBands: ['Dull', 'Worn', 'Fair', 'Keen', 'Sharp'], // the edge's name, in equal fifths from 0 to 1
     chestButtons: 100,       // a world chest (three-star every level of the world) holds this many Buttons plus its cosmetic
     // world id (a level file's `world`) -> its name, its chest's cosmetic, and where the chest sits on the map art (px)
     worlds: {

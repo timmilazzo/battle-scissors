@@ -75,7 +75,7 @@ export function refreshLevelMap() {
   });
   for (const { w, b, contents } of chests) {
     const st = chestState(w), lv = worldLevels(w), stars = lv.reduce((s, id) => s + Math.min(3, (Save.levels[id] || {}).stars || 0), 0);
-    b.className = 'map-chest ' + st;
+    b.className = 'map-chest ' + w + ' ' + st;
     b.lastChild.textContent = st === 'opened' ? 'Opened' : st === 'ready' ? 'Open me!' : '★ ' + stars + '/' + lv.length * 3;
     b.setAttribute('aria-label', C.meta.worlds[w].name + ' chest (' + st + '): ' + contents);
   }
