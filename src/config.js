@@ -8,7 +8,7 @@
 export const FEEDBACK_URL = 'mailto:tim@saltandwisdom.com';
 
 // Shown small at the bottom of Settings and recorded in every run report. Bump it with each published change.
-export const VERSION = '0.3.4';
+export const VERSION = '0.3.9';
 
 export const CONFIG = {
   // --- pose / control mapping ---
@@ -125,17 +125,20 @@ export const CONFIG = {
   // fireImmune = Fire Pins don't burn it; flat = no weak spot (every snip does tip damage, wherever it lands);
   // ringExecute = a Cigar Cutter snip with its centre inside the hole kills it outright.
   enemyTypes: {
-    scrap:      { r: 13, hp: 1,  tier: 1,  score: 10,  traverseSec: 12, gapMs: 300,  pushScale: 1.2,  color: '#eadcc3', patch: '#3f73d8', patch2: '#d8423a' },
-    bolster:    { r: 24, hp: 3,  tier: 2,  score: 25,  traverseSec: 26, gapMs: 1400, pushScale: 0.8,  color: '#e6b85c', patch: '#7a4fc9', patch2: '#3f73d8' },
-    brute:      { r: 38, hp: 6,  tier: 3,  score: 60,  traverseSec: 32, gapMs: 2500, pushScale: 0.35, armor: true, color: '#b8946a', patch: '#3f6fc4', patch2: '#c0392b' },
-    runner:     { r: 11, hp: 1,  tier: 1,  score: 15,  traverseSec: 6.5, gapMs: 450, pushScale: 1.4, color: '#7fc46a', patch: '#f2c230', patch2: '#d8423a' },
-    beetle:     { r: 34, hp: 10, tier: 3,  score: 80,  traverseSec: 36, gapMs: 3200, pushScale: 0.25, fireImmune: true, flat: true, ringExecute: true, color: '#c8433a', patch: '#f4e3c1', patch2: '#2b1a10' },
-    // bosses (boss: true): their rules are in CONFIG.bosses, and their hp is not scaled by hpPerWave
+    scrap:      { r: 13, hp: 1,  levelHp: 0.5, tier: 1,  score: 10,  traverseSec: 12, gapMs: 300,  pushScale: 1.2,  color: '#eadcc3', patch: '#3f73d8', patch2: '#d8423a' },
+    bolster:    { r: 24, hp: 3,  levelHp: 1, tier: 2,  score: 25,  traverseSec: 26, gapMs: 1400, pushScale: 0.8,  color: '#e6b85c', patch: '#7a4fc9', patch2: '#3f73d8' },
+    brute:      { r: 38, hp: 6,  levelHp: 1, tier: 3,  score: 60,  traverseSec: 32, gapMs: 2500, pushScale: 0.35, armor: true, color: '#b8946a', patch: '#3f6fc4', patch2: '#c0392b' },
+    runner:     { r: 11, hp: 1,  levelHp: 0, tier: 1,  score: 15,  traverseSec: 6.5, gapMs: 450, pushScale: 1.4, color: '#7fc46a', patch: '#f2c230', patch2: '#d8423a' },
+    beetle:     { r: 34, hp: 10, levelHp: 0.5, tier: 3,  score: 80,  traverseSec: 36, gapMs: 3200, pushScale: 0.25, fireImmune: true, flat: true, ringExecute: true, color: '#c8433a', patch: '#f4e3c1', patch2: '#2b1a10' },
+    // bosses (boss: true): their rules are in CONFIG.bosses, and their hp is not scaled by hpPerWave or hpPerLevel
     seamRipper: { r: 56, hp: 30, tier: 10, score: 500, traverseSec: 30, gapMs: 0,    pushScale: 0,    boss: true,  color: '#6a3596', patch: '#e84a5f', patch2: '#ffd23f' },
     bruteKing:  { r: 62, hp: 60, tier: 10, score: 800, traverseSec: 70, gapMs: 0,    pushScale: 0,    boss: true,  armor: true, color: '#9c7650', patch: '#3f6fc4', patch2: '#c0392b' },
     unstitcher: { r: 64, hp: 90, tier: 10, score: 1500, traverseSec: 40, gapMs: 0,   pushScale: 0,    boss: true,  color: '#2e2a4a', patch: '#8fe8ff', patch2: '#e84a5f' },
   },
   hpPerWave: 0.1,            // each wave after the first adds this fraction of base hp (wave 6 = 1.5x); fractional hp means a tip hit no longer kills
+  hpPerLevel: 0.1,           // each map level from hpLevelFrom on adds this fraction of base hp x the type's levelHp (added to the wave's)
+  hpLevelFrom: 3,            // the first map level that gets a hpPerLevel step (L3 = 1 step, L12 = 10)
+  hpOffMapLevel: 6,          // Random Quilt / Custom Road scale as this map level (fixed, so ?seed= replays match)
   waddleDeg: 6,              // side-to-side rock while walking
   pathReturnRate: 1.6,       // how fast a shoved enemy drifts back onto the road (per second)
 
@@ -159,15 +162,27 @@ export const CONFIG = {
     // then do armorDownMult x normal damage. Ice and SHRED don't slow it. The taunt tells the player the rule.
     bruteKing:  { name: 'The Brute King', taunt: 'My armor only drops after I charge!', roar: 'roarKing',
                   chargeEverySec: 6, chargePx: 200, chargeSec: 1.4, windupSec: 1.2, armorDownSec: 2.2, armorDownMult: 3 },
-    // three phases, switching at phaseAt (hp fractions). 1: every swarmEverySec calls swarmSize Scraps that escort it
-    // (swarmGapPx apart along the road, half ahead and half behind), and is
-    // only hurt by a snip with multiMin+ enemies in its zone (x multiMult). 2: armored and charging like the Brute King.
+    // three phases, switching at phaseAt (hp fractions). 1: its escort Scraps (swarmSize of them, swarmGapPx apart along
+    // the road, half ahead and half behind) hold up a shield that blocks every hit. Cutting the last one drops it for
+    // shieldDownSec (snips do shieldDownMult x graded damage); it comes back with a fresh swarm. While the shield is up,
+    // every swarmEverySec it refills any empty escort places. 2: armored and charging like the Brute King.
     // 3: an opening seam like the Seam Ripper, faster.
     unstitcher: { name: 'The Unstitcher', taunt: 'Your whole quilt comes undone!', roar: 'roarUnstitcher',
-                  phaseAt: [0.66, 0.33], swarmEverySec: 5, swarmSize: 4, swarmGapPx: 42, multiMin: 3, multiMult: 2,
+                  phaseAt: [0.66, 0.33], swarmEverySec: 5, swarmSize: 4, swarmGapPx: 42, shieldDownSec: 3, shieldDownMult: 2,
                   chargeEverySec: 5, chargePx: 180, chargeSec: 1.2, windupSec: 1, armorDownSec: 1.8, armorDownMult: 3,
                   seamEverySec: 2, seamOpenSec: 0.8, seamWarnSec: 0.3, openDmg: 5, closedDmg: 1, expertOffSeamDmg: 2 },
   },
+  // The rule line under the boss bar (render.js), by what the boss is doing right now. Gold = snip now.
+  bossHints: {
+    swarm: 'Cut its Scraps to break the shield',     // swarm, shield up
+    shieldDown: 'Shield down: SNIP NOW!',
+    armor: 'Armored: wait for its charge',
+    windup: 'It’s about to charge!',
+    armorDown: 'Armor down: SNIP NOW!',
+    seam: 'Snip when its seam opens',
+    seamOpen: 'Seam open: SNIP NOW!',
+  },
+  bossHintPulseSec: 0.7,     // the rule line swells and glows this long when it changes
 
   // --- kill impact ---
   hitStopMs: 60,             // whole-game freeze on a medium+ (tier >= 2) kill
@@ -270,7 +285,7 @@ export const CONFIG = {
     retrySec: 0.25,          // a due spawn that can't happen yet (too few enemies, a boss seam open) checks again this often
     silverfish: {
       thread: 30,            // Thread for a squish (fixed)
-      crossSec: 1.8,         // seconds to crawl from one screen edge to the opposite one
+      crossSec: 2.3,         // seconds to crawl from one screen edge to the opposite one
       r: 13,                 // hit radius (px); the snip's hitPadPx is added like for enemies
       len: 44,               // drawn body length (px), antennae and tail bristles extra
       wobblePx: 9,           // sideways wobble of its line (px)...
@@ -320,6 +335,7 @@ export const CONFIG = {
   pickerIconPx: 58,          // diameter of each Pin's round icon
   pickerRowPx: 66,           // vertical spacing between the Pins on the arc
   pickerGapPx: 16,           // gap between the pad's edge and the nearest icon
+  pickerCurvePx: 14,         // how much further out the middle of the fan sits than its ends (the arc's bow)
   pickerFlyMs: 260,          // how long each Pin takes to fly out from the pad...
   pickerStaggerMs: 45,       // ...each one this much after the one before
 
@@ -436,7 +452,9 @@ export const CONFIG = {
   saveDebounceMs: 300,       // the save (src/save.js) is written this long after the last change
 
   // --- action bar (thread + SHRED) and Pin spot tips ---
-  tipShowMs: 9000,           // how long a "you can afford a Pin" / "SHRED ready" tip stays up (unless acted on)
+  tipShowMs: 9000,           // how long a "you can afford a Pin" tip stays up (unless acted on)
+  shredTipMs: 3500,          // how long the "SHRED ready" tip stays up (the next snip also dismisses it)
+  shredTipRuns: 2,           // the "SHRED ready" tip shows in at most this many runs ever (the meter still pulses after)
 
   // --- desktop fallback ---
   wheelDistStep: 0.35,       // px of virtual finger distance per wheel delta unit

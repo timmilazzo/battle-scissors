@@ -762,6 +762,7 @@ function strike(e, px, py, ax, ay, L, strong, power) {
 
 function killEnemy(e, bySnip = true) {
   e.on = false; tweens.cancel(e); e.pulling = false;           // stop any magnet pull mid-flight
+  if (e.escortOf) escortDied(e);
   shatter(e); awardKill(e, bySnip);                              // no kill sound: the snip (or SHRED's whir) already made one
 }
 
@@ -804,9 +805,9 @@ function seamHit(e, px, py, ax, ay, L) {
   return false;
 }
 
-// Armor absorbs the snip.
-function clang(e, buzz = true) {
-  spawnLabel(e.x, e.y - e.r * 0.4, LABEL_CLANG);
+// Armor absorbs the snip (label = LABEL_SHIELD for the Unstitcher's swarm shield).
+function clang(e, buzz = true, label = LABEL_CLANG) {
+  spawnLabel(e.x, e.y - e.r * 0.4, label);
   sparks(e.x, e.y - e.r * 0.7, 12, 0);
   e.hitT = 0.5;
   sfx('clang');
@@ -821,8 +822,8 @@ function clang(e, buzz = true) {
 //   'armor' (Brute King; Unstitcher phase 2): timing + patience. Walks forward; every chargeEverySec it trembles for
 //           windupSec, then charges chargePx along the road over chargeSec, then its armor is down for armorDownSec (seams glow): snips do armorDownMult x graded
 //           damage; with the armor on they clang for 0 (needles too).
-//   'swarm' (Unstitcher phase 1): calls a Scrap swarm every swarmEverySec; only a snip with multiMin+ enemies in its
-//           zone hurts it (graded x multiMult).
+//   'swarm' (Unstitcher phase 1): its escort Scraps hold up a shield that blocks every hit; cutting the last one
+//           drops it for shieldDownSec (graded x shieldDownMult), then it returns with a fresh swarm.
 // Bosses can't be slowed (Ice, SHRED) or shoved, and their hp isn't scaled per wave. Fire, needles and SHRED hurt them
 // except where the rules above block it (bossBlocks).
 export function bossMode(e) {
@@ -832,7 +833,7 @@ export function bossMode(e) {
 }
 const expertControls = () => input.usingTouch && !holdTouch();
 // Would a non-snip hit (fire, needle, SHRED) bounce off right now?
-const bossBlocks = e => { const m = bossMode(e); return m === 'swarm' || (m === 'armor' && e.armored); };
+const bossBlocks = e => { const m = bossMode(e); return (m === 'swarm' && e.shieldDownT <= 0) || (m === 'armor' && e.armored); };
 
 function bossStrike(e, px, py, ax, ay, L, strong, power, g) {
   const def = C.bosses[e.name], mode = bossMode(e);
@@ -852,8 +853,8 @@ function bossStrike(e, px, py, ax, ay, L, strong, power, g) {
     if (weapon.id === 'pruners' && (!e.on || (e.name === 'unstitcher' && e.hp / e.maxHp <= def.phaseAt[1]))) state.run.prunerBite = true;
     return;
   } else {
-    if (snipInZone < def.multiMin) { clang(e); return; }
-    dmg = gradedDamage(g, strong, power) * def.multiMult;
+    if (e.shieldDownT <= 0) { clang(e, true, LABEL_SHIELD); return; }
+    dmg = gradedDamage(g, strong, power) * def.shieldDownMult;
   }
   bossHurt(e, dmg);
 }
@@ -872,7 +873,7 @@ function bossMove(e, dt, step) {
   if (e.name === 'unstitcher') {
     const f = e.hp / e.maxHp, ph = f <= def.phaseAt[1] ? 2 : f <= def.phaseAt[0] ? 1 : 0;
     if (ph !== e.bossPhase) {                                     // next phase: roar, reset its clocks, armor on for phase 2
-      e.bossPhase = ph; e.seamT = e.chargeT = e.swarmT = e.armorDownT = 0; e.seamOpen = e.seamWarn = false;
+      e.bossPhase = ph; e.seamT = e.chargeT = e.swarmT = e.armorDownT = e.shieldDownT = 0; e.seamOpen = e.seamWarn = false;
       e.armored = ph === 1; tweens.cancel(e); e.charging = e.windup = false;
       sfx(def.roar, 0); addShake(10, 12); sparks(e.x, e.y, 24, 3);
     }
@@ -910,19 +911,38 @@ function bossMove(e, dt, step) {
     e.seamOpen = ph >= per - def.seamOpenSec;
     e.seamWarn = !e.seamOpen && ph >= per - def.seamOpenSec - def.seamWarnSec;
     if (e.seamOpen && !was) sfx('seamOpen', 0);
-  } else if ((e.swarmT += dt) >= def.swarmEverySec) {
+  } else if (e.shieldDownT > 0) {
+    e.shieldDownT = Math.max(0, e.shieldDownT - dt);            // shield down: the swarm clock waits
+  } else if ((e.swarmT += dt) >= def.swarmEverySec || !escortAt(e, -1)) {
+    // shield up: a fresh swarm at once when it has none (its first, or back from being broken), else a refill
     e.swarmT = 0;
     // a Scrap swarm escorting it on its road, just ahead and behind (it keeps them with it until it dies), so a wide
-    // snip on the boss catches some: the multi-snip it needs
+    // snip on the boss catches some: the multi-snip it needs. Only empty places are filled, so swarms never stack.
     const half = Math.ceil(def.swarmSize / 2);
     for (let i = 0; i < def.swarmSize; i++) {
+      if (escortAt(e, i)) continue;
       const s = spawnEnemy('scrap'); if (!s) break;
-      s.route = e.route; s.seg = 0; s.escortOf = e; s.escortGen = e.gen;
+      s.route = e.route; s.seg = 0; s.escortOf = e; s.escortGen = e.gen; s.escortSlot = i;
       s.escortOff = (i < half ? -(1 + i) : 1 + i - half) * def.swarmGapPx / state.paths[e.route].len;
       s.u = clamp(e.u + s.escortOff, 0, 0.999); pathPoint(s); s.x = s.px; s.y = s.py;
     }
     sfx('pinPop', 0); sparks(e.x, e.y, 10, 2);
   }
+}
+// Is escort place i (of the swarm around boss e; -1 = any place) taken by a live Scrap?
+function escortAt(e, i) {
+  for (let k = 0; k < enemies.length; k++) {
+    const s = enemies[k];
+    if (s.on && s.escortOf === e && s.escortGen === e.gen && (i < 0 || s.escortSlot === i)) return true;
+  }
+  return false;
+}
+// An escort died (cut, burnt, needled, shredded): if it was the last one round a shielded Unstitcher, the shield drops.
+function escortDied(s) {
+  const b = s.escortOf;
+  if (!b.on || b.gen !== s.escortGen || bossMode(b) !== 'swarm' || b.shieldDownT > 0 || escortAt(b, -1)) return;
+  b.shieldDownT = C.bosses[b.name].shieldDownSec; b.swarmT = 0;
+  sfx('armorOff', 0); sparks(b.x, b.y, 20, 3); addShake(5, 8);
 }
 // The lunge is over: the armor drops for armorDownSec.
 function chargeDone(e) {
@@ -1108,24 +1128,31 @@ const enemies = state.enemies;
 // route = which of the level's paths it walks. gen = bumped on every spawn, so a needle aimed at an earlier occupant of
 // this pool slot knows its target is gone. Bosses: bossPhase (Unstitcher 0..2), seamT / seamOpen / seamWarn (the opening
 // seam), chargeT / windup / charging / armorDownT (the tremble before a lunge, the lunge, and the armor-down window
-// after it), swarmT (Scrap swarm clock).
+// after it), swarmT (Scrap swarm clock), shieldDownT (the Unstitcher's swarm shield is down while > 0).
 // escortOf (+ escortGen, escortOff) = the Unstitcher a swarm Scrap keeps its place around (road progress offset).
 for (let i = 0; i < C.maxEnemies; i++) enemies.push({ on: false, type: null, name: '', x: 0, y: 0, px: 0, py: 0, ox: 0, oy: 0,
   u: 0, seg: 0, route: 0, gen: 0, speed: 0, r: 0, hp: 0, maxHp: 0, armored: false, slowed: false, slowT: 0, burning: false, burnLeft: 0, burnT: 0, leg: 0, seamA: 0, age: 0,
-  pvx: 0, pvy: 0, phase: 0, hitT: 0, pulling: false, pinned: false, walking: false, tutK: 0, escortOf: null, escortGen: 0, escortOff: 0,
-  holdT: 0, bossPhase: 0, seamT: 0, seamOpen: false, seamWarn: false, chargeT: 0, charging: false, windup: false, armorDownT: 0, swarmT: 0 });
+  pvx: 0, pvy: 0, phase: 0, hitT: 0, pulling: false, pinned: false, walking: false, tutK: 0, escortOf: null, escortGen: 0, escortOff: 0, escortSlot: -1,
+  holdT: 0, bossPhase: 0, seamT: 0, seamOpen: false, seamWarn: false, chargeT: 0, charging: false, windup: false, armorDownT: 0, swarmT: 0, shieldDownT: 0 });
 
+// A non-boss's hp multiplier: + hpPerWave per wave after the first, + hpPerLevel x its levelHp per map level from
+// hpLevelFrom on (Runners have levelHp 0). The tutorial's wave 0 stays at base.
+function hpScale(t) {
+  const i = C.map.nodes.findIndex(n => n[0] === view.levelId), lv = i >= 0 ? i : C.hpOffMapLevel;
+  const steps = isTutorial() ? 0 : Math.max(0, lv - C.hpLevelFrom + 1);
+  return 1 + C.hpPerWave * Math.max(0, state.wave - 1) + C.hpPerLevel * (t.levelHp || 0) * steps;
+}
 // Returns the enemy, or null if the pool is full (the schedule retries next frame).
 function spawnEnemy(name) {
   let e = null;
   for (let i = 0; i < enemies.length; i++) if (!enemies[i].on) { e = enemies[i]; break; }
   if (!e) return null;
   const t = C.enemyTypes[name];
-  e.on = true; e.type = t; e.name = name; e.r = t.r; e.hp = e.maxHp = t.boss ? t.hp : t.hp * (1 + C.hpPerWave * Math.max(0, state.wave - 1));
+  e.on = true; e.type = t; e.name = name; e.r = t.r; e.hp = e.maxHp = t.boss ? t.hp : t.hp * hpScale(t);
   e.armored = !!t.armor; e.slowed = false; e.slowT = 0; e.burning = false; e.burnLeft = 0; e.burnT = 0; e.leg = 0; e.seamA = rng.spawn() * TAU; e.age = 0;
   e.speed = 1 / t.traverseSec; e.u = 0; e.seg = 0; e.ox = 0; e.oy = 0; e.pvx = 0; e.pvy = 0; e.hitT = 0;
   e.pulling = false; e.pinned = false; e.walking = false; e.escortOf = null; e.holdT = 0; e.gen++;
-  e.bossPhase = 0; e.seamT = e.chargeT = e.armorDownT = e.swarmT = 0; e.seamOpen = e.seamWarn = e.charging = e.windup = false;
+  e.bossPhase = 0; e.seamT = e.chargeT = e.armorDownT = e.swarmT = e.shieldDownT = 0; e.seamOpen = e.seamWarn = e.charging = e.windup = false;
   e.phase = rng.spawn() * TAU;
   // a fork: pick a route at random (single-route levels draw nothing, so their seeded runs replay as before)
   const nr = state.paths.length;
@@ -1193,7 +1220,7 @@ function sparks(x, y, n, colorIdx) {
 function burst(x, y, strong) { sparks(x, y, strong ? C.snipParticles : C.snipParticles >> 1, 2); fx.ring = strong ? 1 : 0.6; fx.ringX = x; fx.ringY = y; }
 
 // big floating words; kind indexes the renderer's label tables
-export const LABEL_SNIP = 0, LABEL_NICK = 1, LABEL_CLANG = 2;
+export const LABEL_SNIP = 0, LABEL_NICK = 1, LABEL_CLANG = 2, LABEL_SHIELD = 3;
 const labels = state.labels;
 for (let i = 0; i < 6; i++) labels.push({ on: false, x: 0, y: 0, t: 0, kind: 0 });
 function spawnLabel(x, y, kind) {

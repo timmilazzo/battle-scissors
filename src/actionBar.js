@@ -9,7 +9,7 @@
 //   affordable one builds it there and resumes; the × on the pad or anywhere else closes it and resumes.
 // - Tips: first-time attention for Pins (once a Pin is affordable, the + buttons and the counter pulse plus a tip,
 //   until the first + tap, which pauses the game on a one-time "Pins" explainer; GOT IT resumes with that spot's
-//   picker open) and the first time SHRED is ready (until it has ever been used). Tip flags live in the save (Save.tips). The SHRED meter pulses whenever ready, and
+//   picker open) and SHRED ready (brief, gone on the next snip, in the first CONFIG.shredTipRuns runs until it has been used). Tip flags live in the save (Save.tips). The SHRED meter pulses whenever ready, and
 //   while armed a tip over it says to press where the spin should go.
 import { CONFIG as C } from './config.js';
 import { view, level } from './core.js';
@@ -113,7 +113,7 @@ function closePicker(resume = true) {
   pick.spot = -1; picker.hidden = true;
   if (resume && state.paused && state.pauseCard === 'build') setPaused(false);
 }
-// The fan: the Pins on an arc beside the pad, toward the wider side of the screen, evenly spaced up and down and slid
+// The fan: the Pins on an arc beside the pad, toward the wider side of the screen, evenly spaced up and down, and slid
 // to stay clear of the HUD row and the bottom bar; each icon at least pickerGapPx off the pad's edge, its label beside
 // it on the outside. fly = start them at the pad and let them fly out (staggered).
 function placePicker(fly = false) {
@@ -126,12 +126,17 @@ function placePicker(fly = false) {
   let shift = 0;
   if (n && t.y + ys[0] < top) shift = top - t.y - ys[0];
   if (n && t.y + ys[n - 1] + shift > bottom) shift = bottom - t.y - ys[n - 1];
-  let R = padR + C.pickerGapPx + icon / 2;
-  for (const y of ys) R = Math.max(R, Math.abs(y + shift) + icon * 0.35);
+  // A shallow curve (the middle pickerCurvePx further out than the ends), pulled in as close to the pad as it can
+  // go with every icon still clear of it, so the labels keep the rest of the screen's width even when the fan is slid.
+  const clear = padR + C.pickerGapPx + icon / 2, ymax = Math.max(1, Math.abs(ys[0] || 0));
+  const bow = y => C.pickerCurvePx * (1 - (y / ymax) * (y / ymax));
+  let x0 = 0;
+  for (const y of ys) x0 = Math.max(x0, Math.sqrt(Math.max(0, clear * clear - (y + shift) * (y + shift))) - bow(y));
+  const arcX = y => x0 + bow(y);
   picker.classList.toggle('left', side < 0);
   picker.style.setProperty('--cx', t.x + 'px'); picker.style.setProperty('--cy', t.y + 'px'); picker.style.setProperty('--hole', (padR + 8) + 'px');
   cards.forEach((c, k) => {
-    const y = ys[k] + shift, x = side * Math.sqrt(Math.max(0, R * R - y * y));
+    const y = ys[k] + shift, x = side * arcX(ys[k]);
     const ix = t.x + x, iy = t.y + y;                            // the icon's centre
     c.style.top = (iy - icon / 2) + 'px';
     if (side > 0) { c.style.left = (ix - icon / 2) + 'px'; c.style.right = ''; c.style.setProperty('--room', (W - ix - icon / 2 - 18) + 'px'); }
@@ -196,7 +201,7 @@ export function measureActionBar() {
 // ---- per-frame refresh (only touches the DOM when something changed) ----
 const shown = { visible: false, shred: null, thread: -1, charge: -1, ready: null, armed: null, can: null, built: '' };
 const tip = { kind: '', until: 0, anchor: null };
-let runT0 = -1, tipPinsDone = false, tipShredDone = false, specialsSeen = 0, attn = false;
+let runT0 = -1, tipPinsDone = false, tipShredDone = false, tipSnips = 0, specialsSeen = 0, attn = false;
 function setAttn(on) { attn = on; bar.classList.toggle('pin-attn', on); spotsEl.classList.toggle('attn', on); }
 
 export function refreshActionBar() {
@@ -251,15 +256,16 @@ function updateTip(ready, built) {
   const now = performance.now();
   if (state.heli.armed) {
     showTip('armed', shredCard, (touchy() ? 'Touch' : 'Click') + ' where you want to SHRED.', 0);
-  } else if (ready && !tips.shred && !tipShredDone) {
-    tipShredDone = true;
-    showTip('shred', shredCard, 'SHRED is ready! Tap the meter, then ' + (touchy() ? 'touch' : 'click') + ' where you want to spin.', now + C.tipShowMs);
+  } else if (ready && !tips.shred && !tipShredDone && (tips.shredRuns || 0) < C.shredTipRuns) {
+    tipShredDone = true; tips.shredRuns = (tips.shredRuns || 0) + 1; saveTips();
+    showTip('shred', shredCard, 'SHRED ready! Tap the meter to use it.', now + C.shredTipMs);
+    tipSnips = state.stats.snips;
   } else if (attn && !tipPinsDone && pick.spot < 0) {
     tipPinsDone = true;
     showTip('pins', spotBtns[built.indexOf('0')], 'You have enough Thread for a Pin! ' + (touchy() ? 'Tap' : 'Click') + ' a + beside the road.', now + C.tipShowMs);
   }
   if (tip.kind && tip.until && now > tip.until) hideTip();
-  if (tip.kind === 'shred' && (!ready || state.heli.active || state.heli.armed)) hideTip();
+  if (tip.kind === 'shred' && (!ready || state.heli.active || state.heli.armed || state.stats.snips !== tipSnips)) hideTip();   // playing on dismisses it
   if (tip.kind === 'armed' && !state.heli.armed) hideTip();
   if (tip.kind === 'pins' && !attn) hideTip();
 }
@@ -267,6 +273,7 @@ function showTip(kind, anchor, text, until) {
   if (tip.kind === kind && tipText.textContent === text) return;
   tip.kind = kind; tip.until = until; tip.anchor = anchor;
   tipText.textContent = text; tipEl.hidden = false;
+  tipEl.classList.toggle('passthru', kind !== 'pins');   // the SHRED tips sit over the board: touches go through to the table
   placeTip();
 }
 // Centred over its anchor, kept on screen, the arrow pointing at the anchor. Anchors in the bar get the tip above

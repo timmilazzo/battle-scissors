@@ -32,9 +32,9 @@ const BANNER_FONT = '400 48px ' + UI_FONT;
 const BANNER_SUB_FONT = '400 19px ' + UI_FONT;
 
 const PART_COLORS = ['#ffffff', '#8ff7ff', '', '#ffd23f', '#ff8a3d'];   // particle c: 0 white, 1 cyan, 3 gold, 4 ember (2 = alternating 0/1)
-// big floating words, indexed by label kind (LABEL_SNIP / LABEL_NICK / LABEL_CLANG in game.js)
-const LABEL_TEXT = ['SNIP!', 'nick', 'CLANG!'], LABEL_SCALE = [1, 0.6, 0.8];
-const LABEL_FILL = ['#ffffff', '#ffffff', '#e3e9ee'], LABEL_STROKE = ['rgba(0,70,100,0.8)', 'rgba(0,70,100,0.8)', '#39424a'];
+// big floating words, indexed by label kind (LABEL_SNIP / LABEL_NICK / LABEL_CLANG / LABEL_SHIELD in game.js)
+const LABEL_TEXT = ['SNIP!', 'nick', 'CLANG!', 'SHIELDED!'], LABEL_SCALE = [1, 0.6, 0.8, 0.75];
+const LABEL_FILL = ['#ffffff', '#ffffff', '#e3e9ee', '#bff4ff'], LABEL_STROKE = ['rgba(0,70,100,0.8)', 'rgba(0,70,100,0.8)', '#39424a', '#1d2a4a'];
 // damage number colour by strike grade: gold = strong (near pivot / seam), white = mid, grey-blue = graze (near tips),
 // orange = a Fire Pin burn tick (g = -1), silver = a Needle Pin hit (g = -2)
 const numColor = g => g <= -2 ? '#dfe9f2' : g < 0 ? '#ff9a4a' : g < 0.35 ? '#ffe27a' : g < 0.7 ? '#ffffff' : '#9fc7d6';
@@ -138,8 +138,8 @@ function drawEnemies(state) {
       const m = bossMode(e);
       if (e.windup) { const d = C.bosses[e.name]; drawChargeWarn(ctx, e, (e.chargeT - d.chargeEverySec + d.windupSec) / d.windupSec, state.clock); }
       if (m === 'seam') drawSeam(ctx, e, state.clock);
-      else if (m === 'armor' && !e.armored && !e.charging) drawArmorSeams(ctx, e, state.clock);
-      else if (m === 'swarm') {                                // a shimmering thread shield: only a crowded snip gets through
+      else if ((m === 'armor' && !e.armored && !e.charging) || (m === 'swarm' && e.shieldDownT > 0)) drawArmorSeams(ctx, e, state.clock);
+      else if (m === 'swarm' && e.shieldDownT <= 0) {          // a shimmering thread shield, held up by its Scraps
         ctx.beginPath(); ctx.arc(e.x, e.y, e.r * 1.18, 0, TAU);
         ctx.setLineDash(DASH); ctx.lineDashOffset = -state.clock * 30; ctx.globalAlpha = 0.7; ctx.strokeStyle = '#8fe8ff'; ctx.lineWidth = 3; ctx.stroke();
         ctx.setLineDash(NO_DASH); ctx.lineDashOffset = 0; ctx.globalAlpha = 1;
@@ -561,6 +561,29 @@ function drawBossBar(state) {
     ctx.fillStyle = '#fff1c2';
     for (const p of def.phaseAt) ctx.fillRect(x + w * p - 1.5, y - 3, 3, h + 6);
   }
+  drawBossHint(state, boss, x + w - 4, y + h + 20);
+}
+
+// The boss's rule right now, right-aligned under its bar (clear of the HUD column on the left): pale while it's
+// something to wait for, gold when a snip will land. It swells and glows for bossHintPulseSec when it changes.
+let hintKey = '', hintT0 = -1;
+function drawBossHint(state, boss, rx, y) {
+  const m = bossMode(boss), H = C.bossHints;
+  let key;
+  if (m === 'swarm') key = boss.shieldDownT > 0 ? 'shieldDown' : 'swarm';
+  else if (m === 'armor') key = !boss.armored && !boss.charging ? 'armorDown' : boss.windup || boss.charging ? 'windup' : 'armor';
+  else key = boss.seamOpen ? 'seamOpen' : 'seam';
+  if (key !== hintKey) { hintKey = key; hintT0 = state.clock; }
+  const go = key === 'shieldDown' || key === 'armorDown' || key === 'seamOpen';
+  const p = Math.max(0, 1 - (state.clock - hintT0) / C.bossHintPulseSec), s = 1 + 0.15 * p;   // small: it grows leftward toward the hearts
+  ctx.save();
+  ctx.translate(rx, y); ctx.scale(s, s);
+  ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.font = HUD_FONT; ctx.lineJoin = 'round';
+  if (go || p > 0) { ctx.shadowColor = go ? '#ffd23f' : '#ffffff'; ctx.shadowBlur = 6 + 10 * p; }
+  ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.strokeText(H[key], 0, 0);
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = go ? '#ffd23f' : '#e8f4ff'; ctx.fillText(H[key], 0, 0);
+  ctx.restore();
 }
 
 // ======================= frame =======================

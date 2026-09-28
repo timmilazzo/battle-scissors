@@ -231,6 +231,7 @@
     outline: 2px dashed rgba(122, 74, 28, 0.55); outline-offset: -7px;
   }
   #tip[hidden] { display: none; }
+  #tip.passthru { pointer-events: none; }
   #tip::after { content: ""; position: absolute; top: calc(100% + 3px); left: var(--arrow, 50%); margin-left: -9px; border: 9px solid transparent; border-top-color: #7a4a1c; }
   #tip.below::after { top: auto; bottom: calc(100% + 3px); border-top-color: transparent; border-bottom-color: #7a4a1c; }   /* under a top-of-screen anchor (the SHRED meter) */
 
