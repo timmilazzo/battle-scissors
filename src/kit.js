@@ -107,4 +107,6 @@ export const ZONES = {
   meadow: { ground: 'meadow', seams: false, stitch: '#6e4524', patches: ['patchGingham', 'patchRedPlaid'], sets: [[MEADOW, 0.85], [SEWING, 0.15]] },
   denim:  { ground: 'denim', seams: true, stitch: '#6e4524', patches: ['patchRedPlaid', 'patchBluePlaid', 'patchGingham', 'patchPolka'], sets: [[SEWING, 1]] },
   lair:   { ground: 'lair', seams: false, stitch: '#4a2a50', patches: ['patchBluePlaid', 'patchPolka'], sets: [[LAIR, 0.75], [SEWING, 0.25]] },
+  // World 4, the quilt's new border (levels 14+): the lair's dark ground sewn into quilt squares, every fabric, more sewing
+  border: { ground: 'lair', seams: true, stitch: '#4a2a50', patches: ['patchRedPlaid', 'patchBluePlaid', 'patchGingham', 'patchPolka'], sets: [[SEWING, 0.6], [LAIR, 0.4]] },
 };

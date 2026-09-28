@@ -18,6 +18,16 @@ export function rememberLevel(id) {
   if (Save.lastLevel !== id) { Save.lastLevel = id; persist(); }
 }
 
+// Which map stage shows (CONFIG.map.stages): the last one whose `after` level has been cleared. Its node count is how
+// many map levels are on the map (and can be offered as Next level).
+export function mapStage() {
+  let k = 0;
+  C.map.stages.forEach((s, i) => { if (i && Save.levels[s.after] && Save.levels[s.after].cleared) k = i; });
+  return k;
+}
+// A grown map not yet shown (its zoom-out reveal is still queued).
+export const mapGrowPending = () => Save.reveals.some(r => r.mapStage);
+
 // Levels won at least once.
 export function clearedLevels() {
   const s = new Set();
@@ -25,7 +35,7 @@ export function clearedLevels() {
   return s;
 }
 // End of a run: best score, cleared + best stars on a win, and the level's unlockOnClear the first time it's won
-// (a weapon joins Save.unlocks.scissors, credits just play; either way it queues a reveal for the level map).
+// (a weapon joins Save.unlocks.scissors, credits just play, mapStage grows the map; each queues a reveal for the level map).
 // (Custom Road is a one-off, so it isn't recorded.)
 export function recordLevelResult(id, won, score, stars, unlock) {
   if (id === 'custom') return;
@@ -37,6 +47,7 @@ export function recordLevelResult(id, won, score, stars, unlock) {
       if (unlock.pin && !Save.unlocks.pins.includes(unlock.pin)) Save.unlocks.pins.push(unlock.pin);
       if (unlock.scissors) Save.reveals.push({ scissors: unlock.scissors });
       if (unlock.credits) Save.reveals.push({ credits: true });
+      if (unlock.mapStage) Save.reveals.push({ mapStage: unlock.mapStage });   // the map zooms out to its next stage
     }
     r.cleared = true; r.stars = Math.max(r.stars, stars);
   }

@@ -33,27 +33,31 @@ The seed shows on the game-over card, in the pause menu and in the debug panel. 
 
 ## Generated levels
 
-Levels 3 to 13 on the level map, and Random Quilt, are built by a level generator from a short road recipe, and painted in Button Fork's quilt style. Try your own with `?recipe=`:
+Levels 3 to 18 on the level map, and Random Quilt, are built by a level generator from a short road recipe, and painted in Button Fork's quilt style. Try your own with `?recipe=`:
 
 ```
 https://<user>.github.io/<repo>/?recipe=start left, s, fork pin, zigzag 2&seed=3
 ```
 
-Segments run top to bottom: `straight`, `bend left|right|center`, `s left|right`, `wave n`, `wiggle n`, `zigzag n`, `fork [wide|narrow] [pin]` (the road splits and each enemy picks a side; `pin` puts a Pin pad inside), plus `start left|right`. The seed varies the details. Locally, `tools/level-lab.html` previews recipes before you play them.
+Segments run top to bottom: `straight`, `bend left|right|center`, `s left|right`, `wave n`, `wiggle n`, `zigzag n`, `fork [wide|narrow] [pin]` (the road splits and each enemy picks a side; `pin` puts a Pin pad inside), plus `start left|right`. On a bigger map (below) two more: `merge left|right` (a second road joins from the side: another entry point) and `curl left|right` (the road loops round and crosses itself). The seed varies the details. Locally, `tools/level-lab.html` previews recipes before you play them.
+
+## Bigger maps
+
+From Level 13 the quilt grows: every three levels the map gets bigger (1.15x, then 1.3x, ...), and since it still fits the screen height, everything on it (road, Pins, enemies, your scissors) looks a little smaller while the HUD stays the same size. The first bigger map opens at the old size, explains itself once, and zooms out; each later size step zooms out again. Levels 13 to 15 are just bigger; Level 16 adds a second entry, Level 17 a road that crosses itself, Level 18 both. Clearing Level 13 grows the level map too: it zooms out to show Levels 14 to 18 (World 4, the Border) sewn on above the old map. Add `&scale=1.3` to a `?recipe=` link to try a size.
 
 ## Buttons (the meta currency)
 
 Thread buys Pins inside a level and is gone when it ends. **Buttons** are what you keep. They are never converted into each other.
 
-- **Earned** only from performance and achievements, with no randomness: 10 / 15 / 25 for the first time you earn each star of a level; a score bonus of floor(score / 100) Buttons, capped at 10 per level (a replay pays only what beats your best bonus there); 16 one-time achievements (two for squishing silverfish) (listed on the map's Trophies screen, locked ones included); and a chest per world (three-star every level in it: 100 Buttons and a cosmetic, contents shown up front).
+- **Earned** only from performance and achievements, with no randomness: 10 / 15 / 25 for the first time you earn each star of a level; a score bonus of floor(score / 100) Buttons, capped at 10 per level (a replay pays only what beats your best bonus there); 18 one-time achievements (two for squishing silverfish) (listed on the map's Trophies screen, locked ones included); and a chest per world (three-star every level in it: 100 Buttons and a cosmetic, contents shown up front).
 - **Spent** in the Shop (on the map): four pairs of scissors that are only sold there (200 to 500, each on sale after a set level), three upgrade tiers per pair (150 / 300 / 600), Sharpening (40, +50% snip damage for your next level, hold up to 3) and cosmetics (handle colours, blade glows, 100 each). Pins and stars are never for sale.
-- **Total supply: 2,135 Buttons** (stars 650, achievements 1,055, score bonus 130, world chests 300). `node tools/buttonsupply.js` recomputes it from the game data.
+- **Total supply: 2,760 Buttons** (stars 900, achievements 1,280, score bonus 180, world chests 400). `node tools/buttonsupply.js` recomputes it from the game data.
 
 Nothing waits on a clock: no timers, energy, daily rewards or streaks.
 
 ## Critters
 
-Silverfish scuttle across some levels. They're bonus targets that only your own snips can hit (Pins and SHRED ignore them). Each squish pays a fixed 30 thread, never Buttons. Each level has a fixed cap (2 in World 1, 3 in World 2, 4 in World 3), and a silverfish skitters away from blades that open near it, once per crossing. Every level's thread is trimmed so that squishing every silverfish gives the same total as before critters existed; missing them all leaves you about one Pin short. `node tools/wavesheet.js` prints each level's thread with and without them.
+Silverfish scuttle across some levels. They're bonus targets that only your own snips can hit (Pins and SHRED ignore them). Each squish pays a fixed 30 thread, never Buttons. Each level has a fixed cap (2 in World 1, 3 in World 2, 4 in Worlds 3 and 4), and a silverfish skitters away from blades that open near it, once per crossing. Every level's thread is trimmed so that squishing every silverfish gives the same total as before critters existed; missing them all leaves you about one Pin short. `node tools/wavesheet.js` prints each level's thread with and without them.
 
 ## Playtest questions
 

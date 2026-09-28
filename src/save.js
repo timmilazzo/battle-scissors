@@ -17,7 +17,8 @@
 //   upgrades: { scissorsId: tier },                  scissors upgrade tier 0..3 (meta.js)
 //   equippedScissors, lastLevel,                     last weapon and level picked
 //   settings: { sound, haptics, leftHanded, grip },  grip = touch controls 'hold' | 'pinch'; leftHanded not used yet
-//   tutorialDone, tips: { pinIntro, shred },         one-time onboarding flags (tutorialDone = level 0 cleared)
+//   tutorialDone, tips: { pinIntro, shred, mapScale }, one-time onboarding flags (tutorialDone = level 0 cleared;
+//                                                     mapScale = the biggest map scale played, CONFIG.mapGrowth)
 //   reveals: [{ scissors } | { credits }],           rewards won but not yet shown (the level map plays them in order)
 //   critterKills,                                    critters squished, all runs (the one-time "Squish 25" achievement)
 // }
@@ -29,7 +30,7 @@ const defaults = () => ({
   version: SAVE_VERSION, levels: {}, buttons: 0, achievements: [], chests: [], sharpen: 0,
   cosmetics: { owned: [], handle: '', glow: '' }, unlocks: { scissors: [], pins: [], levels: [] }, upgrades: {},
   equippedScissors: '', lastLevel: '', settings: { sound: true, haptics: true, leftHanded: false, grip: 'hold' },
-  tutorialDone: false, tips: { pinIntro: false, shred: false }, reveals: [], critterKills: 0,
+  tutorialDone: false, tips: { pinIntro: false, shred: false, mapScale: 1 }, reveals: [], critterKills: 0,
 });
 export const Save = defaults();
 

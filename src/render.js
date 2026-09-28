@@ -8,7 +8,7 @@ import { CONFIG as C } from './config.js';
 import { view, level, TAU, DEG } from './core.js';
 import { input, holdTouch } from './input.js';
 import { cut, weapon } from './scissors.js';
-import { live, visOpen, bladeTheta, towerReach, levelWaves, bossMode } from './game.js';
+import { live, visOpen, bladeTheta, towerReach, levelWaves, bossMode, zoomK } from './game.js';
 import { buildEnemySprites, drawEnemySprite, drawEnemyGround, drawBruteArmor, drawSeam, drawArmorSeams, drawChargeWarn } from './enemyArt.js';
 import { buildTowerSprites, drawTower, drawNeedle, towerUnit } from './towerArt.js';
 import { drawWeapon, rasterizeArt, setHandleTint } from './weaponArt.js';
@@ -643,6 +643,11 @@ export function draw(state) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
   if (fx.camShake > 0) ctx.translate(Math.sin(state.clock * 83) * fx.camShake, Math.cos(state.clock * 71) * fx.camShake);   // kill shake moves the whole world
+  const zk = zoomK();
+  if (zk !== 1) {                                                // a bigger map's intro: the world zooms out about the heart
+    const p = state.paths[0], hx = p.x[p.n - 1], hy = p.y[p.n - 1];
+    ctx.translate(hx, hy); ctx.scale(zk, zk); ctx.translate(-hx, -hy);
+  }
   ctx.drawImage(bgCanvas, 0, 0, view.W, view.H);
   drawWorkshopHit(state);
   drawTowers(state);

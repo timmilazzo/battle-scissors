@@ -135,6 +135,7 @@ initActionBar({ toast: showToast });
 const pauseBtn = document.getElementById('pause');
 pauseBtn.addEventListener('click', e => { e.stopPropagation(); togglePause(); });
 on('resume', () => setPaused(false));
+on('grow-intro-ok', () => setPaused(false));                      // the bigger-maps explainer: then the zoom-out plays
 on('pause-home', e => { e.stopPropagation(); goTitle(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) setPaused(true); });
 

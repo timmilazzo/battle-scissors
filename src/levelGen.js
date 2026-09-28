@@ -11,7 +11,11 @@
 //   zigzag [n] [left|right]     n full-width switchback rows (default 2); left/right = the way the first row heads
 //   fork [wide|narrow] [pin]    the road splits around a big button and rejoins; each enemy picks a side at random.
 //                               "pin" puts a Pin pad in the middle instead of the button
+//   merge [left|right]          a second road comes in from that side's edge and joins here (default: the far side):
+//                               another entry point; each enemy picks a route (entry) at random
+//   curl [left|right]           the road loops out to a side and crosses over itself (enemies meet at the crossing)
 //   start left|right|center     (not a segment) where the road enters at the top
+// merge and curl only build on a map bigger than the first size (map scale >= CONFIG.levelGen.newRoadsFromScale).
 // Example: "start left, s, fork pin, zigzag 2". Unset sides come from the seed. randomRecipe(seed) writes one for you.
 import { CONFIG as C } from './config.js';
 import { makeRng } from '../vendor/mulberry32.js';
@@ -26,7 +30,7 @@ const outer = () => C.levelGen.roadHalf + C.levelGen.roadBorder;   // painted ro
 // arms, the heart, the pad band) spread out by k, while the road's width, pads, heart pad and segment heights keep
 // their size, so a bigger map holds more road. Numbers written in a recipe ("s 150") stay plain plate units.
 const SPREAD = ['w', 'h', 'startX', 'startY', 'endY', 'heartX', 'heartY', 'xMin', 'xMax', 'spotXMin', 'spotXMax', 'spotYMin', 'spotYMax',
-  'sAmp', 'waveAmp', 'wiggleAmp', 'forkHalfW'];
+  'sAmp', 'waveAmp', 'wiggleAmp', 'forkHalfW', 'curlAmp'];
 export function geometry(k = 1) {
   const g = { ...C.levelGen, k };
   for (const key of SPREAD) g[key] = C.levelGen[key] * k;
@@ -99,6 +103,30 @@ const SEG = {
       return { pts, x };
     },
   },
+  // another entry: the main road runs straight on while a side road comes in from the plate's edge a quarter of the
+  // way down the band and joins it at the band's end (returned as `entry`, a new route that shares the rest)
+  merge: {
+    min: () => 300, weight: () => 1,
+    build(s) {
+      const h = s.y1 - s.y0, mid = (G.xMin + G.xMax) / 2;
+      const side = s.args.includes('left') ? -1 : s.args.includes('right') ? 1 : s.x0 < mid ? 1 : -1;
+      const edge = side < 0 ? -90 : G.w + 90, inner = side < 0 ? G.xMin : G.xMax, ye = s.y0 + h * 0.25;
+      return { pts: [[s.x0, s.y0 + h * 0.5], [s.x0, s.y1]], x: s.x0,
+        entry: [[edge, ye], [inner, ye + h * 0.04], [(inner + s.x0) / 2, s.y0 + h * 0.66], [s.x0, s.y1]] };
+    },
+  },
+  // a pigtail: down, out and up round a loop on one side, back over the incoming road (the crossing), then down the
+  // other side into the middle. The crossing is returned so the clearance check lets the road meet itself there.
+  curl: {
+    min: () => 560, weight: () => 1.5,
+    build(s) {
+      const A = G.curlAmp, side = sideOf(s.args, s.rng), h = s.y1 - s.y0;
+      const xc = side > 0 ? clamp(s.x0, G.xMin + 0.75 * A, G.xMax - A) : clamp(s.x0, G.xMin + A, G.xMax - 0.75 * A);
+      const P = (dx, dy) => [xc + side * dx * A, s.y0 + dy * h];
+      return { pts: [P(0, 0.3), P(0.3, 0.8), P(1, 0.56), P(0.75, 0.1), P(-0.65, 0.28), P(-0.5, 0.8), P(0, 1)], x: xc,
+        cross: { x: xc, y: s.y0 + 0.2 * h } };
+    },
+  },
   fork: {
     min: () => 480, weight: () => 1.6,
     build(s) {
@@ -151,6 +179,9 @@ export function buildLevel(recipe, seed = 1, base = {}, scale = 1) {
     if (it.name === 'start') { xs = it.args.includes('left') ? G.xMin + 60 : it.args.includes('right') ? G.xMax - 60 : numOf(it.args, G.startX); continue; }
     segs.push(it);
   }
+  for (let i = segs.length - 1; i >= 0; i--) {                      // new road shapes wait for a bigger map
+    if (NEW_ROADS.includes(segs[i].name) && G.k < G.newRoadsFromScale - 1e-6) warnings.push('"' + segs.splice(i, 1)[0].name + '" needs map scale ' + G.newRoadsFromScale + '+: dropped');
+  }
   if (!segs.length) segs.push({ name: 's', args: [] });
   // bands: each segment's minimum height, plus a share of the rest by weight; up to 12% too tall squeezes everything a
   // little, beyond that the last segments are dropped
@@ -160,7 +191,7 @@ export function buildLevel(recipe, seed = 1, base = {}, scale = 1) {
   const sumMin = mins.reduce((a, b) => a + b, 0), weights = segs.map(s => SEG[s.name].weight(s.args)), sumW = weights.reduce((a, b) => a + b, 0);
   const extra = Math.max(0, span - sumMin);
   let routes = [[[xs, -90], [xs, 20]]], x = xs, y = G.startY;
-  const deco = [], spots = [];
+  const deco = [], spots = [], crossings = [];
   segs.forEach((seg, i) => {
     const y1 = y + mins[i] * Math.min(1, span / sumMin) + extra * weights[i] / sumW;
     let out = SEG[seg.name].build({ x0: x, y0: y, y1, args: seg.args, rng, warnings });
@@ -169,6 +200,11 @@ export function buildLevel(recipe, seed = 1, base = {}, scale = 1) {
       for (const r of routes) r.push(...out.lead);
       routes = routes.flatMap(r => out.arms.map(a => r.concat(a)));
     } else for (const r of routes) r.push(...out.pts);
+    if (out.entry) {                                               // a new route from the side, sharing the rest
+      if (routes.length + 1 > G.maxRoutes) warnings.push('too many routes: no entry from the side');
+      else routes.push(out.entry.map(p => p.slice()));
+    }
+    if (out.cross) crossings.push(out.cross);
     if (out.deco) { if (out.deco.kind === 'pin') spots.push([Math.round(out.deco.x), Math.round(out.deco.y)]); deco.push(out.deco); }
     x = out.x; y = y1;
   });
@@ -176,13 +212,13 @@ export function buildLevel(recipe, seed = 1, base = {}, scale = 1) {
   for (const r of routes) r.push([(x + G.heartX) / 2, G.endY + (G.heartY - G.endY) * 0.45], [G.heartX, G.heartY]);
   const paths = routes.map(r => r.map(([px, py]) => [Math.round(px), Math.round(py)]));
   const polys = paths.map(p => curve(p, 10));
-  checkClearance(polys, warnings);
+  checkClearance(polys, warnings, crossings);
   if (base.pads === 0) spots.length = 0;                          // a level without Pins (level 0)
   else if (placeSpots(polys, spots, deco, rng) < G.spotsMin) warnings.push('only ' + spots.length + ' Pin pads fit');
   return {
     name: base.name || 'Custom Road', blurb: base.blurb || recipe, gen: true, recipe, seed,
     w: G.w, h: G.h, mapScale: G.k, paths, spots, spotR: G.spotR, roadHalfWidth: G.roadHalfWidth, workshopR: G.workshopR,
-    heart: [G.heartX, G.heartY], deco, warnings,
+    heart: [G.heartX, G.heartY], deco, crossings, warnings,
   };
 }
 
@@ -197,21 +233,27 @@ function distToRoads(polys, x, y) {
   return Math.sqrt(best);
 }
 
-// Warn where a route passes too close to an earlier stretch of itself (the painted roads would touch).
-function checkClearance(polys, warnings) {
-  const need = 2 * outer() + G.roadGap * 0.5;
+// Warn where a route passes too close to an earlier stretch of itself (the painted roads would touch), except around a
+// curl's crossing, where it's meant to.
+function checkClearance(polys, warnings, crossings = []) {
+  const need = 2 * outer() + G.roadGap * 0.5, near = p => crossings.some(c => Math.hypot(p[0] - c.x, p[1] - c.y) < need * 1.6);
   polys.forEach(P => {
     const cum = [0];
     for (let i = 1; i < P.length; i++) cum.push(cum[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
     for (let i = 0; i < P.length; i += 2) for (let j = i + 2; j < P.length; j += 2) {
-      if (cum[j] - cum[i] < need * 2.2) continue;
+      if (cum[j] - cum[i] < need * 2.2 || near(P[i]) || near(P[j])) continue;
       if (Math.hypot(P[i][0] - P[j][0], P[i][1] - P[j][1]) < need) {
         const msg = 'road runs close to itself near (' + Math.round(P[j][0]) + ', ' + Math.round(P[j][1]) + ')';
         if (!warnings.includes(msg)) warnings.push(msg);
         return;
       }
     }
-    for (const [px] of P) if (px < G.xMin - 50 || px > G.xMax + 50) { warnings.push('road leaves the safe band (x ' + Math.round(px) + ')'); return; }
+    let inside = false;                                            // a side entry's lead-in may come from outside it
+    for (const [px] of P) {
+      const out = px < G.xMin - 50 || px > G.xMax + 50;
+      if (!out) inside = true;
+      else if (inside) { warnings.push('road leaves the safe band (x ' + Math.round(px) + ')'); return; }
+    }
   });
 }
 
@@ -256,18 +298,20 @@ function placeSpots(polys, spots, deco, rng) {
 
 // ======================= random recipes =======================
 // A recipe for "Random Quilt": segments drawn by weight until the road is about full; at most one fork (two if room).
-const POOL = [['s', 3], ['zigzag', 2], ['fork', 2.2], ['bend', 1.2], ['wave', 1.2], ['wiggle', 0.7], ['straight', 0.4]];
+const POOL = [['s', 3], ['zigzag', 2], ['fork', 2.2], ['bend', 1.2], ['wave', 1.2], ['wiggle', 0.7], ['straight', 0.4], ['merge', 1], ['curl', 1]];
+const NEW_ROADS = ['merge', 'curl'];                                // only on a map past the first size (newRoadsFromScale)
 export function randomRecipe(seed, scale = 1) {
   G = geometry(scale);
   const rng = makeRng(seed ^ 0x51ED27), span = G.endY - G.startY, items = [];
   let used = 0, forks = 0, last = '';
-  const total = POOL.reduce((a, p) => a + p[1], 0);
+  const pool = G.k < G.newRoadsFromScale - 1e-6 ? POOL.filter(p => !NEW_ROADS.includes(p[0])) : POOL;
+  const total = pool.reduce((a, p) => a + p[1], 0);
   for (let tries = 0; tries < 30 && used < span * 0.8; tries++) {
-    let r = rng() * total, name = POOL[0][0];
-    for (const [n, w] of POOL) { if ((r -= w) <= 0) { name = n; break; } }
+    let r = rng() * total, name = pool[0][0];
+    for (const [n, w] of pool) { if ((r -= w) <= 0) { name = n; break; } }
     if (name === last || (name === 'fork' && forks >= (used < span * 0.3 ? 2 : 1))) continue;
     const pick = a => a[Math.floor(rng() * a.length)];
-    const args = name === 's' || name === 'bend' ? [pick(['left', 'right'])]
+    const args = name === 's' || name === 'bend' || name === 'curl' || name === 'merge' ? [pick(['left', 'right'])]
       : name === 'zigzag' ? [String(1 + Math.floor(rng() * 3))]
       : name === 'wave' ? [String(2 + Math.floor(rng() * 3))]
       : name === 'fork' ? (rng() < 0.35 ? ['pin'] : rng() < 0.5 ? ['wide'] : []) : [];

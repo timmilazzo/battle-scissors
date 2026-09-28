@@ -8,7 +8,7 @@
 export const FEEDBACK_URL = 'mailto:tim@saltandwisdom.com';
 
 // Shown small at the bottom of Settings and recorded in every run report. Bump it with each published change.
-export const VERSION = '0.2.9';
+export const VERSION = '0.3.0';
 
 export const CONFIG = {
   // --- pose / control mapping ---
@@ -183,12 +183,20 @@ export const CONFIG = {
   // The level map (between the title and the shears): its art and a numbered patch per level, in play order.
   // nodes = [level id (a src/levels/ file), patch centre x, y] in the art's pixels; hitW/hitH = each patch's tap area. locks: true = a level
   // opens only once the one before it is cleared (false keeps every level open for playtesting).
+  // stages = the map art as the quilt grows: stage 0 holds levels 0-13; each later stage's art has the one before sewn
+  // in, unscaled, at `inner` (its px), plus new patches, and shows once level `after` is cleared (the first time, the
+  // map zooms out to it: a Save.reveals entry). levels = how many nodes it shows. tools/map-art.html paints stage 1.
   map: {
-    img: 'assets/level-map.webp', w: 936, h: 1681,
-    // patch 0 is smaller than the rest (its tap area is the same)
+    stages: [
+      { img: 'assets/level-map.webp', w: 936, h: 1681, levels: 14 },
+      { img: 'assets/level-map-2.webp', w: 1264, h: 2269, levels: 19, inner: [164, 588], after: 'lair' },
+    ],
+    zoomMs: 2600,            // the map's zoom-out when a stage is revealed
+    // each node in the art px of the first stage that shows it; patch 0 is smaller than the rest (same tap area)
     nodes: [['first', 650, 1442], ['meadow', 468, 1330], ['fork', 486, 1196], ['hem', 579, 1076], ['running', 410, 978], ['double', 466, 858],
       ['blanket', 597, 770], ['loop', 494, 666], ['hemline', 354, 574], ['cross', 488, 478], ['bias', 586, 390],
-      ['selvage', 422, 300], ['whip', 527, 212], ['lair', 540, 96]],
+      ['selvage', 422, 300], ['whip', 527, 212], ['lair', 540, 96],
+      ['basting', 540, 530], ['binding', 812, 452], ['gusset', 522, 374], ['curlicue', 796, 296], ['tangle', 560, 218]],
     hitW: 170, hitH: 110,    // tap area per patch (art px)
     locks: false,            // lock levels until the one before is cleared
   },
@@ -217,6 +225,8 @@ export const CONFIG = {
     zigRowMin: 205,          // "zigzag": minimum height per row (road width + gap)
     forkHalfW: 280,          // "fork": arm distance from the middle ("wide" 305, "narrow" 220)
     forkLead: 110,           // "fork": straight bit before it splits
+    curlAmp: 220,            // "curl": how far the loop swings out to its side
+    newRoadsFromScale: 1.3,  // "merge" (a second entry) and "curl" (a crossing) only build from this map scale up
     spotR: 84,               // Pin pad radius
     spotGap: 22,             // denim between a pad and the road edge
     spotSpacing: 60,         // extra space between two pads
@@ -235,10 +245,12 @@ export const CONFIG = {
   // (view.Z) and more road fits; the HUD, action bar and other DOM UI keep their size. A level file's `mapScale`
   // overrides this.
   mapGrowth: {
-    fromLevel: 14,           // the first map level (numbered from 0) with a bigger plate...
+    fromLevel: 13,           // the first map level (numbered from 0) with a bigger plate (after Level 12's boss)...
     everyLevels: 3,          // ...then it grows again every this many levels...
-    step: 0.15,              // ...by this much map scale per step (14-16 = 1.15, 17-19 = 1.3, ...)...
+    step: 0.15,              // ...by this much map scale per step (13-15 = 1.15, 16-18 = 1.3, ...)...
     max: 1.6,                // ...up to this (weapon and enemies at 1 / 1.6 = 62% size)
+    introHoldMs: 600,        // a bigger map than any played before opens at the old size, holds this long...
+    introMs: 2200,           // ...then zooms out to the whole plate over this long (the first time, after the explainer card)
   },
   pathSmoothSteps: 16,       // Catmull-Rom samples per path segment (road smoothness)
   workshopHp: 10,            // workshop hit points; an enemy that arrives deals its size tier
@@ -275,7 +287,7 @@ export const CONFIG = {
   // the workshop, Pins and SHRED ignore them. Their reward is fixed Thread (never Buttons, never random) and each level
   // caps how many come (its `critters`, else perWorld). Spawns are scheduled on the wave clock from the run's seed.
   critters: {
-    perWorld: { meadow: 2, denim: 3, lair: 4 },   // cap per level when the level file doesn't set `critters` (Random Quilt, Custom Road)
+    perWorld: { meadow: 2, denim: 3, lair: 4, border: 4 },   // cap per level when the level file doesn't set `critters` (Random Quilt, Custom Road)
     minWaveSec: 10,          // never spawns in the first this-many seconds of a wave
     minEnemies: 4,           // never spawns while fewer than this many enemies are on screen
     tailSec: 8,              // a wave's spawn window ends this long after its last scheduled enemy spawn
@@ -382,6 +394,7 @@ export const CONFIG = {
       meadow: { name: 'The Meadow', chest: 'cloverHandles', x: 770, y: 800 },
       denim:  { name: 'The Denim',  chest: 'indigoGlow',    x: 750, y: 420 },
       lair:   { name: 'The Lair',   chest: 'ripperGlow',    x: 290, y: 190 },
+      border: { name: 'The Border', chest: 'goldenGlow',    x: 1020, y: 380, stage: 1 },   // on the grown map (stage 1)
     },
     // slot 'handle' tints the handles, 'glow' lights the blades (render.js). price = Buttons in the shop; chest = only
     // from that world's chest.
@@ -393,6 +406,7 @@ export const CONFIG = {
       cloverHandles: { name: 'Clover Handles', slot: 'handle', color: '#5fbf5a', chest: 'meadow' },
       indigoGlow:    { name: 'Indigo Glow',    slot: 'glow',   color: '#6d7dff', chest: 'denim' },
       ripperGlow:    { name: 'Ripper Glow',    slot: 'glow',   color: '#c15cff', chest: 'lair' },
+      goldenGlow:    { name: 'Golden Glow',    slot: 'glow',   color: '#ffd23f', chest: 'border' },
     },
     handleTint: 0.55,        // how strongly a handle cosmetic colours the handles (0..1)
     glowAlpha: 0.5,          // blade glow strength

@@ -28,9 +28,14 @@ import bias from './10-bias.js';
 import selvage from './11-selvage.js';
 import whip from './12-whip.js';
 import lair from './13-lair.js';
+import basting from './14-basting.js';
+import binding from './15-binding.js';
+import gusset from './16-gusset.js';
+import curlicue from './17-curlicue.js';
+import tangle from './18-tangle.js';
 import random from './random.js';
 
-const LIST = [first, meadow, fork, hem, running, double, blanket, loop, hemline, cross, bias, selvage, whip, lair, random];
+const LIST = [first, meadow, fork, hem, running, double, blanket, loop, hemline, cross, bias, selvage, whip, lair, basting, binding, gusset, curlicue, tangle, random];
 const byId = {};
 for (const l of LIST) byId[l.id] = l;
 

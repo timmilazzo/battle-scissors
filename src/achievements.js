@@ -9,7 +9,7 @@
 const pinTypes = r => Object.values(r.towers || {}).filter(n => n > 0).length;
 const allCleared = (ids, s) => ids.length > 0 && ids.every(id => s.levels[id] && s.levels[id].cleared);
 const allThreeStar = (ids, s) => ids.length > 0 && ids.every(id => s.levels[id] && s.levels[id].stars >= 3);
-const WORLD_NAMES = { meadow: 'World 1 (the Meadow)', denim: 'World 2 (the Denim)', lair: 'World 3 (the Lair)' };
+const WORLD_NAMES = { meadow: 'World 1 (the Meadow)', denim: 'World 2 (the Denim)', lair: 'World 3 (the Lair)', border: 'World 4 (the Border)' };
 
 const clearWorld = (n, world, reward, name) => ({ id: 'clear-' + world, name, description: 'Clear every level of ' + WORLD_NAMES[world] + '.',
   reward, world, check: (r, s, ctx) => allCleared(ctx.worldLevels(world), s) });
@@ -40,9 +40,11 @@ export const ACHIEVEMENTS = [
   clearWorld(1, 'meadow', 50, 'Meadow Mended'),
   clearWorld(2, 'denim', 75, 'Denim Darned'),
   clearWorld(3, 'lair', 100, 'Lair Unravelled'),
+  clearWorld(4, 'border', 125, 'Border Bound'),
   starWorld('meadow', 'Golden Meadow'),
   starWorld('denim', 'Golden Denim'),
   starWorld('lair', 'Golden Lair'),
+  starWorld('border', 'Golden Border'),
   { id: 'beat-l12', name: 'The Quilt Is Safe', description: 'Beat Level 12 and The Unstitcher.', reward: 150,
     check: (r, s, ctx) => !!(s.levels[ctx.levelAt(12)] && s.levels[ctx.levelAt(12)].cleared) },
 ];

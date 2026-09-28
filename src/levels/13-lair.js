@@ -1,4 +1,5 @@
-// Level 13 on the map. Generated level: src/levelGen.js builds the road and pads from the recipe (grammar in its
+// Level 13 on the map, the first bigger map (CONFIG.mapGrowth: the plate grows, everything shrinks a little; the
+// first time, the view zooms out from the old size and a card explains it). Generated level: src/levelGen.js builds the road and pads from the recipe (grammar in its
 // header; try it in tools/level-lab.html), src/levelArt.js paints the plate. The seed varies the details.
 export default {
   id: 'lair', name: 'Ripper\u2019s Lair', blurb: 'The last stretch.',
@@ -11,7 +12,7 @@ export default {
   threadPerKill: 7,          // thread per kill (null = CONFIG.threadPerKill)
   critters: { silverfish: 4 },   // bonus critters this level (the cap; src/critters.js)
   waves: null,               // [[type, count, atSec], ...] per wave (null = CONFIG.waves)
-  unlockOnClear: null,       // e.g. { scissors: 'cigar' } or { pin: 'magnet' }: added to the save's unlocks on a first win
+  unlockOnClear: { mapStage: 1 },   // the first win grows the level map (CONFIG.map.stages[1]): it zooms out to levels 14-18
   signText: '',              // a line for this level's sign (not shown yet)
   starRules: { noDamage: true, noSpecial: true },   // each rule met on a win adds a star to the one for clearing
 };

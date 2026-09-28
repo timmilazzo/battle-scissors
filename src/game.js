@@ -12,7 +12,7 @@ import { makeRng } from '../vendor/mulberry32.js';
 import { sfx, sfxSnip, sfxSequence } from './audio.js';
 import { saveRun } from './runlog.js';
 import { loadLevel, hasLevel, levelInfo } from './levels/index.js';
-import { recordLevelResult } from './levelSelect.js';
+import { recordLevelResult, mapStage, mapGrowPending } from './levelSelect.js';
 import { Save, persist } from './save.js';
 import { KNOB_KEYS } from './debug.js';
 import { levelBefore, settleRun, useSharpen } from './meta.js';
@@ -23,7 +23,7 @@ import { critters, splats, plan as critterPlan, planCritters, critterWave, critt
 // (wave clock while PLAYING). fx = effect timers/amplitudes read by the renderer. Entity pools hold plain objects
 // with an `on` flag. events = a small ring of one-off happenings for the renderer (thread pickups, placements).
 export const state = {
-  mode: 'TITLE', modeT: 0, wave: 0, hp: 0, score: 0, won: false, seed: 0, thread: 0, paused: false, pauseCard: 'menu',
+  mode: 'TITLE', modeT: 0, zoomT: 0, zoomFrom: 1, wave: 0, hp: 0, score: 0, won: false, seed: 0, thread: 0, paused: false, pauseCard: 'menu',
   bannerT: 0, workshopHitT: 0, clock: 0, bossCardT: 0,
   stats: { snips: 0, kills: 0 },
   // flash = snip flash on the blades, tooSlow = "too slow" wobble, cut = cut-zone ghost, kick = snip world punch,
@@ -84,7 +84,7 @@ const els = {
   title: document.getElementById('title'), map: document.getElementById('map'), select: document.getElementById('select'), settings: document.getElementById('settings'), over: document.getElementById('over'),
   reset: document.getElementById('reset'), tray: document.getElementById('tray'), tutSkip: document.getElementById('tut-skip'),
   bossCard: document.getElementById('boss-card'), bossName: document.getElementById('boss-name'), bossTaunt: document.getElementById('boss-taunt'), mute: document.getElementById('mute'), pauseBtn: document.getElementById('pause'),
-  pause: document.getElementById('pause-screen'), pinsIntro: document.getElementById('pins-intro'), pauseWave: document.getElementById('pause-wave'), pauseScore: document.getElementById('pause-score'),
+  pause: document.getElementById('pause-screen'), pinsIntro: document.getElementById('pins-intro'), growIntro: document.getElementById('grow-intro'), pauseWave: document.getElementById('pause-wave'), pauseScore: document.getElementById('pause-score'),
   pauseAcc: document.getElementById('pause-acc'), pauseSeed: document.getElementById('pause-seed'),
   overTitle: document.getElementById('over-title'), overScore: document.getElementById('over-score'), overLevel: document.getElementById('over-level'),
   next: document.getElementById('next'),
@@ -102,6 +102,8 @@ function showScreens() {
   els.pauseBtn.hidden = !live();
   els.pause.hidden = !state.paused || state.pauseCard !== 'menu';
   els.pinsIntro.hidden = !state.paused || state.pauseCard !== 'pins';
+  els.growIntro.hidden = !state.paused || state.pauseCard !== 'grow';
+  document.body.classList.toggle('zooming', state.zoomT > 0);     // the Pin + buttons wait for the zoom-out
   els.tray.hidden = state.paused || (m !== 'PLAYING' && m !== 'WAVE_CLEAR');
   els.tutSkip.hidden = state.paused || m !== 'TUTORIAL';
   els.bossCard.hidden = state.paused || state.bossCardT <= 0 || !live();
@@ -200,7 +202,7 @@ function clearWorld() {
   last.ms = -1; last.kind = ''; last.ver++;
   fx.cut = fx.flash = fx.tooSlow = fx.kick = fx.ring = fx.space = fx.hitStop = fx.camShake = 0; state.bannerT = state.workshopHitT = 0;
   heli.active = false; heli.phase = ''; heli.spread = heli.rot = 0; heli.bannerT = 0; heli.armed = heli.go = false;
-  state.paused = false; state.bossCardT = 0;
+  state.paused = false; state.bossCardT = 0; state.zoomT = 0;
   tut.step = 0; tut.winT = 0; tut.ghost.cutT = 0; tut.vis = 0;
   clearCritters();
   setEasyOnly(false);                                           // level 0 forces Hold controls only while it runs
@@ -231,6 +233,25 @@ export function startGame() {
   }
   beginWave(1);
   showScreens();
+  growIntro();
+}
+
+// A map bigger than any played before (CONFIG.mapGrowth; Save.tips.mapScale) opens at the old size and zooms out to
+// the whole plate (render.js scales the world by zoomK()); the waves wait for it. The very first time (Level 13) the
+// explainer card comes first and the zoom starts when it's closed.
+function growIntro() {
+  const was = Save.tips.mapScale || 1, sc = level().mapScale || 1;
+  if (sc <= was + 1e-6) return;
+  Save.tips.mapScale = sc; persist();
+  state.zoomFrom = sc / was; state.zoomT = (C.mapGrowth.introHoldMs + C.mapGrowth.introMs) / 1000;
+  if (was <= 1) setPaused(true, 'grow');
+  showScreens();
+}
+// The world's zoom for the intro above: zoomFrom (the old size) while it holds, easing to 1 (the whole plate).
+export function zoomK() {
+  if (state.zoomT <= 0) return 1;
+  const t = clamp(1 - state.zoomT * 1000 / C.mapGrowth.introMs, 0, 1), e = t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t);
+  return state.zoomFrom + (1 - state.zoomFrom) * e;
 }
 function resetRun() {
   state.score = 0; state.hp = C.workshopHp; state.won = false; state.stats.snips = 0; state.stats.kills = 0; state.thread = level().startThread ?? C.startThread;
@@ -273,9 +294,11 @@ function showBossCard(name) {
   showScreens();
 }
 
-// The level after the current one on the level map (offered on the win card), or '' after the last / off the map.
+// The level after the current one on the level map (offered on the win card), or '' after the last / off the map /
+// past what the map shows, and while the map has grown but not yet zoomed out (CONTINUE shows that first).
 export function nextLevelId() {
-  const ids = C.map.nodes.map(n => n[0]), i = ids.indexOf(view.levelId);
+  if (mapGrowPending()) return '';
+  const ids = C.map.nodes.slice(0, C.map.stages[mapStage()].levels).map(n => n[0]), i = ids.indexOf(view.levelId);
   return i >= 0 ? ids[i + 1] || '' : '';
 }
 
@@ -335,7 +358,8 @@ function buildReport(inProgress = false) {
 // ======================= pause =======================
 // Freezes the whole game (update() returns before input, timers and tweens). Paused time doesn't count toward the run
 // duration. Resuming re-arms snip detection so finger movement during the pause can't fire a snip.
-// card = which card the pause shows: 'menu' (RESUME + run report) or 'pins' (the one-time Pin placement explainer).
+// card = which card the pause shows: 'menu' (RESUME + run report), 'pins' (the one-time Pin placement explainer) or
+// 'grow' (the one-time bigger-maps explainer, growIntro).
 let pausedAt = 0;
 export function setPaused(p, card = 'menu') {
   if (p === state.paused || (p && !live())) return;
@@ -1227,6 +1251,11 @@ function critterTick(dt, onScreen, seam) {
 // ======================= update =======================
 export function update(now, dt) {
   if (state.paused) return;                                      // frozen: no input, timers, tweens or clock
+  if (state.zoomT > 0) {                                          // a bigger map's zoom-out: everything waits for it
+    state.zoomT = Math.max(0, state.zoomT - dt);
+    if (state.zoomT <= 0) { resetSnipBuffer(); showScreens(); }
+    return;
+  }
   updateInput(now, dt);                                          // input keeps running through hit-stop so no gesture is lost
   if (heli.active) input.scAlpha = 1;                            // a spinning SHRED never fades, even with the hand lifted
   if (heli.armed) {                                              // armed SHRED: starts once the pressed hand has the scissors

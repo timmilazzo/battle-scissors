@@ -405,6 +405,11 @@
   .map-node:active { transform: scale(0.94); }
   .map-node:focus-visible { outline: 3px solid #ffe27a; outline-offset: 2px; }
   .map-node.next { animation: mnext 1.2s ease-in-out infinite; }
+  .map-node[hidden], .map-chest[hidden] { display: none; }
+  /* a grown map's new patches: hidden during the zoom-out, then they pop in (levelMap.js growMap) */
+  .map-node.unsewn, .map-chest.unsewn { visibility: hidden; }
+  .map-node.sewn, .map-chest.sewn { animation: msewn 0.5s cubic-bezier(0.3, 1.6, 0.5, 1) both; }
+  @keyframes msewn { 0% { transform: scale(0.2); opacity: 0; background: rgba(255, 226, 122, 0.6); } 100% { transform: scale(1); opacity: 1; } }
   @keyframes mnext { 50% { box-shadow: 0 0 0 3px rgba(255, 226, 122, 0.9), 0 0 26px 6px rgba(255, 200, 60, 0.85); } }
   .map-node .check, .map-node .lock { display: none; position: absolute; right: -6%; top: -18%; width: 30%; aspect-ratio: 1; border-radius: 50%;
     align-items: center; justify-content: center; font: 400 clamp(12px, 2.6vh, 22px) var(--ui-font); }
@@ -499,13 +504,14 @@
     text-shadow: 0 -1px 0 var(--rim), 1px 0 0 var(--rim), -1px 0 0 var(--rim), 0 3px 0 var(--rim); }
   .over-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
   /* one-time Pin explainer (a pause card) */
-  #pins-intro .card { width: min(400px, 100%); gap: 10px; }
+  #pins-intro .card, #grow-intro .card { width: min(400px, 100%); gap: 10px; }
+  body.zooming #spots { visibility: hidden; }                    /* a bigger map's zoom-out (game.js growIntro) */
   #pins-intro .pin-diagram { width: 100%; height: auto; border-radius: 14px; border: 3px solid #2a170a; box-sizing: border-box; box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.35); }
-  #pins-intro ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; font: 600 14px/1.35 "Trebuchet MS", system-ui, sans-serif; }
-  #pins-intro li { display: grid; grid-template-columns: 20px 1fr; gap: 8px; align-items: start; }
-  #pins-intro li .dot { width: 16px; height: 16px; margin-top: 1px; border-radius: 50%; background: var(--tc); border: 2px solid #2a170a; box-sizing: border-box; box-shadow: 0 0 8px var(--tc); }
-  #pins-intro li b { font: 400 15.5px var(--ui-font); letter-spacing: 0.3px; color: #ffd23f; }
-  #pins-intro .lead { margin: 0; font: 400 18px/1.2 var(--ui-font); letter-spacing: 0.3px; text-align: center; color: #fff1c2; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45); }
+  :is(#pins-intro, #grow-intro) ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; font: 600 14px/1.35 "Trebuchet MS", system-ui, sans-serif; }
+  :is(#pins-intro, #grow-intro) li { display: grid; grid-template-columns: 20px 1fr; gap: 8px; align-items: start; }
+  :is(#pins-intro, #grow-intro) li .dot { width: 16px; height: 16px; margin-top: 1px; border-radius: 50%; background: var(--tc); border: 2px solid #2a170a; box-sizing: border-box; box-shadow: 0 0 8px var(--tc); }
+  :is(#pins-intro, #grow-intro) li b { font: 400 15.5px var(--ui-font); letter-spacing: 0.3px; color: #ffd23f; }
+  :is(#pins-intro, #grow-intro) .lead { margin: 0; font: 400 18px/1.2 var(--ui-font); letter-spacing: 0.3px; text-align: center; color: #fff1c2; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45); }
   @media (max-height: 640px) { #pins-intro .pin-diagram { display: none; } }
 
   /* weapon select (cards built by src/weaponSelect.js): sunken felt slots; the chosen one gets a gold stitched rim */
@@ -714,6 +720,19 @@
       <li><span class="dot" style="--tc:#9ff3c8"></span><span>Tap a <b>+</b>, pick a Pin. Kills pay thread.</span></li>
     </ul>
     <button id="pins-intro-ok" class="felt-btn" type="button"><span class="tri"></span>GOT IT</button>
+  </div>
+</div>
+
+<div id="grow-intro" class="screen" role="dialog" aria-labelledby="grow-intro-title" hidden>
+  <div class="card">
+    <h2 id="grow-intro-title" data-text="BIGGER MAPS">BIGGER MAPS</h2>
+    <p class="lead">The quilt is growing!</p>
+    <ul>
+      <li><span class="dot" style="--tc:#ffd23f"></span><span>From <b>Level 13</b> on, the maps get bigger every few levels.</span></li>
+      <li><span class="dot" style="--tc:#8fe8ff"></span><span>Everything shrinks a little, your scissors too, so you can see more road.</span></li>
+      <li><span class="dot" style="--tc:#ffa04a"></span><span>Watch for roads that join from the side and roads that cross.</span></li>
+    </ul>
+    <button id="grow-intro-ok" class="felt-btn" type="button"><span class="tri"></span>GOT IT</button>
   </div>
 </div>
 

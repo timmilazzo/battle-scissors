@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Map art (stage 1)</title>
+<!-- Dev tool: paints the grown level map (CONFIG.map.stages[1]): the stage-0 painting sewn into the middle-bottom of a
+     bigger quilt, the road running on up from Level 13 through felt patches for the new levels, the World 4 ground and
+     props around it (src/levelArt.js paints the quilt, in the 'border' zone look). Run from the dev server
+     (node tools/serve.js), then Download and save it as assets/level-map-2.webp. If a stage's size, `inner` or its
+     nodes change in config.js, paint it again. -->
+<style>
+  body { margin: 0; background: #1b1206; color: #f3e6c8; font: 14px system-ui, sans-serif; }
+  header { padding: 8px 12px; display: flex; gap: 10px; align-items: center; }
+  canvas { display: block; height: calc(100vh - 50px); width: auto; margin: 0 auto; }
+</style>
+</head>
+<body>
+<header><button id="dl">Download level-map-2.webp</button><span id="info"></span></header>
+<canvas id="out"></canvas>
+<script type="module">
+  import { CONFIG as C } from '../src/config.js';
+  import { loadKit, paintLevel } from '../src/levelArt.js';
+  import { KIT_DIR, SPRITES } from '../src/kit.js';
+
+  const ST = C.map.stages, S0 = ST[0], S1 = ST[1], [ix, iy] = S1.inner;
+  const fresh = C.map.nodes.slice(S0.levels, S1.levels);          // the patches this stage adds (stage-1 px)
+  const node13 = C.map.nodes[S0.levels - 1], from = [node13[1] + ix, node13[2] + iy];
+  const img = src => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+
+  async function build() {
+    await loadKit('border');
+    await document.fonts.load('40px "Lilita One"');
+    const old = await img('../' + S0.img), pins = await Promise.all(['pinRed', 'pinYellow', 'pinBlue'].map(k => img(KIT_DIR + SPRITES[k][0])));
+    // the road: out from behind the old painting's top edge above Level 13, through each new patch, off the top
+    const road = [[from[0], iy + 160], [from[0], iy + 20], ...fresh.map(n => [n[1], n[2]]), [fresh[fresh.length - 1][1] + 40, -90]];
+    const def = { w: S1.w, h: S1.h, paths: [road], spots: [], spotR: 84, workshopR: 1, heart: [-999, -999], deco: [], seed: 4, world: 'border', mapScale: 2.3 };   // mapScale here only raises the prop and patch count (much of it lands under the old map)
+    const c = document.getElementById('out'); c.width = S1.w; c.height = S1.h;
+    const g = c.getContext('2d');
+    g.drawImage(paintLevel(def), 0, 0);
+    // the old map, sewn on: a shadow, a dark binding strip, then the painting and a running stitch just inside its edge
+    g.save(); g.shadowColor = 'rgba(0,0,0,0.65)'; g.shadowBlur = 34; g.shadowOffsetY = 10;
+    g.fillStyle = '#2a1636'; g.fillRect(ix - 14, iy - 14, S0.w + 28, S0.h + 28); g.restore();
+    g.strokeStyle = '#6b3f7a'; g.lineWidth = 5; g.strokeRect(ix - 11, iy - 11, S0.w + 22, S0.h + 22);
+    g.drawImage(old, ix, iy, S0.w, S0.h);
+    g.setLineDash([18, 12]); g.lineCap = 'round'; g.lineWidth = 4.5; g.strokeStyle = 'rgba(255,226,160,0.9)';
+    g.strokeRect(ix - 7, iy - 7, S0.w + 14, S0.h + 14); g.setLineDash([]);
+    // the new patches: felt, a pale running stitch, the number, a pin at each shoulder
+    fresh.forEach(([, x, y], k) => patch(g, x, y, S0.levels + k, pins));
+    document.getElementById('info').textContent = S1.w + ' x ' + S1.h + ', old map at ' + ix + ', ' + iy + ', patches ' + S0.levels + '-' + (S1.levels - 1);
+    return c;
+  }
+  function patch(g, x, y, n, pins) {
+    const w = 176, h = 112, r = 44;
+    const rr = (inset, fill, stroke, lw, dash) => {
+      g.beginPath(); g.roundRect(x - w / 2 + inset, y - h / 2 + inset, w - 2 * inset, h - 2 * inset, Math.max(4, r - inset));
+      if (fill) g.fill(); if (stroke) { g.setLineDash(dash || []); g.lineWidth = lw; g.strokeStyle = stroke; g.stroke(); g.setLineDash([]); }
+    };
+    g.save(); g.shadowColor = 'rgba(0,0,0,0.6)'; g.shadowBlur = 14; g.shadowOffsetY = 7; g.fillStyle = '#1d4f4b'; rr(0, true); g.restore();
+    const grad = g.createLinearGradient(0, y - h / 2, 0, y + h / 2);
+    grad.addColorStop(0, '#3c9a92'); grad.addColorStop(1, '#23665f');
+    g.fillStyle = grad; rr(4, true);
+    rr(13, false, 'rgba(255,236,196,0.9)', 3.5, [11, 8]);
+    g.font = '64px "Lilita One"'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.lineWidth = 10; g.lineJoin = 'round'; g.strokeStyle = '#173b37'; g.strokeText(String(n), x, y + 4);
+    g.fillStyle = '#fff3d6'; g.fillText(String(n), x, y + 4);
+    for (const [s, p] of [[-1, pins[n % 3]], [1, pins[(n + 1) % 3]]]) {
+      g.save(); g.translate(x + s * (w / 2 - 20), y - h / 2 + 12); g.rotate(s * -0.75 - Math.PI / 2); g.scale(0.55, 0.55);
+      g.shadowColor = 'rgba(0,0,0,0.5)'; g.shadowBlur = 6; g.shadowOffsetY = 3;
+      g.drawImage(p, -40, -p.height / 2); g.restore();
+    }
+  }
+  window.buildMapArt = async () => (await build()).toDataURL('image/webp', 0.86);
+  const ff = new FontFace('Lilita One', 'url(../assets/fonts/LilitaOne-Regular.ttf)');
+  document.fonts.add(ff); await ff.load();
+  build();
+  document.getElementById('dl').onclick = async () => {
+    const a = document.createElement('a'); a.href = await window.buildMapArt(); a.download = 'level-map-2.webp'; a.click();
+  };
+</script>
+</body>
+</html>
