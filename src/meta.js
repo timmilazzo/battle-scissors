@@ -7,12 +7,12 @@
 //   world chests  three-star every level of a world: chestButtons + that world's cosmetic, once
 // Only the numbered map levels earn (not level 0, Random Quilt or a ?recipe= road), so the total supply is a fixed
 // number: tools/buttonsupply.js prints it. Buttons buy the Shop's scissors (CONFIG.weapons[id].shop), scissors
-// upgrades and Sharpen (armory.js), cosmetics (shop.js); Pins and stars are never for sale. Nothing here waits on a clock or rolls a die. No DOM.
+// upgrades, Sharpen and SHRED's tiers (armory.js), cosmetics (shop.js); Pins and stars are never for sale. Nothing here waits on a clock or rolls a die. No DOM.
 import { CONFIG as C } from './config.js';
 import { Save, persist, levelRecord } from './save.js';
 import { levelInfo } from './levels/index.js';
 import { ACHIEVEMENTS } from './achievements.js';
-import { upgradeTier, sharpness, canSharpen } from './scissors.js';
+import { upgradeTier, sharpness, canSharpen, shredTier } from './scissors.js';
 import { weaponLocked, shopOpen } from './weaponSelect.js';
 
 // The levels that pay Buttons: every map level but level 0, in map order.
@@ -92,6 +92,17 @@ export function buyWeapon(id) {
   if (!shopOpen(id)) return 'not yet';
   if (Save.buttons < price) return 'buttons';
   Save.buttons -= price; Save.unlocks.scissors.push(id); Save.reveals.push({ scissors: id }); persist();
+  return '';
+}
+// SHRED as a skill: its next tier's price (0 = maxed), on sale once SHRED's level (CONFIG.shredFrom) is cleared.
+export const shredOpen = () => !!(Save.levels[C.shredFrom] && Save.levels[C.shredFrom].cleared);
+export const shredCost = () => C.meta.shredCosts[shredTier()] || 0;
+export function buyShred() {
+  const cost = shredCost();
+  if (!cost) return 'max';
+  if (!shredOpen()) return 'not yet';
+  if (Save.buttons < cost) return 'buttons';
+  Save.buttons -= cost; Save.skills.shred = shredTier() + 1; persist();
   return '';
 }
 // Sharpen weapon id's edge back to 1 (sharp). Offered only below sharpenFrom (canSharpen).

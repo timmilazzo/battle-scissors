@@ -187,29 +187,41 @@
   @keyframes sattn { 50% { transform: scale(1.15); box-shadow: 0 4px 0 var(--rim), 0 0 0 3px #fff1c2, 0 0 24px rgba(255, 241, 194, 0.95); } }
   #spots .spot-add[aria-expanded="true"] { --fc: #6b3f1d; --rim: #2a170a; opacity: 1; animation: none; transform: rotate(45deg); }
 
-  /* the picker: a felt panel beside the tapped spot, one felt button per Pin in that Pin's colours */
-  #picker { position: fixed; z-index: 16; display: flex; flex-direction: column; gap: 8px; padding: 10px 10px 12px; border-radius: 18px; outline-offset: -8px; }
+  /* the Pin picker (actionBar.js): over the paused board, dimmed but for a hole round the pad (--cx, --cy, --hole); the
+     Pins fly out from the pad (--fx/--fy back to it, staggered by --d) onto an arc, each a round felt icon in its Pin's
+     colours with a label pill on the outside (--room = the space left to the screen's edge); .left = the fan opens left */
+  #picker { position: fixed; inset: 0; z-index: 16; }
   #picker[hidden] { display: none; }
+  #picker .pk-veil { position: absolute; inset: 0; cursor: pointer;
+    background: radial-gradient(circle at var(--cx) var(--cy), rgba(20, 10, 4, 0) 0 var(--hole), rgba(20, 10, 4, 0.58) calc(var(--hole) + 36px)); }
+  #picker .pk-paused { position: absolute; left: 50%; top: calc(14px + env(safe-area-inset-top)); transform: translateX(-50%); pointer-events: none;
+    padding: 6px 14px 7px; border-radius: 999px; font: 400 14px var(--ui-font); letter-spacing: 1px; color: #ffe4aa; white-space: nowrap; outline-offset: -6px; }
+  #picker .pk-close { position: absolute; left: var(--cx); top: var(--cy); width: var(--btn); height: var(--btn); margin: calc(var(--btn) / -2) 0 0 calc(var(--btn) / -2);
+    padding: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px; line-height: 1; outline-offset: -7px; }
+  #picker .pk-close span { margin-top: -3px; transform: rotate(45deg); }
+  #picker .tcards { display: contents; }
   #picker .pick[hidden] { display: none; }
-  /* a Pin on the first level it appears (game.js pinIsNew) */
-  #picker .pick .tnew { display: none; position: absolute; top: -8px; right: -6px; z-index: 1; padding: 2px 7px 3px; border-radius: 8px; font: 400 12px var(--ui-font); letter-spacing: 0.8px; color: #2a170a; background: #ffd23f; box-shadow: 0 2px 0 #2a170a; }
-  #picker .pick.new .tnew { display: block; }
-  #picker::after { content: ""; position: absolute; top: calc(100% + 3px); left: var(--arrow, 50%); margin-left: -10px; border: 10px solid transparent; border-top-color: #2a170a; }
-  #picker.below::after { top: auto; bottom: calc(100% + 3px); border-top-color: transparent; border-bottom-color: #2a170a; }
-  #picker .tcap { text-align: center; padding: 2px 0 0; font-size: 12px; color: #ffc93d; }
-  #picker .tcards { display: flex; flex-direction: column; gap: 9px; }
-  .pick {
-    display: grid; grid-template-columns: 38px auto; grid-template-rows: auto auto auto; column-gap: 9px; align-items: center;
-    width: 100%; min-width: 186px; padding: 8px 14px 9px 9px; border-radius: 14px; text-align: left; white-space: nowrap; outline-offset: -6px;
-  }
-  .pick .ticon { grid-row: 1 / 4; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-    background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.35), rgba(0, 0, 0, 0.25)); border: 2px solid var(--rim); box-shadow: 0 0 10px var(--tc); }
-  .pick .ticon svg { width: 22px; height: 22px; }
+  .pick { position: absolute; display: flex; align-items: center; gap: 8px; height: var(--icon); padding: 0; margin: 0; border: 0; background: none;
+    cursor: pointer; touch-action: manipulation; font: inherit; color: inherit; text-align: left;
+    transform-origin: calc(var(--icon) / 2) 50%; transform: translate(var(--fx), var(--fy)) scale(0.3); opacity: 0;
+    transition: transform var(--fly) cubic-bezier(.2, 1.45, .4, 1) var(--d), opacity 120ms linear var(--d); }
+  #picker.out .pick { transform: none; opacity: 1; }
+  #picker.left .pick { flex-direction: row-reverse; text-align: right; transform-origin: calc(100% - var(--icon) / 2) 50%; }
+  .pick:active .ticon, .pick:active .tlabel { transform: translateY(2px); }
+  .pick .felt { --fc: var(--pfc); --rim: var(--prim); }   /* the Pin's own felt (a plain .felt would reset it to brown) */
+  .pick .ticon { flex: none; width: var(--icon); height: var(--icon); border-radius: 50%; display: flex; align-items: center; justify-content: center; outline-offset: -6px;
+    box-shadow: inset 0 2px 1px rgba(255, 255, 255, 0.28), inset 0 -3px 2px rgba(0, 0, 0, 0.3), 0 4px 0 var(--rim), 0 0 16px var(--tc), 0 7px 12px rgba(0, 0, 0, 0.45); }
+  .pick .ticon svg { width: 30px; height: 30px; }
+  .pick .tlabel { display: grid; gap: 1px; min-width: 0; max-width: min(200px, var(--room)); padding: 6px 12px 7px; border-radius: 14px; outline-offset: -6px; }
   .pick .tname { font-size: 16px; line-height: 1.05; }
-  .pick .tsub { font-size: 10.5px; line-height: 1.2; color: #ffeccc; font-weight: 700; }
+  .pick .tsub { font-size: 11px; line-height: 1.2; color: #ffeccc; font-weight: 700; }
   .pick .tcost { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; line-height: 1.2; color: #d8ffe9; font-variant-numeric: tabular-nums; }
-  .pick.poor { filter: saturate(0.35) brightness(0.8); }
+  #picker.left .pick .tcost { justify-content: flex-end; }
+  .pick.poor .ticon, .pick.poor .tlabel { filter: saturate(0.35) brightness(0.8); }
   .pick.poor .tcost { color: #ffb0a8; }
+  /* a Pin on the first level it appears (game.js pinIsNew) */
+  .pick .tnew { display: none; position: absolute; top: -8px; right: -10px; z-index: 1; padding: 2px 6px 3px; border-radius: 8px; font: 400 11px var(--ui-font); letter-spacing: 0.8px; color: #2a170a; background: #ffd23f; box-shadow: 0 2px 0 #2a170a; text-shadow: none; }
+  .pick.new .tnew { display: block; }
 
   /* contextual tip (first affordable Pin, first SHRED): a cream parchment bubble */
   #tip {
@@ -599,8 +611,12 @@
   .arm-up { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; padding-top: 8px; border-top: 2px dashed rgba(255, 228, 170, 0.2); }
   .arm-up .pips { display: block; letter-spacing: 2px; color: #ffd23f; }
   .arm-up .pips i { font-style: normal; color: rgba(255, 228, 170, 0.3); }
-  .arm-up .tag { font: 400 13px var(--ui-font); color: #ffc93d; }
-  @media (max-width: 400px) { .arm-card { grid-template-columns: 44px minmax(0, 1fr); gap: 10px; padding: 10px; } .arm-card > img { width: 44px; height: 60px; }
+  .arm-up .tag, .arm-head .tag { font: 400 13px var(--ui-font); color: #ffc93d; }
+  /* Moves: SHRED's panel (its round purple badge, as in the HUD) */
+  .arm-skill-ico { width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px; outline-offset: -6px; }
+  .arm-skill-now { color: #ffe4aa; }
+  .arm-card.lockd { opacity: 0.65; }
+  @media (max-width: 400px) { .arm-card { grid-template-columns: 44px minmax(0, 1fr); gap: 10px; padding: 10px; } .arm-card > img { width: 44px; height: 60px; } .arm-skill-ico { width: 44px; height: 44px; font-size: 22px; }
     .arm-sharp, .arm-up { grid-template-columns: 1fr; } .card .arm-card :is(.arm-sharp, .arm-up) .felt-btn.small { justify-content: center; } }
   .weapon-card {
     display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 10px 12px; cursor: pointer; min-width: 0;
@@ -688,7 +704,7 @@
   <div class="felt red hud-dull" id="hud-dull" hidden title="Dull blades: less snip damage. Sharpen them before a level.">DULL</div>
 </div>
 <div id="spots" hidden></div>
-<div id="picker" class="felt brown" role="dialog" aria-label="Build a Pin" hidden><div class="tcap">BUILD A PIN</div><div class="tcards"></div></div>
+<div id="picker" role="dialog" aria-label="Build a Pin" hidden><div class="pk-veil"></div><div class="pk-paused felt dark">PAUSED · PICK A PIN</div><button class="pk-close felt brown" type="button" aria-label="Close"><span>+</span></button><div class="tcards"></div></div>
 <div id="tray" hidden>
   <div class="tgroup">
     <div class="tcap">PINS</div>

@@ -15,6 +15,7 @@
 //   cosmetics: { owned: [id], handle, glow },        cosmetics owned and the one equipped per slot ('' = none)
 //   unlocks: { scissors: [], pins: [], levels: [] }, extra unlocks (levels: opened early, e.g. by "Unlock all")
 //   upgrades: { scissorsId: tier },                  scissors upgrade tier 0..3 (meta.js)
+//   skills: { shred },                               SHRED's tier 0..3 (CONFIG.shredTiers; meta.js buyShred)
 //   equippedScissors, lastLevel,                     last weapon and level picked
 //   settings: { sound, haptics, leftHanded, grip },  grip = touch controls 'hold' | 'pinch'; leftHanded not used yet
 //   tutorialDone, tips: { pinIntro, shred },         one-time onboarding flags (tutorialDone = level 0 cleared)
@@ -27,7 +28,7 @@ export const SAVE_VERSION = 3;
 const KEY = 'battleScissors.save';
 const defaults = () => ({
   version: SAVE_VERSION, levels: {}, buttons: 0, achievements: [], chests: [], sharpness: {},
-  cosmetics: { owned: [], handle: '', glow: '' }, unlocks: { scissors: [], pins: [], levels: [] }, upgrades: {},
+  cosmetics: { owned: [], handle: '', glow: '' }, unlocks: { scissors: [], pins: [], levels: [] }, upgrades: {}, skills: { shred: 0 },
   equippedScissors: '', lastLevel: '', settings: { sound: true, haptics: true, leftHanded: false, grip: 'hold' },
   tutorialDone: false, tips: { pinIntro: false, shred: false }, reveals: [], critterKills: 0,
 });
@@ -48,7 +49,7 @@ export function migrate(old) {
 function adopt(data) {
   const d = defaults();
   Object.assign(Save, d, data);
-  for (const k of ['unlocks', 'settings', 'tips', 'cosmetics', 'sharpness']) Save[k] = Object.assign(d[k], data[k]);
+  for (const k of ['unlocks', 'settings', 'tips', 'cosmetics', 'sharpness', 'skills']) Save[k] = Object.assign(d[k], data[k]);
   for (const k of ['achievements', 'chests']) Save[k] = Array.isArray(data[k]) ? data[k] : [];
   Save.levels = Object.assign({}, data.levels);
   Save.reveals = Array.isArray(data.reveals) ? data.reveals : [];

@@ -3,8 +3,10 @@
 // - SHRED meter (a round badge in the top-left HUD column, under the hearts): a ring that fills clockwise with snip kills. Full, it pulses; tapping it arms
 //   SHRED and the next press on the table starts the spin where the scissors land (tap the meter again to cancel). E, or
 //   another finger while holding the scissors, still fires it straight away.
-// - Pin spots: a + button on every empty spot of the level, shown only while some Pin is affordable. Tapping one opens a picker beside it with one card per
-//   Pin (name, effect, cost); tapping an affordable card builds that Pin there. Tapping elsewhere closes it.
+// - Pin spots: a + button on every empty spot of the level, shown only while some Pin is affordable. Tapping one pauses
+//   the game (a 'build' pause: the board stays, dimmed but for the pad) and fans this level's Pins out from the pad on
+//   an arc toward the wider side of the screen: a round icon each, its name, effect and cost beside it. Tapping an
+//   affordable one builds it there and resumes; the × on the pad or anywhere else closes it and resumes.
 // - Tips: first-time attention for Pins (once a Pin is affordable, the + buttons and the counter pulse plus a tip,
 //   until the first + tap, which pauses the game on a one-time "Pins" explainer; GOT IT resumes with that spot's
 //   picker open) and the first time SHRED is ready (until it has ever been used). Tip flags live in the save (Save.tips). The SHRED meter pulses whenever ready, and
@@ -14,6 +16,7 @@ import { view, level } from './core.js';
 import { input } from './input.js';
 import { state, canAfford, pinAllowed, pinIsNew, buildTower, armShred, setPaused } from './game.js';
 import { Save, persist } from './save.js';
+import { shredDef } from './scissors.js';
 
 const tips = Save.tips;                          // pinIntro = the Pin explainer has been seen, shred = SHRED used once
 const saveTips = persist;
@@ -41,21 +44,20 @@ export function initActionBar(opts) {
   buildSpotButtons();
   // picker cards, one per Pin type
   const row = picker.querySelector('.tcards');
+  // the veil (anywhere off the Pins) and the × on the pad close the picker and resume
+  for (const el of picker.querySelectorAll('.pk-veil, .pk-close')) el.addEventListener('click', e => { e.stopPropagation(); closePicker(); });
   for (const type in C.towers) {
     const def = C.towers[type], c = document.createElement('button');
-    c.type = 'button'; c.className = 'felt pick'; c.dataset.tower = type;
-    c.style.setProperty('--tc', def.color); c.style.setProperty('--fc', def.felt); c.style.setProperty('--rim', rimOf(def.felt));
-    c.innerHTML = '<span class="tnew">NEW</span><span class="ticon">' + (PIN_ICON[type] || '') + '</span><span class="tname"></span><span class="tsub"></span><span class="tcost"><span class="spool"></span><span></span></span>';
+    c.type = 'button'; c.className = 'pick'; c.dataset.tower = type;
+    c.style.setProperty('--tc', def.color); c.style.setProperty('--pfc', def.felt); c.style.setProperty('--prim', rimOf(def.felt));
+    c.innerHTML = '<span class="ticon felt">' + (PIN_ICON[type] || '') + '<span class="tnew">NEW</span></span><span class="tlabel felt"><span class="tname"></span>' +
+      '<span class="tsub"></span><span class="tcost"><span class="spool"></span><span></span></span></span>';
     c.querySelector('.tname').textContent = def.name;
     c.querySelector('.tsub').textContent = def.blurb;
     c.querySelector('.tcost').lastChild.textContent = def.cost;
     c.addEventListener('click', e => { e.stopPropagation(); pickType(type); });
     row.appendChild(c); pickCards.push(c);
   }
-  // anything outside the picker (and its + button) closes it
-  document.addEventListener('pointerdown', e => {
-    if (pick.spot >= 0 && !picker.contains(e.target) && e.target !== spotBtns[pick.spot] && !spotBtns[pick.spot].contains(e.target)) closePicker();
-  }, true);
   // the explainer: one short line per Pin (its picker blurb)
   const list = document.getElementById('pins-intro-list');
   for (const type in C.towers) {
@@ -87,33 +89,58 @@ export function buildSpotButtons() {
     spotsEl.appendChild(b); spotBtns.push(b);
   });
 }
-const pick = { spot: -1 };
+const pick = { spot: -1, side: 1 };
 function spotTapped(i) {
   if (!tips.pinIntro) { openPinIntro(i); return; }
   if (pick.spot === i) closePicker(); else openPicker(i);
 }
+// Open the picker on spot i: the game pauses (a 'build' pause keeps the board and the thread counter up) and this
+// level's Pins fly out from the pad.
 function openPicker(i) {
-  closePicker();
+  closePicker(false);
+  setPaused(true, 'build');
+  if (!state.paused) return;                                   // not a live moment (the pause was refused)
   pick.spot = i; spotBtns[i].setAttribute('aria-expanded', 'true');
   for (const c of pickCards) { c.hidden = !pinAllowed(c.dataset.tower); c.classList.toggle('new', pinIsNew(c.dataset.tower)); }   // this level's Pins; NEW on its first level
   picker.hidden = false; refreshPicker(true);
-  placePicker();
+  placePicker(true);
   hideTip();
 }
-function closePicker() {
+// Close it; resume = also end its pause (false when something else already ended it, or another picker opens next).
+function closePicker(resume = true) {
   if (pick.spot < 0) return;
   spotBtns[pick.spot].setAttribute('aria-expanded', 'false');
   pick.spot = -1; picker.hidden = true;
+  if (resume && state.paused && state.pauseCard === 'build') setPaused(false);
 }
-// Beside its spot: above it when there's room, else below; kept on screen, the arrow pointing at the spot.
-function placePicker() {
-  const t = state.towers[pick.spot], w = picker.offsetWidth, h = picker.offsetHeight, gap = C.spotBtnPx / 2 + 12;
-  const left = Math.max(8, Math.min(window.innerWidth - w - 8, t.x - w / 2));
-  const above = t.y - gap - h > 56;
-  picker.style.left = left + 'px';
-  picker.style.top = (above ? t.y - gap - h : t.y + gap) + 'px';
-  picker.classList.toggle('below', !above);
-  picker.style.setProperty('--arrow', (t.x - left) + 'px');
+// The fan: the Pins on an arc beside the pad, toward the wider side of the screen, evenly spaced up and down and slid
+// to stay clear of the HUD row and the bottom bar; each icon at least pickerGapPx off the pad's edge, its label beside
+// it on the outside. fly = start them at the pad and let them fly out (staggered).
+function placePicker(fly = false) {
+  const t = state.towers[pick.spot], W = window.innerWidth, H = window.innerHeight;
+  const icon = C.pickerIconPx, padR = level().spotR * view.L;
+  const cards = pickCards.filter(c => !c.hidden), n = cards.length;
+  const side = pick.side = t.x < W / 2 ? 1 : -1;
+  const top = 64 + icon / 2, bottom = (bar.hidden ? H : bar.getBoundingClientRect().top) - 10 - icon / 2;
+  const ys = cards.map((c, k) => (k - (n - 1) / 2) * C.pickerRowPx);
+  let shift = 0;
+  if (n && t.y + ys[0] < top) shift = top - t.y - ys[0];
+  if (n && t.y + ys[n - 1] + shift > bottom) shift = bottom - t.y - ys[n - 1];
+  let R = padR + C.pickerGapPx + icon / 2;
+  for (const y of ys) R = Math.max(R, Math.abs(y + shift) + icon * 0.35);
+  picker.classList.toggle('left', side < 0);
+  picker.style.setProperty('--cx', t.x + 'px'); picker.style.setProperty('--cy', t.y + 'px'); picker.style.setProperty('--hole', (padR + 8) + 'px');
+  cards.forEach((c, k) => {
+    const y = ys[k] + shift, x = side * Math.sqrt(Math.max(0, R * R - y * y));
+    const ix = t.x + x, iy = t.y + y;                            // the icon's centre
+    c.style.top = (iy - icon / 2) + 'px';
+    if (side > 0) { c.style.left = (ix - icon / 2) + 'px'; c.style.right = ''; c.style.setProperty('--room', (W - ix - icon / 2 - 18) + 'px'); }
+    else { c.style.right = (W - ix - icon / 2) + 'px'; c.style.left = ''; c.style.setProperty('--room', (ix - icon / 2 - 18) + 'px'); }
+    c.style.setProperty('--fx', -x + 'px'); c.style.setProperty('--fy', -y + 'px');
+    c.style.setProperty('--d', k * C.pickerStaggerMs + 'ms');
+  });
+  picker.style.setProperty('--fly', C.pickerFlyMs + 'ms'); picker.style.setProperty('--icon', icon + 'px'); picker.style.setProperty('--btn', C.spotBtnPx + 'px');
+  if (fly) { picker.classList.remove('out'); void picker.offsetWidth; requestAnimationFrame(() => picker.classList.add('out')); }
 }
 let pickAfford = '';
 function refreshPicker(force) {
@@ -145,7 +172,7 @@ function closePinIntro() {
 }
 
 function shredPressed() {
-  const left = C.heliKillsToCharge - state.heli.charge;
+  const left = shredDef().charge - state.heli.charge;
   if (state.heli.active) return;
   if (left > 0) { toast('SHRED charges with snip kills: ' + left + ' to go'); return; }
   armShred();
@@ -202,18 +229,19 @@ export function refreshActionBar() {
     if (pick.spot >= 0 && built[pick.spot] === '1') closePicker();
   }
   if (can !== shown.can) { shown.can = can; spotsEl.classList.toggle('can', can); }
+  if (pick.spot >= 0 && !(state.paused && state.pauseCard === 'build')) closePicker(false);   // resumed some other way (⏸, P / Esc)
   if (pick.spot >= 0) refreshPicker(false);
   // first-time attention: enough thread for a Pin, a free spot, and the explainer not seen yet (after the wave banner)
   const nowAttn = !tips.pinIntro && can && built.includes('0') &&
     ((state.mode === 'PLAYING' && state.bannerT <= 0) || state.mode === 'WAVE_CLEAR');
   if (nowAttn !== attn) setAttn(nowAttn);
-  const h = state.heli, ready = h.charge >= C.heliKillsToCharge && !h.active;
+  const h = state.heli, ready = h.charge >= shredDef().charge && !h.active;
   if (shown.charge !== h.charge || shown.ready !== ready || shown.armed !== h.armed) {
     shown.charge = h.charge; shown.ready = ready; shown.armed = h.armed;
-    shredCard.style.setProperty('--p', Math.round(h.charge / C.heliKillsToCharge * 100));
+    shredCard.style.setProperty('--p', Math.round(h.charge / shredDef().charge * 100));
     shredCard.classList.toggle('ready', ready && !h.armed);
     shredCard.classList.toggle('armed', h.armed);
-    shredCard.setAttribute('aria-label', h.armed ? 'SHRED armed: tap to cancel' : ready ? 'SHRED ready: tap to arm' : 'SHRED ' + h.charge + ' of ' + C.heliKillsToCharge + ' kills');
+    shredCard.setAttribute('aria-label', h.armed ? 'SHRED armed: tap to cancel' : ready ? 'SHRED ready: tap to arm' : 'SHRED ' + h.charge + ' of ' + shredDef().charge + ' kills');
   }
   updateTip(ready, built);
 }

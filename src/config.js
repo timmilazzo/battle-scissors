@@ -8,7 +8,7 @@
 export const FEEDBACK_URL = 'mailto:tim@saltandwisdom.com';
 
 // Shown small at the bottom of Settings and recorded in every run report. Bump it with each published change.
-export const VERSION = '0.3.2';
+export const VERSION = '0.3.3';
 
 export const CONFIG = {
   // --- pose / control mapping ---
@@ -315,6 +315,13 @@ export const CONFIG = {
   needleLostSec: 0.4,        // a needle whose target died first flies straight on this long, then vanishes
   needleMuzzle: 1.0,         // needles leave the Needle Pin this many pad radii above the pad's centre (its loaded needle)
   spotBtnPx: 42,             // size of the + button on an empty Pin spot
+  // The Pin picker: tapping a + pauses the game and fans the Pins out from the pad on an arc, toward the wider side of
+  // the screen, each a round icon with its name, effect and cost beside it (actionBar.js).
+  pickerIconPx: 58,          // diameter of each Pin's round icon
+  pickerRowPx: 66,           // vertical spacing between the Pins on the arc
+  pickerGapPx: 16,           // gap between the pad's edge and the nearest icon
+  pickerFlyMs: 260,          // how long each Pin takes to fly out from the pad...
+  pickerStaggerMs: 45,       // ...each one this much after the one before
 
   // --- progression: the map level (id) where each Pin and SHRED first appear; they stay on every map level after it.
   // Off the map (Random Quilt, Custom Road) they're there once that level has been cleared. One new tool at a time,
@@ -324,10 +331,17 @@ export const CONFIG = {
   shredFrom: 'hem',          // L3: the first four-wave level (L1-L2 are too short to charge it)
 
   // --- special: Helicopter ---
-  heliKillsToCharge: 25,     // snip kills to fill the charge bar
+  // SHRED is a skill bought up with Buttons in Your Scissors (CONFIG.meta.shredCosts): each tier is the whole move at
+  // that level (turns = full spins before the final snip, charge = snip kills to fill the meter); tier 0 is where
+  // everyone starts: one modest spin and a snip.
+  shredTiers: [
+    { name: 'Single Spin',  turns: 1, charge: 25 },
+    { name: 'Double Spin',  turns: 2, charge: 25 },
+    { name: 'Quick Charge', turns: 2, charge: 18 },
+    { name: 'Whirlwind',    turns: 3, charge: 18 },
+  ],
   heliOpenMs: 120,           // snap fully open
-  heliSpinMs: 1600,          // spin duration
-  heliSpinTurns: 2,          // full turns during the spin (2 = 720°)
+  heliTurnMs: 800,           // how long one full turn of the spin takes (the spin lasts turns x this)
   heliTickMs: 100,           // during the spin, everything within blade reach is hit this often
   heliTickDamage: 1,         // damage per tick (ignores armor)
   heliSlowSec: 2,            // enemies hit by the spin stay slowed this long
@@ -364,6 +378,7 @@ export const CONFIG = {
     scorePerButton: 100,     // score bonus: floor(score / this) Buttons...
     scoreBonusCap: 10,       // ...capped at this per level: a run pays only what beats the level's best bonus so far
     upgradeCosts: [150, 300, 600], // scissors upgrade tiers 1 / 2 / 3 (per weapon, bought in order)
+    shredCosts: [120, 240, 400],   // SHRED tiers 1 / 2 / 3 (CONFIG.shredTiers), bought in order once SHRED's level is cleared
     reachUp: 0.15,           // tier 1: reach +15%
     speedUp: 0.2,            // tier 2: close speed +20% (the blades open in openMs / 1.2)
     signatureUp: 0.3,        // tier 3: the weapon's signature stat +30%

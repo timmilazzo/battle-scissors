@@ -6,7 +6,7 @@
 import { CONFIG as C, VERSION } from './config.js';
 import { view, level, TAU, DEG, clamp, segDistSq } from './core.js';
 import { input, updateInput, resetSnipBuffer, holdTouch, setEasyOnly } from './input.js';
-import { weapon, scaleFor, setWeapon, bladeReachPx, spinReachPx, isSlide, cut, setCutZone, cutZoneHits, sharpness, sharpMult } from './scissors.js';
+import { weapon, scaleFor, setWeapon, bladeReachPx, spinReachPx, isSlide, cut, setCutZone, cutZoneHits, sharpness, sharpMult, shredDef } from './scissors.js';
 import { tween, tweens, makeTweens, easing } from './tween.js';
 import { makeRng } from '../vendor/mulberry32.js';
 import { sfx, sfxSnip, sfxSequence } from './audio.js';
@@ -105,7 +105,7 @@ function showScreens() {
   els.pauseBtn.hidden = !live();
   els.pause.hidden = !state.paused || state.pauseCard !== 'menu';
   els.pinsIntro.hidden = !state.paused || state.pauseCard !== 'pins';
-  els.tray.hidden = state.paused || (m !== 'PLAYING' && m !== 'WAVE_CLEAR');
+  els.tray.hidden = (state.paused && state.pauseCard !== 'build') || (m !== 'PLAYING' && m !== 'WAVE_CLEAR');   // the Pin picker's pause keeps the board
   els.tutSkip.hidden = state.paused || m !== 'TUTORIAL';
   els.bossCard.hidden = state.paused || state.bossCardT <= 0 || !live();
 }
@@ -340,7 +340,8 @@ function buildReport(inProgress = false) {
 // ======================= pause =======================
 // Freezes the whole game (update() returns before input, timers and tweens). Paused time doesn't count toward the run
 // duration. Resuming re-arms snip detection so finger movement during the pause can't fire a snip.
-// card = which card the pause shows: 'menu' (RESUME + run report) or 'pins' (the one-time Pin placement explainer).
+// card = which card the pause shows: 'menu' (RESUME + run report), 'pins' (the one-time Pin placement explainer) or
+// 'build' (none: the Pin picker is open over the board, actionBar.js).
 let pausedAt = 0;
 export function setPaused(p, card = 'menu') {
   if (p === state.paused || (p && !live())) return;
@@ -787,7 +788,7 @@ function awardKill(e, bySnip = true) {
   if (state.mode !== 'TUTORIAL') {
     const pay = level().threadPerKill ?? C.threadPerKill;   // a level can trim it (its critters make up the difference)
     state.thread += pay; emit('thread', e.x, e.y, pay);
-    if (bySnip && !heli.active && state.shredOn) heli.charge = Math.min(C.heliKillsToCharge, heli.charge + 1);
+    if (bySnip && !heli.active && state.shredOn) heli.charge = Math.min(shredDef().charge, heli.charge + 1);
   }
   if (t.boss || t.tier >= 2) startHitStop((t.boss ? C.bossHitStopMs : C.hitStopMs) / 1000);
   addShake(e.r * C.killShakePerR);
@@ -930,10 +931,11 @@ function chargeDone(e) {
 }
 
 // ======================= special: Helicopter =======================
-// Charged by snip kills. Snap fully open (outBack), spin 720° (inOutSine) hitting everything within blade reach every
+// Charged by snip kills (shredDef().charge). Snap fully open (outBack), spin shredDef().turns full turns (inOutSine; 1 at
+// tier 0, more as SHRED is bought up in Your Scissors) hitting everything within blade reach every
 // heliTickMs, then snap shut into a normal full-open snip. The pivot still follows the hand; spread and aim don't.
 const HELI_OPEN = { spread: 1 }, HELI_SHUT = { spread: 0 };
-const shredReady = () => live() && state.shredOn && !heli.active && heli.charge >= C.heliKillsToCharge;
+const shredReady = () => live() && state.shredOn && !heli.active && heli.charge >= shredDef().charge;
 export function trySpecial() {
   if (!shredReady() || !input.gripping || input.scAlpha < 0.5) return;
   heli.armed = heli.go = false;
@@ -944,7 +946,8 @@ export function trySpecial() {
 function heliSpin() {
   heli.phase = 'spin';
   sfx('heliWhir', 0);
-  tween(heli, { rot: TAU * C.heliSpinTurns }, C.heliSpinMs, easing.inOutSine, heliClose, 'heli');
+  const turns = shredDef().turns;                                // SHRED's bought tier (CONFIG.shredTiers)
+  tween(heli, { rot: TAU * turns }, C.heliTurnMs * turns, easing.inOutSine, heliClose, 'heli');
 }
 function heliClose() { heli.phase = 'close'; tween(heli, HELI_SHUT, C.heliCloseMs, easing.linear, heliDone, 'heli'); }
 let shredSnap = false;                                          // doSnip is SHRED's final snap (critters ignore it)

@@ -23,6 +23,9 @@ export const sharpMult = s => C.meta.sharpDullMult + (C.meta.sharpSharpMult - C.
 // The edge's name (CONFIG.meta.sharpBands, equal steps) and its index (0 = dullest).
 export const sharpBandIndex = s => Math.min(C.meta.sharpBands.length - 1, Math.floor(s * C.meta.sharpBands.length));
 export const sharpBand = s => C.meta.sharpBands[sharpBandIndex(s)];
+// SHRED's tier bought (Save.skills.shred, meta.js buyShred) and the move at that tier (CONFIG.shredTiers: turns, charge).
+export const shredTier = () => Math.max(0, Math.min(C.shredTiers.length - 1, Save.skills.shred | 0));
+export const shredDef = () => C.shredTiers[shredTier()];
 // Sharpen (meta.js buySharpen) is offered only below sharpenFrom.
 export const canSharpen = id => sharpness(id) < C.meta.sharpenFrom;
 
