@@ -8,7 +8,7 @@
 export const FEEDBACK_URL = 'mailto:tim@saltandwisdom.com';
 
 // Shown small at the bottom of Settings and recorded in every run report. Bump it with each published change.
-export const VERSION = '0.3.3';
+export const VERSION = '0.3.4';
 
 export const CONFIG = {
   // --- pose / control mapping ---
@@ -341,7 +341,23 @@ export const CONFIG = {
     { name: 'Whirlwind',    turns: 3, charge: 18 },
   ],
   heliOpenMs: 120,           // snap fully open
-  heliTurnMs: 800,           // how long one full turn of the spin takes (the spin lasts turns x this)
+  // Skills to come (placeholders, not in play yet): the plan is two move slots, SHRED plus one of these picked on the
+  // weapon screen before a level, each on its own charge and bought up in tiers like SHRED. Your Scissors lists them
+  // as "coming soon" (the level each would arrive on, what it would do) so playtesters can say which they'd want.
+  // enabled: false keeps a skill out of the game entirely; nothing reads these but armory.js yet.
+  skillIdeas: [
+    { id: 'focus',   name: "Tailor's Focus", icon: '⏳', from: 'blanket', enabled: false, blurb: 'The board slows to a crawl for a few seconds; your blades stay full speed.',
+      charge: 'clean full-open snips', tiers: ['Lasts longer', 'Charges faster', 'Kills during it refund charge'] },
+    { id: 'thimble', name: 'Thimble Guard',  icon: '🛡', from: 'loop',    enabled: false, blurb: 'A brass thimble caps the heart pad and stops the next two enemies that reach it.',
+      charge: 'squished silverfish and kills near the heart', tiers: ['Stops three', 'Bumps them back up the road', 'Recharges faster'] },
+    { id: 'pinking', name: 'Pinking Cut',    icon: '〰', from: 'cross',   enabled: false, blurb: 'Your next snip cuts a long zigzag lane out past the tips, hitting everything along it.',
+      charge: 'multi-snips', tiers: ['A longer lane', 'Cuts through armor', 'Leaves a slowing trail'] },
+    { id: 'mark',    name: 'Seam Mark',      icon: '✚', from: 'bias',    enabled: false, blurb: 'Chalk-mark one enemy: your next snip on it does triple damage and ignores armor.',
+      charge: 'nicks and near-misses', tiers: ['The mark spreads to neighbours', 'Marked kills refund charge', 'Two marks at once'] },
+    { id: 'basting', name: 'Basting Stitch', icon: '⋯', from: 'whip',    enabled: false, blurb: 'Drag across the road to sew a stitch line that holds the first few enemies to reach it.',
+      charge: 'thread, paid each time', tiers: ['Holds more', 'Holds longer', 'Held enemies take extra snip damage'] },
+  ],
+  heliTurnMs: 800,          // how long one full turn of the spin takes (the spin lasts turns x this)
   heliTickMs: 100,           // during the spin, everything within blade reach is hit this often
   heliTickDamage: 1,         // damage per tick (ignores armor)
   heliSlowSec: 2,            // enemies hit by the spin stay slowed this long

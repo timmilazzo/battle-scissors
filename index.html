@@ -615,6 +615,11 @@
   /* Moves: SHRED's panel (its round purple badge, as in the HUD) */
   .arm-skill-ico { width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px; outline-offset: -6px; }
   .arm-skill-now { color: #ffe4aa; }
+  /* skills to come (CONFIG.skillIdeas): dimmer, a SOON tag, a Want this button */
+  .arm-card.idea { background: var(--felt-fuzz), rgba(30, 14, 4, 0.3); outline: 2px dashed rgba(255, 228, 170, 0.25); outline-offset: -4px; }
+  .arm-soon { font: 400 11px var(--ui-font); letter-spacing: 0.8px; padding: 3px 7px 4px; border-radius: 8px; color: #2a170a; background: #c79bff; white-space: nowrap; }
+  .arm-idea-meta { font-size: 11.5px; color: rgba(255, 241, 194, 0.7); }
+  .card .arm-card.idea .felt-btn.small { justify-self: start; }
   .arm-card.lockd { opacity: 0.65; }
   @media (max-width: 400px) { .arm-card { grid-template-columns: 44px minmax(0, 1fr); gap: 10px; padding: 10px; } .arm-card > img { width: 44px; height: 60px; } .arm-skill-ico { width: 44px; height: 44px; font-size: 22px; }
     .arm-sharp, .arm-up { grid-template-columns: 1fr; } .card .arm-card :is(.arm-sharp, .arm-up) .felt-btn.small { justify-content: center; } }

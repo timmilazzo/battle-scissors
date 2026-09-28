@@ -105,7 +105,7 @@ const metaChanged = () => { selectWeapon(weapon.id); resize(); refreshWeaponSele
 const metaClosed = () => { if (state.mode === 'MAP') refreshLevelMap(); };
 initShop({ toast: showToast, onChange: metaChanged, onClose: metaClosed });
 initArmory({ toast: showToast, onChange: metaChanged, onClose: metaClosed,
-  onEquip: id => { Save.equippedScissors = id; persist(); useWeapon(id); refreshWeaponSelect(); } });
+  onEquip: id => { Save.equippedScissors = id; persist(); useWeapon(id); refreshWeaponSelect(); }, onFeedback: skillFeedback });
 // The run is over: the results card plays its Button tally.
 setRunEndHook(() => showResults(state.tally));
 showLevelName(view.levelId);
@@ -167,6 +167,14 @@ function feedbackMail(report) {
   const what = report ? (report.won ? 'won' : report.inProgress ? 'wave ' + report.wavesReached + ', mid-run' : 'lost on wave ' + report.wavesReached) + ', ' + report.weapon : 'no run yet';
   const body = 'What happened, what felt good or off:\n\n\n\n---\nRun report (please leave this in):\n' + (report ? JSON.stringify(report) : '(none)');
   return FEEDBACK_URL + '?subject=' + encodeURIComponent('Battle Scissors feedback (' + what + ')') + '&body=' + encodeURIComponent(body);
+}
+// Your Scissors' Want this on a skill to come: a feedback draft about that skill (no run report needed).
+function skillFeedback(k) {
+  if (!FEEDBACK_URL) { showToast('No feedback link set (FEEDBACK_URL in config.js)'); return; }
+  if (!FEEDBACK_URL.startsWith('mailto:')) { window.open(FEEDBACK_URL, '_blank', 'noopener'); return; }
+  const body = "I'd want " + k.name + ' (' + k.blurb + ")\n\nWhy, or how I'd change it:\n\n\n---\nv" + VERSION;
+  location.href = FEEDBACK_URL + '?subject=' + encodeURIComponent('Battle Scissors skill idea: ' + k.name) + '&body=' + encodeURIComponent(body);
+  showToast('Opening your email app…');
 }
 for (const b of document.querySelectorAll('[data-send-feedback]')) b.addEventListener('click', () => {
   if (!FEEDBACK_URL) { showToast('No feedback link set (FEEDBACK_URL in config.js)'); return; }

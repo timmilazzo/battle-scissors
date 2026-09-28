@@ -13,7 +13,7 @@ import { sfx, unlockAudio } from './audio.js';
 import { sharpMeter, setSharpMeter, sharpenButton, setSharpenButton } from './sharpMeter.js';
 
 const screenEl = document.getElementById('armory'), body = document.getElementById('armory-body'), bal = document.getElementById('armory-buttons');
-let opts = { toast: () => {}, onChange: () => {}, onEquip: () => {}, onClose: () => {} };
+let opts = { toast: () => {}, onChange: () => {}, onEquip: () => {}, onFeedback: () => {}, onClose: () => {} };
 
 const pct = x => '+' + Math.round(x * 100) + '%';
 const SIGNATURE = { angle: 'cut angle', damage: 'damage', crit: 'crit damage', hold: 'jaw hold time', ring: 'ring size' };
@@ -92,10 +92,31 @@ function shredPanel() {
   return p;
 }
 
+// Skills to come (CONFIG.skillIdeas, not in play yet): a card each with the level it would arrive on, what it would
+// do, what charges it and its planned tiers, and a Want this button (opts.onFeedback) so playtesters can vote.
+const levelNo = id => C.map.nodes.findIndex(n => n[0] === id);
+function ideaPanel(k) {
+  const p = el('div', 'arm-card skill idea'), icon = el('span', 'arm-skill-ico felt dark', k.icon);
+  const head = el('div', 'arm-head');
+  head.append(el('span', 'nm', k.name), el('span', 'arm-soon', 'SOON · LEVEL ' + levelNo(k.from)));
+  const want = el('button', 'felt-btn small', 'Want this'); want.type = 'button';
+  want.addEventListener('click', () => { unlockAudio(); opts.onFeedback(k); });
+  const main = el('div', 'arm-main');
+  main.append(head, el('div', 'arm-skill-now', k.blurb), el('div', 'arm-idea-meta', 'Charges from ' + k.charge + '. Tiers: ' + k.tiers.join(' → ') + '.'), want);
+  p.append(icon, main);
+  return p;
+}
+
 function render() {
   bal.textContent = Save.buttons;
   body.textContent = '';
-  body.append(el('h3', '', 'Moves'), shredPanel(), el('h3', '', 'Scissors'),
+  body.append(el('h3', '', 'Moves'), shredPanel());
+  const ideas = C.skillIdeas.filter(k => !k.enabled);
+  if (ideas.length) {
+    body.append(el('h3', '', 'Skills coming soon'), el('p', 'hint', 'The plan: a second move slot beside SHRED, filled with one of these before each level, each bought up in tiers like SHRED. Not in the game yet. Tell us which you’d want.'));
+    for (const k of ideas) body.append(ideaPanel(k));
+  }
+  body.append(el('h3', '', 'Scissors'),
     el('p', 'hint', 'Every snip wears the edge a little. A dull pair cuts weaker; Sharpen puts it back to full.'));
   const locked = [];
   for (const id in C.weapons) { if (weaponLocked(id)) locked.push(id); else body.append(ownedPanel(id)); }
@@ -110,7 +131,7 @@ function render() {
   }
 }
 
-// o: toast(text), onChange() after a buy (re-apply the weapon), onEquip(id), onClose().
+// o: toast(text), onChange() after a buy (re-apply the weapon), onEquip(id), onFeedback(skillIdea), onClose().
 export function initArmory(o) {
   opts = o;
   document.getElementById('armory-back').addEventListener('click', () => { screenEl.hidden = true; opts.onClose(); });
