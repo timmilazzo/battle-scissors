@@ -404,6 +404,13 @@
     -webkit-tap-highlight-color: transparent;
   }
   .art-btn.icon { margin-top: env(safe-area-inset-top); }
+  /* DEMO tag: a red felt sticker slapped on the right end of the logo's banner. Centred on plate px (--px/--py portrait,
+     --lx/--ly landscape); the art box is full height, so vh sizes it with the plate. */
+  .demo-tag { --fc: #d63a24; --rim: #5a130a; --dx: var(--px); --dy: var(--py); --fs: 2.7vh; position: absolute; z-index: 1; pointer-events: none;
+    left: calc(var(--dx) / var(--cw) * 100%); top: calc(var(--dy) / var(--ch) * 100%);
+    transform: translate(-50%, -50%) rotate(-10deg); font-size: var(--fs); letter-spacing: 0.08em;
+    padding: 0.35em 0.75em 0.3em; border-radius: 0.5em; outline-offset: -0.35em; white-space: nowrap; }
+  @media (min-aspect-ratio: 1/1) { .demo-tag { --dx: var(--lx); --dy: var(--ly); --fs: 4.4vh; } }
   .art-btn:hover { filter: brightness(1.07); }
   .art-btn:active { transform: translateY(3%) scale(0.97); filter: brightness(0.9); }
   .art-btn:focus-visible { outline: 3px solid #ffe27a; outline-offset: 3px; }
@@ -725,6 +732,7 @@
 <div id="title" class="screen">
   <div class="title-art">
     <h1 class="sr-only">Battle Scissors: Kitchen Drawer Defense</h1>
+    <div class="demo-tag felt" style="--px:690;--py:575;--lx:1085;--ly:425">DEMO</div>
     <!-- --x/--y/--w/--h: sprite rect in the mock; --px/--py: portrait position (default --x/--y);
          --lx/--ly/--lw/--lh: landscape rect; --r: clip shape. PLAY, How to play, Settings and Sound are wired; the rest are placeholders. -->
     <button id="play" class="art-btn" type="button" style="--x:212;--y:1030;--w:526;--h:192;--lx:616;--ly:640;--lw:440;--lh:161;--r:11% / 31%"><span class="sr-only">Play</span></button>

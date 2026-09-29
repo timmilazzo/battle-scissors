@@ -8,7 +8,7 @@
 export const FEEDBACK_URL = 'mailto:tim@saltandwisdom.com';
 
 // Shown small at the bottom of Settings and recorded in every run report. Bump it with each published change.
-export const VERSION = '0.3.9';
+export const VERSION = '0.3.10';
 
 export const CONFIG = {
   // --- pose / control mapping ---
