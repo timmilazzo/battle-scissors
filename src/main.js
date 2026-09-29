@@ -109,11 +109,17 @@ initArmory({ toast: showToast, onChange: metaChanged, onClose: metaClosed,
 // The run is over: the results card plays its Button tally.
 setRunEndHook(() => showResults(state.tally));
 showLevelName(view.levelId);
-// Win card: NEXT LEVEL plays the next level on the map with the same weapon; "Level map" opens the map.
-// (a level that brings a new Pin or SHRED opens the weapon screen first, which says so)
-on('next', () => { const id = nextLevelId(); if (!id) return; if (C.shredFrom === id || Object.values(C.pinFrom).includes(id)) { unlockAudio(); toast.hidden = true; chooseLevel(id); return; }
-  rememberLevel(id); switchLevel(id); showLevelName(id); play(); });
-on('over-select', () => { unlockAudio(); toast.hidden = true; openMap(); });
+// Run-end card: one big button (endGame sets its act): NEXT LEVEL plays the next level on the map with the same weapon
+// (a level that brings a new Pin or SHRED opens the weapon screen first, which says so), CONTINUE opens the map,
+// TRY AGAIN replays. The small Map and Play again buttons cover the rest.
+function nextLevel() {
+  const id = nextLevelId(); if (!id) { openMap(); return; }
+  if (C.shredFrom === id || Object.values(C.pinFrom).includes(id)) { unlockAudio(); toast.hidden = true; chooseLevel(id); return; }
+  rememberLevel(id); switchLevel(id); showLevelName(id); play();
+}
+const toMap = () => { unlockAudio(); toast.hidden = true; openMap(); };
+on('over-select', () => { const act = document.getElementById('over-select').dataset.act; if (act === 'next') nextLevel(); else if (act === 'again') play(); else toMap(); });
+on('over-map', toMap);
 // Pressing anywhere on the title is a gesture that unlocks audio.
 document.getElementById('title').addEventListener('pointerdown', () => unlockAudio());
 for (const b of document.querySelectorAll('[data-soon]')) b.addEventListener('click', () => showToast(b.dataset.soon + ': coming soon'));

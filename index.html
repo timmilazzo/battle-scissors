@@ -890,9 +890,10 @@
       <dt>Seed</dt><dd id="over-seed">—</dd>
     </dl>
     <div id="over-go" class="over-go">
-    <button id="over-select" class="felt-btn" type="button"><span class="tri"></span>CONTINUE</button>
+    <!-- one big button for the obvious next step (game.js endGame picks it: NEXT LEVEL / CONTINUE / TRY AGAIN), the rest small -->
+    <button id="over-select" class="felt-btn" type="button"><span class="tri"></span><span id="over-primary">CONTINUE</span></button>
     <div class="over-actions">
-      <button id="next" class="felt-btn small" type="button" hidden>Next level</button>
+      <button id="over-map" class="felt-btn small" type="button" hidden>Map</button>
       <button id="again" class="felt-btn small" type="button">Play again</button>
     </div>
     <div class="over-actions">

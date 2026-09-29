@@ -90,7 +90,7 @@ const els = {
   pause: document.getElementById('pause-screen'), pinsIntro: document.getElementById('pins-intro'), pauseWave: document.getElementById('pause-wave'), pauseScore: document.getElementById('pause-score'),
   pauseAcc: document.getElementById('pause-acc'), pauseSeed: document.getElementById('pause-seed'),
   overTitle: document.getElementById('over-title'), overScore: document.getElementById('over-score'), overLevel: document.getElementById('over-level'),
-  next: document.getElementById('next'),
+  overSelect: document.getElementById('over-select'), overPrimary: document.getElementById('over-primary'), overMap: document.getElementById('over-map'), again: document.getElementById('again'),
   overWaves: document.getElementById('over-waves'), overAcc: document.getElementById('over-acc'), overSeed: document.getElementById('over-seed'),
 };
 function showScreens() {
@@ -304,7 +304,11 @@ function endGame(won) {
   const before = levelBefore(view.levelId);
   recordLevelResult(view.levelId, won, state.score, state.run.stars, level().unlockOnClear);
   const next = nextLevelId();
-  els.next.hidden = !(won && next);
+  // the big button: the next level after a win (CONTINUE to the map when there's none), TRY AGAIN after a loss
+  const primary = !won ? 'again' : next ? 'next' : 'map';
+  els.overSelect.dataset.act = primary;
+  els.overPrimary.textContent = primary === 'again' ? 'TRY AGAIN' : primary === 'next' ? 'NEXT LEVEL' : 'CONTINUE';
+  els.overMap.hidden = primary === 'map'; els.again.hidden = primary === 'again';
   els.overScore.textContent = String(state.score);
   els.overWaves.textContent = (won ? levelWaves().length : state.wave - 1) + ' / ' + levelWaves().length;
   els.overAcc.textContent = accuracyText();
