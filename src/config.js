@@ -8,7 +8,7 @@
 export const FEEDBACK_URL = 'mailto:tim@saltandwisdom.com';
 
 // Shown small at the bottom of Settings and recorded in every run report. Bump it with each published change.
-export const VERSION = '0.4.0';
+export const VERSION = '0.4.1';
 
 export const CONFIG = {
   // --- pose / control mapping ---
@@ -241,6 +241,8 @@ export const CONFIG = {
     spotYMin: 250, spotYMax: 1330, // pad centres stay out of the HUD row and off the action bar
     maxRoutes: 6,            // at most this many routes from forks (a fork doubles them, a "triple" triples them)
     maxPaths: 9,             // at most this many paths in all, counting the copies each side entrance adds
+    entryStraight: 50,       // every road comes on square to the screen edge for at least this far before it turns
+    cropX: 80,               // how much of each side a narrow phone crops off the plate (a side road's straight bit starts past it)
     entryClear: 230,         // "entry": how far a side road runs beside the road it joins before it merges in (plate units)
     entryTries: 40,          // "entry": merge points tried before the entrance is dropped
     heartShift: 130,         // "heart left/right": how far the heart pad moves off the middle

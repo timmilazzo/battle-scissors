@@ -277,7 +277,9 @@ function beginWave(n) {
     if (t.boss) boss = name;
     const at = t.boss ? Math.max(atSec, C.bossIntroMs / 1000) : atSec;
     // which entrance each comes in by: the entry's own 4th field (an index), else drawn now (only where there's a choice), so its warning can show first
-    for (let i = 0; i < count; i++) spawnList.push([at + i * t.gapMs / 1000, name, entry !== undefined ? Math.min(entry, ne - 1) : ne > 1 ? Math.floor(rng.spawn() * ne) : 0]);
+    // (a boss always takes the longest route, so it comes in by that route's entrance)
+    const bossEntry = t.boss && ne > 1 ? level().entryOf[longestRoute()] : -1;
+    for (let i = 0; i < count; i++) spawnList.push([at + i * t.gapMs / 1000, name, bossEntry >= 0 ? bossEntry : entry !== undefined ? Math.min(entry, ne - 1) : ne > 1 ? Math.floor(rng.spawn() * ne) : 0]);
   }
   spawnList.sort((a, b) => a[0] - b[0]);
   spawnIdx = 0;
@@ -1165,6 +1167,12 @@ function hpScale(t) {
 }
 // Which route an enemy takes: among the routes of its entrance, at random (weighted where the level says so, e.g. a fork's short
 // arm); single-route levels draw nothing, so their seeded runs replay as before.
+// The longest route of the level (bosses always take it: more road to fight them on).
+function longestRoute() {
+  let best = 0;
+  for (let r = 1; r < state.paths.length; r++) if (state.paths[r].lenU > state.paths[best].lenU) best = r;
+  return best;
+}
 function pickRoute(entry) {
   const lv = level(), nr = state.paths.length, of = lv.entries > 1 ? lv.entryOf : null, w = lv.pathW;
   let n = 0, only = 0, total = 0;
@@ -1190,7 +1198,7 @@ function spawnEnemy(name, entry = 0) {
   e.pulling = false; e.pinned = false; e.walking = false; e.escortOf = null; e.holdT = 0; e.gen++;
   e.bossPhase = 0; e.seamT = e.chargeT = e.armorDownT = e.swarmT = e.shieldDownT = 0; e.seamOpen = e.seamWarn = e.charging = e.windup = false;
   e.phase = rng.spawn() * TAU;
-  e.route = pickRoute(entry);
+  e.route = t.boss ? longestRoute() : pickRoute(entry);
   // a steady walking speed: traverseSec is for a road traverseRefLen long, so a longer road takes longer (the tutorial keeps its fixed time)
   if (!isTutorial()) e.speed = C.traverseRefLen / (t.traverseSec * state.paths[e.route].lenU);
   pathPoint(e); e.x = e.px; e.y = e.py;

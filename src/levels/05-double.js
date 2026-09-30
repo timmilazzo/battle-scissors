@@ -2,7 +2,7 @@
 // header; try it in tools/level-lab.html), src/levelArt.js paints the plate. The seed varies the details.
 export default {
   id: 'double', name: 'Double Seam', blurb: 'A fork, then an S.',
-  recipe: 'size 1.2, fork long, wave 3, entry right 20', seed: 25,
+  recipe: 'size 1.2, fork long, wave 3, entry left 20', seed: 25,
   world: 'meadow',
   allowedPins: null,         // Pin types that can be built here (null = all)
   // Thread: 6 per kill + 26 to start = 284 for all 43 enemies; its 2 silverfish (30 each) bring it back to

@@ -242,7 +242,8 @@ function build(items, recipe, seed, base, warnings) {
   while (segs.length > 1 && mins.reduce((a, b) => a + b, 0) > span * 1.12) { warnings.push('no room for "' + segs.pop().name + '": dropped'); mins.pop(); }
   const sumMin = mins.reduce((a, b) => a + b, 0), weights = segs.map(s => SEG[s.name].weight(s.args)), sumW = weights.reduce((a, b) => a + b, 0);
   const extra = Math.max(0, span - sumMin);
-  let routes = [[[xs, -90], [xs, 20]]], wts = [1], x = xs, y = G.startY;
+  // every road comes on square to the edge (straight down here) before it turns, so enemies walk straight in
+  let routes = [[[xs, -90], [xs, 0], [xs, G.entryStraight]]], wts = [1], x = xs, y = G.startY;
   const deco = [], spots = [];
   let terminal = false;
   segs.forEach((seg, i) => {
@@ -301,15 +302,24 @@ function addEntry(routes, wts, nMain, spec, span, xs, rng, warnings) {
   for (let i = cands.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [cands[i], cands[j]] = [cands[j], cands[i]]; }
   // a second top entrance comes in right of centre, away from the HUD; each merge point is tried with a shallow and a steep approach
   const xs2 = edge === 'top' ? [G.xMax - 110, mid + 60, mid - 60].filter(v => Math.abs(v - xs) > need + 40) : [0];
-  for (const [mx, my] of cands.slice(0, C.levelGen.entryTries)) for (const dy of [150, 270]) for (const xt of xs2) {
-    const sd = edge === 'left' ? -1 : edge === 'right' ? 1 : (xt < mx ? -1 : 1), cx = mx + sd * clear, cy = my - dy;
+  // a side road comes in at the height asked for, or failing that a little lower or higher (never up under the HUD)
+  const yLo = edge === 'left' ? 400 : 260, yEs = edge === 'top' ? [0] : [0, 110, -90, 220].map(o => Math.max(yLo, yE + o));
+  for (const yEn of yEs) for (const [mx, my] of cands.slice(0, C.levelGen.entryTries)) for (const dy of [150, 270]) for (const xt of xs2) {
+    const sd = edge === 'left' ? -1 : edge === 'right' ? 1 : (xt < mx ? -1 : 1), cy = my - dy;
+    let cx = mx + sd * clear;
     if (cx < 40 || cx > W - 40) continue;
     let pts;
-    if (edge === 'top') { if (cy < 260) continue; pts = [[xt, -90], [xt, 20], [(xt + cx) / 2, (20 + cy) / 2], [cx, cy], [mx + sd * 95, my - 55], [mx, my]]; }
+    // square to the edge for entryStraight past it (a side road: past where a narrow phone crops the plate), then the turn
+    const st = G.entryStraight;
+    if (edge === 'top') { if (cy < 260) continue; pts = [[xt, -90], [xt, 0], [xt, st], [(xt + cx) / 2, (st + cy) / 2], [cx, cy], [mx + sd * 95, my - 55], [mx, my]]; }
     else {
+      const yE = yEn;
       if (cy < yE + 60) continue;
-      const ex = sd < 0 ? -90 : W + 90;
-      pts = [[ex, yE], [(ex + cx) / 2, yE + 0.3 * (cy - yE)], [cx, cy], [mx + sd * 95, my - 55], [mx, my]];
+      const ex = sd < 0 ? -90 : W + 90, e0 = sd < 0 ? 0 : W, e1 = sd < 0 ? G.cropX + st : W - G.cropX - st;
+      // the approach point: entryClear out from the merge, but never out past where the straight bit ends
+      cx = sd < 0 ? Math.max(cx, e1 + 60) : Math.min(cx, e1 - 60);
+      if ((mx - cx) * -sd < 110) continue;                       // no room to turn between the straight bit and the merge
+      pts = [[ex, yE], [e0, yE], [e1, yE], [(e1 + cx) / 2, yE + 0.35 * (cy - yE)], [cx, cy], [mx + sd * 95, my - 55], [mx, my]];
     }
     // clear of every road except where it's about to merge (the last stretch)
     const P = curve(pts, 10);
