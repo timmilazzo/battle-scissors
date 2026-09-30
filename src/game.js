@@ -144,7 +144,7 @@ function buildPath() {
   state.paths.length = routes.length;
   routes.forEach((P, r) => {
     const n = P.length, steps = C.pathSmoothSteps, L = view.L, LX = view.LX;
-    const path = state.paths[r] || (state.paths[r] = { x: null, y: null, cum: null, n: 0, len: 1 });
+    const path = state.paths[r] || (state.paths[r] = { x: null, y: null, cum: null, n: 0, len: 1, lenU: 1 });
     const N = (n - 1) * steps + 1, X = new Float32Array(N), Y = new Float32Array(N), cum = new Float32Array(N);
     let k = 0;
     for (let i = 0; i < n - 1; i++) {
@@ -158,6 +158,7 @@ function buildPath() {
     X[k] = levelX(P[n - 1][0]); Y[k] = levelY(P[n - 1][1]);
     for (let i = 1; i < N; i++) cum[i] = cum[i - 1] + Math.hypot(X[i] - X[i - 1], Y[i] - Y[i - 1]);
     path.x = X; path.y = Y; path.cum = cum; path.n = N; path.len = Math.max(1, cum[N - 1]);
+    path.lenU = path.len / L;                                     // the same length in plate units (independent of the screen)
   });
   // where each entrance's road first shows on screen (its first path's first stretch inside the view, a little in from the edges)
   const lv = level(), marks = state.entryMarks, pad = C.entryMarkInsetPx;
@@ -1048,9 +1049,7 @@ export const pinIsNew = type => C.pinFrom[type] === view.levelId;
 export const shredIsNew = () => C.shredFrom === view.levelId;
 // Whether SHRED is in this level at all (its meter, charge and triggers; never in level 0).
 export const shredAllowed = () => !isTutorial() && introduced(C.shredFrom);
-// A Pin's radius in px. Its radius is in the usual 941 x 1672 plate's units, so a bigger level (size > 1) scales it up to match: a Pin covers the same stretch of screen either way.
-const levelSize = () => level().size || 1;
-export const towerReach = type => C.towers[type].radius * view.L * levelSize();
+export const towerReach = type => C.towers[type].radius * view.L;   // a Pin's radius in px
 
 // Build a `type` Pin on spot i (the action bar's spot picker). Returns '' on success, else why not.
 export function buildTower(i, type) {
@@ -1112,7 +1111,7 @@ function needleTower(t, dt) {
 // Needles in flight: home on their target at needleSpeed; if it died (or its pool slot was reused) they fly straight on
 // for needleLostSec and vanish. A hit deals the Pin's damage (armor rules as for a snip).
 function updateNeedles(dt) {
-  const sp = C.towers.needle.needleSpeed * view.L * levelSize();
+  const sp = C.towers.needle.needleSpeed * view.L;
   for (let i = 0; i < needles.length; i++) {
     const n = needles[i]; if (!n.on) continue;
     const e = n.target, alive = e && e.on && e.gen === n.gen;
@@ -1190,6 +1189,8 @@ function spawnEnemy(name, entry = 0) {
   e.bossPhase = 0; e.seamT = e.chargeT = e.armorDownT = e.swarmT = e.shieldDownT = 0; e.seamOpen = e.seamWarn = e.charging = e.windup = false;
   e.phase = rng.spawn() * TAU;
   e.route = pickRoute(entry);
+  // a steady walking speed: traverseSec is for a road traverseRefLen long, so a longer road takes longer (the tutorial keeps its fixed time)
+  if (!isTutorial()) e.speed = C.traverseRefLen / (t.traverseSec * state.paths[e.route].lenU);
   pathPoint(e); e.x = e.px; e.y = e.py;
   return e;
 }

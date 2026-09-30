@@ -8,7 +8,7 @@
 export const FEEDBACK_URL = 'mailto:tim@saltandwisdom.com';
 
 // Shown small at the bottom of Settings and recorded in every run report. Bump it with each published change.
-export const VERSION = '0.3.13';
+export const VERSION = '0.3.14';
 
 export const CONFIG = {
   // --- pose / control mapping ---
@@ -241,17 +241,15 @@ export const CONFIG = {
     spotYMin: 250, spotYMax: 1330, // pad centres stay out of the HUD row and off the action bar
     maxRoutes: 6,            // at most this many routes from forks (a fork doubles them, a "triple" triples them)
     maxPaths: 9,             // at most this many paths in all, counting the copies each side entrance adds
-    // Bigger play surface: a recipe's "size n" (or a level file's `size`) lays the road out on a plate n times the usual
-    // 941 x 1672 (same shape). Scissors, Pins' reach and enemies stay the same size on screen, so more road fits under the
-    // same screen. The road, pads and heart pad grow only by n^sizeRoadExp (0 = they stay put on the plate, so they look
-    // thinner; 1 = they grow with the plate, so the picture is just the same as before).
-    sizeRoadExp: 0.6,
     entryClear: 230,         // "entry": how far a side road runs beside the road it joins before it merges in (plate units)
     entryTries: 40,          // "entry": merge points tried before the entrance is dropped
     heartShift: 130,         // "heart left/right": how far the heart pad moves off the middle
+    spiralRx: 330, spiralRy: 520, // "spiral": the outer ring's half-width and half-height (the heart pad sits in the middle of the plate)
+    spiralTurns: 1.25,       // "spiral": turns round the heart (fewer if the road would touch itself)
     props: 34,               // kit props tried per plate (src/kit.js: each zone's mix); fewer land if there's no room
     patches: 7,              // fabric patches sewn under the road
   },
+  traverseRefLen: 2000,      // enemies walk at a steady speed: a road this long (plate units) takes an enemy its type's traverseSec, a longer one proportionally longer
   entryWarnSec: 1.4,         // an entrance's arrow flashes this long before something comes in (levels with more than one entrance)
   entryMarkInsetPx: 26,      // an entrance's arrow sits where its road first comes this far inside the screen edge
   pathSmoothSteps: 16,     // Catmull-Rom samples per path segment (road smoothness)

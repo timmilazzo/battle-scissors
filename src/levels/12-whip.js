@@ -2,7 +2,7 @@
 // header; try it in tools/level-lab.html), src/levelArt.js paints the plate. The seed varies the details.
 export default {
   id: 'whip', name: 'Whipstitch', blurb: 'Wiggles into a wide fork.',
-  recipe: 'size 1.7, wiggle 5, fork wide, entry top, entry left 40, heart right', seed: 12,
+  recipe: 'wiggle 5, fork wide, entry left 40, heart right', seed: 12,
   world: 'lair',
   allowedPins: null,         // Pin types that can be built here (null = all)
   // Thread: 6 per kill + 52 to start = 568 for all 86 enemies; its 4 silverfish (30 each) bring it back to

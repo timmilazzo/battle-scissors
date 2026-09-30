@@ -34,7 +34,7 @@
   <label><input id="overlay" type="checkbox" checked> routes + pads</label>
   <a id="play" class="btn" target="_blank">Play it ›</a>
 </header>
-<div id="help">segments: straight · bend [left|right|center] · s [left|right] [amp] · wave [n] · wiggle [n] · zigzag [n] [left|right] · fork [wide|narrow|long] [pin] · triple · start left|right|center · entry left|right|top [pct] · heart left|right|center · size n (line colour = entrance)</div>
+<div id="help">segments: straight · bend [left|right|center] · s [left|right] [amp] · wave [n] · wiggle [n] · zigzag [n] [left|right] · fork [wide|narrow|long] [pin] · triple · start left|right|center · entry left|right|top [pct] · spiral [left|right] [turns] · heart left|right|center (line colour = entrance)</div>
 <main id="out"></main>
 <script type="module">
   import { CONFIG as C } from '../src/config.js';
@@ -44,23 +44,22 @@
   const $ = id => document.getElementById(id), out = $('out');
   function view(def) {
     const plate = paintLevel(def), c = document.createElement('canvas');
-    c.width = plate.width; c.height = plate.height;   // the plate is painted in the usual space; def coordinates are size times that
+    c.width = def.w; c.height = def.h;
     const g = c.getContext('2d');
     g.drawImage(plate, 0, 0);
     if ($('overlay').checked) {
-      g.save(); g.scale(1 / (def.size || 1), 1 / (def.size || 1));
       def.paths.forEach((P, i) => {
-        g.strokeStyle = ['#ff3b3b', '#3bff7a', '#3bb4ff', '#ffd23f'][(def.entryOf ? def.entryOf[i] : i) % 4]; g.lineWidth = 3 * (def.size || 1); g.setLineDash([]);
+        g.strokeStyle = ['#ff3b3b', '#3bff7a', '#3bb4ff', '#ffd23f'][(def.entryOf ? def.entryOf[i] : i) % 4]; g.lineWidth = 3; g.setLineDash([]);
         g.beginPath(); curve(P, 12).forEach(([x, y], k) => (k ? g.lineTo(x, y) : g.moveTo(x, y))); g.stroke();
       });
       g.strokeStyle = 'rgba(255,255,255,0.8)'; g.setLineDash([8, 8]); g.lineWidth = 2;
-      for (const [x, y] of def.spots) { g.beginPath(); g.arc(x, y, C.towers.needle.radius * (def.size || 1), 0, Math.PI * 2); g.stroke(); }
-      g.restore(); g.setLineDash([]); g.strokeStyle = 'rgba(255,0,255,0.5)';                  // narrow-phone crop (360 x 780)
+      for (const [x, y] of def.spots) { g.beginPath(); g.arc(x, y, C.towers.needle.radius, 0, Math.PI * 2); g.stroke(); }
+      g.setLineDash([]); g.strokeStyle = 'rgba(255,0,255,0.5)';                  // narrow-phone crop (360 x 780)
       const crop = (941 - 360 * 1672 / 780) / 2; g.strokeRect(crop, 0, 941 - 2 * crop, 1672);
     }
     const cell = document.createElement('div'); cell.className = 'cell';
     const meta = document.createElement('div'); meta.className = 'meta';
-    meta.innerHTML = '<b>' + def.recipe + '</b>  seed ' + def.seed + '\nsize ' + def.size + ', entrances ' + def.entries + ', paths ' + def.paths.length + ', pads ' + def.spots.length +
+    meta.innerHTML = '<b>' + def.recipe + '</b>  seed ' + def.seed + '\nentrances ' + def.entries + ', paths ' + def.paths.length + ', pads ' + def.spots.length +
       (def.warnings.length ? '\n<span class="warn">' + def.warnings.join('\n') + '</span>' : '');
     cell.append(c, meta);
     return cell;

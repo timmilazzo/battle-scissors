@@ -12,6 +12,8 @@
 //   fork [wide|narrow|long] [pin]  the road splits around a big button and rejoins; each enemy picks a side at random.
 //                               "pin" puts a Pin pad in the middle instead of the button; "long" makes one arm a short
 //                               direct run and the other a long detour (most enemies take the short one)
+//   spiral [left|right] [turns]  the road circles in to a heart pad in the middle of the plate (alone in the recipe: it replaces the
+//                               other segments; turns default 1.25, fewer where the road would touch itself; left = anticlockwise)
 //   triple                      splits three ways (left, straight on, right) around two buttons, then rejoins
 // Directives (not segments; anywhere in the recipe):
 //   start left|right|center     where the road enters at the top
@@ -19,24 +21,13 @@
 //                               the HUD) or from the top right of centre, and merges into the main road. Enemies pick an
 //                               entrance at random
 //   heart left|right|center     where the heart pad sits (a little off-centre, never sideways-on)
-//   size n                      a bigger play surface (1 = the usual plate, 1.5 = 1.5x as much road on the same screen)
-// Example: "size 1.4, start left, s, entry right 30, fork pin, zigzag 2". Unset sides come from the seed. randomRecipe(seed)
+// Example: "start left, s, entry right 30, fork pin, zigzag 2". Unset sides come from the seed. randomRecipe(seed)
 // writes one for you.
-//
-// Internally the road is laid out on the usual 941 x 1672 plate with its road, pads and heart scaled by n^sizeRoadExp / n (so
-// they're thinner relative to the plate), then every coordinate is multiplied by n at the end. levelArt.js paints back in
-// the unscaled space.
 import { CONFIG as C } from './config.js';
 import { makeRng } from '../vendor/mulberry32.js';
 
-// The generator settings in force (CONFIG.levelGen, or a scaled copy while a bigger level is being built).
+// The generator settings in force (CONFIG.levelGen, or a copy while a level with its own heart position is being built).
 let GEN = C.levelGen;
-const ROADISH = ['roadHalf', 'roadBorder', 'roadHalfWidth', 'roadGap', 'spotR', 'spotGap', 'spotSpacing', 'workshopR', 'zigRowMin'];
-function scaledGen(size) {
-  const g = { ...C.levelGen }, f = Math.pow(size, C.levelGen.sizeRoadExp) / size;   // road things: shrink by this in the unscaled space
-  for (const k of ROADISH) g[k] = C.levelGen[k] * f;
-  return g;
-}
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const SIDES = { left: -1, right: 1 };
@@ -129,6 +120,24 @@ const SEG = {
       };
     },
   },
+  spiral: {
+    min: () => 1000, weight: () => 3, terminal: true,
+    build(s) {
+      const G = GEN, cx = G.heartX, cy = G.heartY, rx = C.levelGen.spiralRx, ry = C.levelGen.spiralRy, dir = s.args.includes('left') ? -1 : 1;
+      const rEnd = clamp((G.workshopR + outer() + 10) / rx, 0.3, 0.7), need = 2 * outer() + G.roadGap * 0.5;
+      // the gap between turns (at the ring's narrowest, left and right) must fit a road: fewer turns if not
+      let turns = clamp(numOf(s.args, C.levelGen.spiralTurns), 0.5, 2.5);
+      const fit = rx * (1 - rEnd) / need;
+      if (turns > fit) { turns = Math.max(0.75, fit); if (fit < 0.75) s.warnings.push('spiral: the road is too thick for it (it needs a wider plate)'); }
+      const n = Math.max(8, Math.round(turns * 16)), pts = [[cx, cy - ry]];
+      for (let i = 1; i <= n; i++) {
+        const t = i / n, a = -Math.PI / 2 + dir * 2 * Math.PI * turns * t, r = 1 + (rEnd - 1) * t;
+        pts.push([cx + rx * r * Math.cos(a), cy + ry * r * Math.sin(a)]);
+      }
+      pts.push([cx, cy]);                                        // and in to the heart
+      return { pts, x: cx };
+    },
+  },
   triple: {
     min: () => 560, weight: () => 1.8,
     build(s) {
@@ -156,7 +165,7 @@ function swings(s, n, A0) {
 export const SEGMENT_NAMES = Object.keys(SEG);
 
 // "s left, fork pin" -> [{ name: 's', args: ['left'] }, ...]. Unknown names are dropped with a warning.
-const DIRECTIVES = ['start', 'entry', 'heart', 'size'];
+const DIRECTIVES = ['start', 'entry', 'heart'];
 export function parseRecipe(text, warnings = []) {
   const items = [];
   for (const raw of String(text).toLowerCase().split(/[,;>\n]+/)) {
@@ -170,22 +179,21 @@ export function parseRecipe(text, warnings = []) {
 }
 
 // ======================= build =======================
-// recipe + seed -> a level: { name, blurb, gen: true, recipe, seed, size, w, h, paths, entryOf, entries, pathW, spots, spotR,
-// roadHalfWidth, roadHalf, roadBorder, workshopR, heart, deco, warnings }, all in plate units of the (size-times) plate.
-// `base` supplies name / blurb / size, and pads: 0 for a level with no Pin pads.
+// recipe + seed -> a level: { name, blurb, gen: true, recipe, seed, w, h, paths, entryOf, entries, pathW, spots, spotR,
+// roadHalfWidth, workshopR, heart, deco, warnings }, all in plate units. `base` supplies name / blurb, and pads: 0 for a level
+// with no Pin pads.
 export function buildLevel(recipe, seed = 1, base = {}) {
   const warnings = [], items = parseRecipe(recipe, warnings);
-  let size = base.size || 1;
-  for (const it of items) if (it.name === 'size') size = numOf(it.args, size);
-  size = clamp(size, 1, 2.5);
-  GEN = scaledGen(size);
+  GEN = { ...C.levelGen };
   try {
-    for (const it of items) if (it.name === 'heart') GEN.heartX = C.levelGen.heartX + (it.args.includes('left') ? -1 : it.args.includes('right') ? 1 : 0) * C.levelGen.heartShift;
-    return build(items, recipe, seed, base, size, warnings);
+    const spiral = items.some(it => it.name === 'spiral');
+    if (spiral) GEN.heartY = Math.round((GEN.startY + GEN.endY) / 2 + 30);   // the heart sits in the middle of the plate
+    else for (const it of items) if (it.name === 'heart') GEN.heartX = C.levelGen.heartX + (it.args.includes('left') ? -1 : it.args.includes('right') ? 1 : 0) * C.levelGen.heartShift;
+    return build(items, recipe, seed, base, warnings);
   } finally { GEN = C.levelGen; }
 }
 
-function build(items, recipe, seed, base, size, warnings) {
+function build(items, recipe, seed, base, warnings) {
   const G = GEN, rng = makeRng(seed ^ 0x2F6B1D);
   let xs = G.startX;
   const segs = [], entrySpecs = [];
@@ -195,6 +203,8 @@ function build(items, recipe, seed, base, size, warnings) {
     else if (SEG[it.name]) segs.push(it);
   }
   if (!segs.length) segs.push({ name: 's', args: [] });
+  const sp = segs.findIndex(g => g.name === 'spiral');
+  if (sp >= 0 && segs.length > 1) { warnings.push('spiral replaces the other segments'); segs.splice(0, segs.length, segs[sp]); }
   // bands: each segment's minimum height, plus a share of the rest by weight; up to 12% too tall squeezes everything a
   // little, beyond that the last segments are dropped
   const span = G.endY - G.startY;
@@ -204,6 +214,7 @@ function build(items, recipe, seed, base, size, warnings) {
   const extra = Math.max(0, span - sumMin);
   let routes = [[[xs, -90], [xs, 20]]], wts = [1], x = xs, y = G.startY;
   const deco = [], spots = [];
+  let terminal = false;
   segs.forEach((seg, i) => {
     const y1 = y + mins[i] * Math.min(1, span / sumMin) + extra * weights[i] / sumW;
     let out = SEG[seg.name].build({ x0: x, y0: y, y1, args: seg.args, rng, warnings });
@@ -214,10 +225,10 @@ function build(items, recipe, seed, base, size, warnings) {
       routes = nr; wts = nw;
     } else for (const r of routes) r.push(...out.pts);
     for (const d of [].concat(out.deco || [])) { if (d.kind === 'pin') spots.push([Math.round(d.x), Math.round(d.y)]); deco.push(d); }
-    x = out.x; y = y1;
+    x = out.x; y = y1; terminal = !!SEG[seg.name].terminal;
   });
-  // into the heart pad
-  for (const r of routes) r.push([(x + G.heartX) / 2, G.endY + (G.heartY - G.endY) * 0.45], [G.heartX, G.heartY]);
+  // into the heart pad (a spiral has already gone in)
+  if (!terminal) for (const r of routes) r.push([(x + G.heartX) / 2, G.endY + (G.heartY - G.endY) * 0.45], [G.heartX, G.heartY]);
   checkClearance(routes.map(r => curve(r, 10)), warnings);
   // other entrances: roads that join the main one; entryOf[i] = which entrance path i belongs to (0 = the top)
   const nMain = routes.length, entryOf = routes.map(() => 0);
@@ -233,14 +244,11 @@ function build(items, recipe, seed, base, size, warnings) {
   if (paths.length > G.maxPaths) warnings.push(paths.length + ' paths (over ' + G.maxPaths + ')');
   if (base.pads === 0) spots.length = 0;                          // a level without Pins (level 0)
   else if (placeSpots(polys, spots, deco, rng) < G.spotsMin) warnings.push('only ' + spots.length + ' Pin pads fit');
-  // scale everything up to the plate's real size (the road things were already shrunk to match, see scaledGen)
-  const S = size, sc = v => Math.round(v * S), pt = ([px, py]) => [sc(px), sc(py)];
   return {
-    name: base.name || 'Custom Road', blurb: base.blurb || recipe, gen: true, recipe, seed, size,
-    w: Math.round(G.w * S), h: Math.round(G.h * S), paths: paths.map(p => p.map(pt)), entries: nEntries, entryOf,
-    pathW: wts.some(v => v !== wts[0]) ? wts.slice() : null,
-    spots: spots.map(pt), spotR: G.spotR * S, roadHalfWidth: G.roadHalfWidth * S, roadHalf: G.roadHalf * S, roadBorder: G.roadBorder * S,
-    workshopR: G.workshopR * S, heart: [sc(G.heartX), sc(G.heartY)], deco: deco.map(d => ({ ...d, x: sc(d.x), y: sc(d.y), r: d.r * S })), warnings,
+    name: base.name || 'Custom Road', blurb: base.blurb || recipe, gen: true, recipe, seed,
+    w: G.w, h: G.h, paths, entries: nEntries, entryOf, pathW: wts.some(v => v !== wts[0]) ? wts.slice() : null,
+    spots, spotR: G.spotR, roadHalfWidth: G.roadHalfWidth, workshopR: G.workshopR,
+    heart: [G.heartX, G.heartY], deco, warnings,
   };
 }
 
@@ -370,7 +378,8 @@ export function randomRecipe(seed) {
   const G = GEN, rng = makeRng(seed ^ 0x51ED27), span = G.endY - G.startY, items = [];
   let used = 0, forks = 0, last = '';
   const total = POOL.reduce((a, p) => a + p[1], 0);
-  for (let tries = 0; tries < 30 && used < span * 0.8; tries++) {
+  if (rng() < 0.15) { items.push('spiral ' + (rng() < 0.5 ? 'left' : 'right')); used = span; }     // a spiral in to a middle heart (it is the whole road)
+  for (let tries = 0; tries < 30 && used < span * 0.66; tries++) {
     let r = rng() * total, name = POOL[0][0];
     for (const [n, w] of POOL) { if ((r -= w) <= 0) { name = n; break; } }
     if (name === last || ((name === 'fork' || name === 'triple') && forks >= (used < span * 0.3 ? 2 : 1))) continue;
@@ -384,8 +393,8 @@ export function randomRecipe(seed) {
     items.push([name, ...args].join(' ')); used += min; last = name;
     if (name === 'fork' || name === 'triple') forks++;
   }
-  // a bigger surface, up to two more entrances, and the heart pad not always in the middle
-  const pre = ['size ' + [1.2, 1.4, 1.6][Math.floor(rng() * 3)]];
+  // up to two more entrances, and the heart pad not always in the middle
+  const pre = [];
   const ne = rng() < 0.25 ? 0 : rng() < 0.65 ? 1 : 2, edges = ['left', 'right', 'top'].sort(() => rng() - 0.5);
   for (let k = 0; k < ne; k++) pre.push('entry ' + edges[k] + (edges[k] === 'top' ? '' : ' ' + (15 + Math.floor(rng() * 30))));
   if (rng() < 0.4) pre.push('heart ' + (rng() < 0.5 ? 'left' : 'right'));

@@ -2,7 +2,7 @@
 // header; try it in tools/level-lab.html), src/levelArt.js paints the plate. The seed varies the details.
 export default {
   id: 'lair', name: 'Ripper\u2019s Lair', blurb: 'The last stretch.',
-  recipe: 'size 1.7, s left, fork pin, zigzag 1, entry right 25', seed: 13,
+  recipe: 'spiral, entry left 45', seed: 13,
   world: 'lair',
   allowedPins: null,         // Pin types that can be built here (null = all)
   // Thread: 7 per kill + 8 to start = 904 for all 128 enemies; its 4 silverfish (30 each) bring it back to
