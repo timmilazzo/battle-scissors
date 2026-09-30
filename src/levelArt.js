@@ -74,7 +74,12 @@ export function plateFor(def, onReady) {
 const canvas = (w, h) => { const c = document.createElement('canvas'); c.width = Math.max(1, Math.ceil(w)); c.height = Math.max(1, Math.ceil(h)); return c; };
 
 export function paintLevel(def) {
-  const G = C.levelGen, W = def.w, H = def.h, c = canvas(W, H), g = c.getContext('2d'), rng = makeRng((def.seed | 0) ^ 0x6A09E6);
+  // A bigger level (def.size > 1) is painted at its full plate size but onto a canvas the usual size (the screen shows it
+  // zoomed out anyway), so everything here runs under a 1 / size scale; the two offscreen layers get the same scale.
+  const G = C.levelGen, W = def.w, H = def.h, k = 1 / (def.size || 1), rng = makeRng((def.seed | 0) ^ 0x6A09E6);
+  const layer = () => { const cc = canvas(W * k, H * k), gc = cc.getContext('2d'); gc.scale(k, k); return [cc, gc]; };
+  const [c, g] = layer();
+  const flat = img => { g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(img, 0, 0); g.restore(); };
   const Z = ZONES[zoneOf(def)], pat = t => g.createPattern(images['tex:' + t], 'repeat');
   const polys = def.paths.map(p => curve(p, 12));
   const roadOuter = G.roadHalf + G.roadBorder;
@@ -108,23 +113,23 @@ export function paintLevel(def) {
   };
   g.save(); g.shadowColor = 'rgba(0,12,18,0.55)'; g.shadowBlur = 16; g.shadowOffsetY = 6; strokeAll(2 * roadOuter, '#3a2210'); g.restore();
   // pale quilting line in the ground alongside the road
-  const quilt = canvas(W, H), qg = quilt.getContext('2d');
+  const [quilt, qg] = layer();
   qg.setLineDash([14, 10]); qg.lineWidth = 2.5; qg.strokeStyle = 'rgba(235,225,195,0.45)';
   for (const P of polys) for (const s of [-1, 1]) strokePath(qg, offsetPoly(P, s * (roadOuter + 20)));
   qg.setLineDash([]); qg.globalCompositeOperation = 'destination-out';
   strokeAll(2 * (roadOuter + 12), '#000', qg);
-  g.drawImage(quilt, 0, 0);
+  flat(quilt);
   strokeAll(2 * roadOuter, pat('roadEdge'));
   strokeAll(2 * roadOuter - 2 * G.roadBorder + 4, 'rgba(50,26,10,0.85)');                     // dark seam between edge and felt
   strokeAll(2 * G.roadHalf, pat('roadFelt'));
   g.save(); g.globalAlpha = 0.18; strokeAll(2 * G.roadHalf, '#6b4a2a'); g.restore();          // edges a touch darker...
   strokeAll(2 * G.roadHalf - 14, pat('roadFelt'));                                               // ...than the middle
-  const st = canvas(W, H), sg = st.getContext('2d');
+  const [st, sg] = layer();
   sg.setLineDash([16, 12]); sg.lineWidth = 4.5; sg.lineCap = 'round'; sg.strokeStyle = Z.stitch;
   for (const P of polys) for (const s of [-1, 1]) strokePath(sg, offsetPoly(P, s * (G.roadHalf - 13)));
   sg.setLineDash([]); sg.globalCompositeOperation = 'destination-out';
   strokeAll(2 * (G.roadHalf - 19), '#000', sg);                                                 // no stitches across another road
-  g.drawImage(st, 0, 0);
+  flat(st);
 
   // 5. Pin pads, the heart pad
   const pinKey = zoneOf(def) + 'PinPad', heartKey = zoneOf(def) + 'HeartPad';

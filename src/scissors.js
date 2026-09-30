@@ -49,7 +49,8 @@ export function weaponDef(id, tier = upgradeTier(id)) {
 
 // SVG units -> CSS px for a weapon at this screen size (view.S holds it for the current weapon; the title's scissors
 // use it for their own weapon).
-export const scaleFor = def => def.reachFrac * C.weaponScale * view.H / def.bladeLen;
+// Sized from the screen's height (not the world's), so on a zoomed-out level the scissors shrink with everything else.
+export const scaleFor = def => def.reachFrac * C.weaponScale * view.SH / def.bladeLen;
 
 // Blade length on screen (pivot to tip) in CSS px.
 export const bladeReachPx = () => weapon.def.bladeLen * view.S;

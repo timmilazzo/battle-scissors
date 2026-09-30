@@ -21,13 +21,28 @@
 //                               the HUD) or from the top right of centre, and merges into the main road. Enemies pick an
 //                               entrance at random
 //   heart left|right|center     where the heart pad sits (a little off-centre, never sideways-on)
-// Example: "start left, s, entry right 30, fork pin, zigzag 2". Unset sides come from the seed. randomRecipe(seed)
+//   size n                      a bigger level (1 = the usual plate; 1.5 = a plate 1.5x as wide and tall). The game zooms the
+//                               whole world out to fit it (road, enemies, scissors, Pins all shrink together; see core.js view.Z)
+// Example: "size 1.4, start left, s, entry right 30, fork pin, zigzag 2". Unset sides come from the seed. randomRecipe(seed)
 // writes one for you.
+//
+// A bigger level is laid out in "screen space": the usual 941 x 1672 plate (so the HUD, the narrow-phone crop and the
+// action bar are where they always are) with the road-sized settings (road width, pads, heart, gaps) divided by n; then
+// every coordinate is multiplied by n. So the road, pads and heart come out their usual size in plate units, on a plate
+// n times bigger.
 import { CONFIG as C } from './config.js';
 import { makeRng } from '../vendor/mulberry32.js';
 
-// The generator settings in force (CONFIG.levelGen, or a copy while a level with its own heart position is being built).
+// The generator settings in force (CONFIG.levelGen, or a copy while a level is being built: see buildLevel).
 let GEN = C.levelGen;
+// the settings that are road-sized (they shrink in screen space on a bigger level), and the pad count (more road, more pads)
+const ROADISH = ['roadHalf', 'roadBorder', 'roadHalfWidth', 'roadGap', 'spotR', 'spotGap', 'spotSpacing', 'workshopR', 'zigRowMin', 'spotEveryLen'];
+function sizedGen(size) {
+  const g = { ...C.levelGen };
+  for (const k of ROADISH) g[k] = C.levelGen[k] / size;
+  g.spotsMax = Math.round(C.levelGen.spotsMax * size);
+  return g;
+}
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const SIDES = { left: -1, right: 1 };
@@ -165,7 +180,7 @@ function swings(s, n, A0) {
 export const SEGMENT_NAMES = Object.keys(SEG);
 
 // "s left, fork pin" -> [{ name: 's', args: ['left'] }, ...]. Unknown names are dropped with a warning.
-const DIRECTIVES = ['start', 'entry', 'heart'];
+const DIRECTIVES = ['start', 'entry', 'heart', 'size'];
 export function parseRecipe(text, warnings = []) {
   const items = [];
   for (const raw of String(text).toLowerCase().split(/[,;>\n]+/)) {
@@ -179,18 +194,33 @@ export function parseRecipe(text, warnings = []) {
 }
 
 // ======================= build =======================
-// recipe + seed -> a level: { name, blurb, gen: true, recipe, seed, w, h, paths, entryOf, entries, pathW, spots, spotR,
-// roadHalfWidth, workshopR, heart, deco, warnings }, all in plate units. `base` supplies name / blurb, and pads: 0 for a level
-// with no Pin pads.
+// recipe + seed -> a level: { name, blurb, gen: true, recipe, seed, size, w, h, paths, entryOf, entries, pathW, spots, spotR,
+// roadHalfWidth, workshopR, heart, deco, warnings }, all in plate units (the plate is size times the usual one). `base`
+// supplies name / blurb / size (a recipe's own "size" wins), and pads: 0 for a level with no Pin pads.
 export function buildLevel(recipe, seed = 1, base = {}) {
   const warnings = [], items = parseRecipe(recipe, warnings);
-  GEN = { ...C.levelGen };
+  let size = base.size || 1;
+  for (const it of items) if (it.name === 'size') size = numOf(it.args, size);
+  size = clamp(size, 1, 2.5);
+  GEN = sizedGen(size);
   try {
     const spiral = items.some(it => it.name === 'spiral');
     if (spiral) GEN.heartY = Math.round((GEN.startY + GEN.endY) / 2 + 30);   // the heart sits in the middle of the plate
     else for (const it of items) if (it.name === 'heart') GEN.heartX = C.levelGen.heartX + (it.args.includes('left') ? -1 : it.args.includes('right') ? 1 : 0) * C.levelGen.heartShift;
-    return build(items, recipe, seed, base, warnings);
+    return scaleUp(build(items, recipe, seed, base, warnings), size);
   } finally { GEN = C.levelGen; }
+}
+
+// A level laid out in screen space -> the real plate, size times bigger in every direction.
+function scaleUp(lv, S) {
+  lv.size = S;
+  if (S === 1) return lv;
+  const sc = v => Math.round(v * S), pt = ([x, y]) => [sc(x), sc(y)];
+  lv.w = sc(lv.w); lv.h = sc(lv.h);
+  lv.paths = lv.paths.map(p => p.map(pt)); lv.spots = lv.spots.map(pt); lv.heart = pt(lv.heart);
+  lv.deco = lv.deco.map(d => ({ ...d, x: d.x * S, y: d.y * S, r: d.r * S }));
+  lv.spotR *= S; lv.roadHalfWidth *= S; lv.workshopR *= S;
+  return lv;
 }
 
 function build(items, recipe, seed, base, warnings) {
@@ -393,8 +423,8 @@ export function randomRecipe(seed) {
     items.push([name, ...args].join(' ')); used += min; last = name;
     if (name === 'fork' || name === 'triple') forks++;
   }
-  // up to two more entrances, and the heart pad not always in the middle
-  const pre = [];
+  // sometimes a bigger level, up to two more entrances, and the heart pad not always in the middle
+  const pre = ['size ' + [1, 1.25, 1.5][Math.floor(rng() * 3)]];
   const ne = rng() < 0.25 ? 0 : rng() < 0.65 ? 1 : 2, edges = ['left', 'right', 'top'].sort(() => rng() - 0.5);
   for (let k = 0; k < ne; k++) pre.push('entry ' + edges[k] + (edges[k] === 'top' ? '' : ' ' + (15 + Math.floor(rng() * 30))));
   if (rng() < 0.4) pre.push('heart ' + (rng() < 0.5 ? 'left' : 'right'));

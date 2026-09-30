@@ -115,7 +115,9 @@ function showScreens() {
 
 // ======================= layout (weapon scale + level) =======================
 // Called on resize (after view.W/H are set) and on weapon change.
-export function layout() { applyWeaponScale(); placeLevel(); buildPath(); placeSpots(); }
+export function layout() { applyZoom(); applyWeaponScale(); placeLevel(); buildPath(); placeSpots(); }
+// The world zoom for the current level (see core.js): a size-1.5 level is seen 1 / 1.5 as big.
+function applyZoom() { view.Z = 1 / (level().size || 1); view.W = view.SW / view.Z; view.H = view.SH / view.Z; }
 function applyWeaponScale() { view.S = scaleFor(weapon.def); }
 
 // Switch weapons: size it for this screen (the caller then re-rasterizes its art).

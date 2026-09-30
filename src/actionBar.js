@@ -118,14 +118,15 @@ function closePicker(resume = true) {
 // it on the outside. fly = start them at the pad and let them fly out (staggered).
 function placePicker(fly = false) {
   const t = state.towers[pick.spot], W = window.innerWidth, H = window.innerHeight;
-  const icon = C.pickerIconPx, padR = level().spotR * view.L;
+  const icon = C.pickerIconPx, padR = level().spotR * view.L * view.Z;   // world px -> screen px (core.js view.Z)
+  const tx = t.x * view.Z, ty = t.y * view.Z;
   const cards = pickCards.filter(c => !c.hidden), n = cards.length;
-  const side = pick.side = t.x < W / 2 ? 1 : -1;
+  const side = pick.side = tx < W / 2 ? 1 : -1;
   const top = 64 + icon / 2, bottom = (bar.hidden ? H : bar.getBoundingClientRect().top) - 10 - icon / 2;
   const ys = cards.map((c, k) => (k - (n - 1) / 2) * C.pickerRowPx);
   let shift = 0;
-  if (n && t.y + ys[0] < top) shift = top - t.y - ys[0];
-  if (n && t.y + ys[n - 1] + shift > bottom) shift = bottom - t.y - ys[n - 1];
+  if (n && ty + ys[0] < top) shift = top - ty - ys[0];
+  if (n && ty + ys[n - 1] + shift > bottom) shift = bottom - ty - ys[n - 1];
   // A shallow curve (the middle pickerCurvePx further out than the ends), pulled in as close to the pad as it can
   // go with every icon still clear of it, so the labels keep the rest of the screen's width even when the fan is slid.
   const clear = padR + C.pickerGapPx + icon / 2, ymax = Math.max(1, Math.abs(ys[0] || 0));
@@ -134,10 +135,10 @@ function placePicker(fly = false) {
   for (const y of ys) x0 = Math.max(x0, Math.sqrt(Math.max(0, clear * clear - (y + shift) * (y + shift))) - bow(y));
   const arcX = y => x0 + bow(y);
   picker.classList.toggle('left', side < 0);
-  picker.style.setProperty('--cx', t.x + 'px'); picker.style.setProperty('--cy', t.y + 'px'); picker.style.setProperty('--hole', (padR + 8) + 'px');
+  picker.style.setProperty('--cx', tx + 'px'); picker.style.setProperty('--cy', ty + 'px'); picker.style.setProperty('--hole', (padR + 8) + 'px');
   cards.forEach((c, k) => {
     const y = ys[k] + shift, x = side * arcX(ys[k]);
-    const ix = t.x + x, iy = t.y + y;                            // the icon's centre
+    const ix = tx + x, iy = ty + y;                            // the icon's centre
     c.style.top = (iy - icon / 2) + 'px';
     if (side > 0) { c.style.left = (ix - icon / 2) + 'px'; c.style.right = ''; c.style.setProperty('--room', (W - ix - icon / 2 - 18) + 'px'); }
     else { c.style.right = (W - ix - icon / 2) + 'px'; c.style.left = ''; c.style.setProperty('--room', (ix - icon / 2 - 18) + 'px'); }
@@ -188,7 +189,7 @@ export function measureActionBar() {
   const half = C.spotBtnPx / 2;
   level().spots.forEach(([sx, sy], i) => {
     const b = spotBtns[i]; if (!b) return;
-    b.style.left = (view.LX + sx * view.L - half) + 'px'; b.style.top = (sy * view.L - half) + 'px';
+    b.style.left = ((view.LX + sx * view.L) * view.Z - half) + 'px'; b.style.top = (sy * view.L * view.Z - half) + 'px';
     b.style.width = b.style.height = C.spotBtnPx + 'px';
   });
   if (pick.spot >= 0) placePicker();

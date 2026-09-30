@@ -152,8 +152,11 @@ export function updateInput(now, dt) {
     const aimX = input.aimX, aimY = input.aimY;
     const theta = Math.atan2(aimX, -aimY);
     const mx = (input.fAx + input.fBx) * 0.5, my = (input.fAy + input.fBy) * 0.5;
-    const px = C.offsetAlongAim ? mx + aimX * C.pivotOffsetPx : mx;
-    const py = C.offsetAlongAim ? my + aimY * C.pivotOffsetPx : my - C.pivotOffsetPx;
+    // fingers are in screen px; the pose is in world px (core.js view.Z). The pivot offset stays in screen px, so the
+    // blades clear the (real-size) fingers on a zoomed-out level too.
+    const iz = 1 / view.Z;
+    const px = (C.offsetAlongAim ? mx + aimX * C.pivotOffsetPx : mx) * iz;
+    const py = (C.offsetAlongAim ? my + aimY * C.pivotOffsetPx : my - C.pivotOffsetPx) * iz;
     if (needSnap) {
       pose.x = px; pose.y = py; pose.theta = theta; pose.spread = input.rawSpread; prevRaw = input.rawSpread; needSnap = false;
     } else {

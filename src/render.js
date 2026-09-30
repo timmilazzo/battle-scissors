@@ -44,9 +44,10 @@ const numColor = g => g <= -2 ? '#dfe9f2' : g < 0 ? '#ff9a4a' : g < 0.35 ? '#ffe
 export function sizeCanvas() {
   const cv = view.cv;
   view.dpr = Math.min(window.devicePixelRatio || 1, C.maxDpr);
-  view.W = window.innerWidth; view.H = window.innerHeight;
-  cv.width = Math.round(view.W * view.dpr); cv.height = Math.round(view.H * view.dpr);
-  cv.style.width = view.W + 'px'; cv.style.height = view.H + 'px';
+  view.SW = window.innerWidth; view.SH = window.innerHeight;
+  view.W = view.SW / view.Z; view.H = view.SH / view.Z;          // game.layout() sets them again for the level's zoom
+  cv.width = Math.round(view.SW * view.dpr); cv.height = Math.round(view.SH * view.dpr);
+  cv.style.width = view.SW + 'px'; cv.style.height = view.SH + 'px';
 }
 export function prerender() {
   renderBackground();
@@ -67,9 +68,9 @@ function renderBackground() {
   if (!lv.gen && plate.getAttribute('src') !== lv.bg) plate.src = lv.bg;   // a level switch: onload redraws once it arrives
   const img = lv.gen ? gen : plate;
   const W = view.W, H = view.H, dpr = view.dpr, L = view.L, LX = view.LX, pw = lv.w * L, ph = lv.h * L;
-  bgCanvas.width = Math.max(1, Math.round(W * dpr)); bgCanvas.height = Math.max(1, Math.round(H * dpr));
+  bgCanvas.width = Math.max(1, Math.round(view.SW * dpr)); bgCanvas.height = Math.max(1, Math.round(view.SH * dpr));
   const g = bgCanvas.getContext('2d');
-  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.setTransform(dpr * view.Z, 0, 0, dpr * view.Z, 0, 0);        // world px (W x H) onto the screen-sized backdrop
   g.fillStyle = '#2f5a1c'; g.fillRect(0, 0, W, H);
   if (lv.gen ? !gen : !plate.complete || !plate.naturalWidth || plate.getAttribute('src') !== lv.bg) return;
   if (LX > 0) {                                                  // side bars: the plate stretched to cover, blurred
@@ -102,7 +103,7 @@ function drawWorkshopHit(state) {
 function drawEntryMarks(state) {
   const marks = state.entryMarks;
   if (!marks.length || !live()) return;
-  const u = Math.max(14, view.H * 0.028);
+  const u = Math.max(14, view.SH * 0.028) / view.Z;              // a hint, so screen-sized on a zoomed-out level
   for (const m of marks) {
     const w = m.next < C.entryWarnSec ? 1 - Math.max(0, m.next) / C.entryWarnSec : 0;
     const bob = w > 0 ? Math.sin(state.clock * 18) * u * 0.25 * w : 0;
@@ -280,12 +281,14 @@ function drawEffects(state) {
     ctx.beginPath(); ctx.arc(fx.ringX, fx.ringY, 14 + (1 - fx.ring) * 70, 0, TAU); ctx.stroke();
   }
   ctx.globalCompositeOperation = 'source-over';
+  // the words and numbers keep their screen size on a zoomed-out level (tz undoes the zoom around each one)
+  const tz = 1 / view.Z;
   ctx.font = LABEL_FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   for (let i = 0; i < labels.length; i++) {
     const l = labels[i]; if (!l.on) continue;
     const pop = l.t < 0.08 ? 0.6 + l.t / 0.08 * 0.6 : 1.2 - Math.min(0.2, (l.t - 0.08) * 1.5);
     ctx.save();
-    ctx.translate(l.x, l.y - 34); ctx.scale(pop, pop);
+    ctx.translate(l.x, l.y - 34 * tz); ctx.scale(pop * tz, pop * tz);
     ctx.globalAlpha = 1 - l.t / 0.6;
     const s = LABEL_SCALE[l.kind], txt = LABEL_TEXT[l.kind];
     if (s !== 1) ctx.scale(s, s);
@@ -297,15 +300,17 @@ function drawEffects(state) {
   for (let i = 0; i < nums.length; i++) {
     const n = nums[i]; if (!n.on) continue;
     ctx.globalAlpha = 1 - n.t / 0.7;
-    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.strokeText(n.text, n.x, n.y);
-    ctx.fillStyle = numColor(n.g); ctx.fillText(n.text, n.x, n.y);
+    ctx.save(); ctx.translate(n.x, n.y); ctx.scale(tz, tz);
+    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.strokeText(n.text, 0, 0);
+    ctx.fillStyle = numColor(n.g); ctx.fillText(n.text, 0, 0);
+    ctx.restore();
   }
   ctx.font = POP_FONT;
   for (let i = 0; i < pops.length; i++) {
     const p = pops[i]; if (!p.on) continue;
     const sc = (p.t < 0.12 ? 0.7 + p.t / 0.12 * 0.5 : 1.2 - Math.min(0.2, (p.t - 0.12))) * (p.multi ? 1.2 : 1);
     ctx.save();
-    ctx.translate(p.x, p.y); ctx.scale(sc, sc);
+    ctx.translate(p.x, p.y); ctx.scale(sc * tz, sc * tz);
     ctx.globalAlpha = p.t < 0.7 ? 1 : 1 - (p.t - 0.7) / 0.3;
     ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(60,30,0,0.85)'; ctx.strokeText(p.text, 0, 0);
     ctx.fillStyle = p.multi ? '#ffd23f' : '#fff1c2'; ctx.fillText(p.text, 0, 0);
@@ -316,7 +321,8 @@ function drawEffects(state) {
 
 function drawFingers() {
   if (!C.showFingers || input.scAlpha <= 0.001) return;
-  const { fAx, fAy, fBx, fBy } = input;
+  const { fAx, fAy, fBx, fBy } = input;                          // screen px (the fingers aren't zoomed)
+  ctx.save(); ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
   ctx.globalAlpha = 0.25 * input.scAlpha;
   ctx.strokeStyle = '#bff9ff'; ctx.lineWidth = 1.5;
   ctx.beginPath();
@@ -324,7 +330,7 @@ function drawFingers() {
   ctx.moveTo(fBx + 22, fBy); ctx.arc(fBx, fBy, 22, 0, TAU);
   ctx.moveTo(fAx, fAy); ctx.lineTo(fBx, fBy);
   ctx.stroke();
-  ctx.globalAlpha = 1;
+  ctx.restore();
 }
 
 // ======================= towers (Pins) =======================
@@ -389,11 +395,14 @@ function takeEvents(state) {
   }
   lastEventSeq = ev.seq - 1;
 }
+// Drawn in screen px (the pickups fly to a DOM counter); their start points and the rings are world px, so times Z.
 function drawEventFx() {
+  const Z = view.Z;
   ctx.font = NUM_FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   for (const f of floaters) {
     if (!f.on) continue;
-    const x = f.x0 + (view.pickupX - f.x0) * f.p, y = f.y0 + (view.pickupY - f.y0) * f.p - Math.sin(f.p * Math.PI) * 30;   // to the action bar's thread counter
+    const x0 = f.x0 * Z, y0 = f.y0 * Z;
+    const x = x0 + (view.pickupX - x0) * f.p, y = y0 + (view.pickupY - y0) * f.p - Math.sin(f.p * Math.PI) * 30;   // to the action bar's thread counter
     ctx.globalAlpha = f.p < 0.8 ? 1 : (1 - f.p) / 0.2;
     ctx.font = f.big ? POP_FONT : NUM_FONT;
     ctx.lineWidth = f.big ? 4 : 3; ctx.strokeStyle = 'rgba(60,30,0,0.8)'; ctx.strokeText(f.text, x, y);
@@ -402,7 +411,7 @@ function drawEventFx() {
   for (const r of rings) {
     if (!r.on) continue;
     ctx.globalAlpha = 1 - r.p; ctx.strokeStyle = r.color; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.ellipse(r.x, r.y, 20 + r.p * 50, (20 + r.p * 50) * 0.6, 0, 0, TAU); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(r.x * Z, r.y * Z, (20 + r.p * 50) * Z, (20 + r.p * 50) * 0.6 * Z, 0, 0, TAU); ctx.stroke();
   }
   ctx.globalAlpha = 1;
 }
@@ -461,7 +470,7 @@ function drawShredBanner(state) {
   const t = state.heli.bannerT; if (t <= 0) return;
   const p = 1 - t, sc = p < 0.15 ? 0.6 + p / 0.15 * 0.6 : 1.2 - Math.min(0.2, (p - 0.15) * 0.5);
   ctx.save();
-  ctx.translate(view.W / 2, view.H * 0.3); ctx.scale(sc, sc);
+  ctx.translate(view.SW / 2, view.SH * 0.3); ctx.scale(sc, sc);
   ctx.globalAlpha = Math.min(1, t * 3);
   ctx.font = SHRED_FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.lineWidth = 9; ctx.strokeStyle = '#3b1060'; ctx.strokeText('SHRED', 0, 0);
@@ -541,7 +550,7 @@ function drawBanner(state) {
   }
   if (!main || a <= 0) return;
   // title-style lettering: cream fill, thick brown outline, a dark drop under it
-  const x = view.W / 2, y = view.H * 0.36;
+  const x = view.SW / 2, y = view.SH * 0.36;
   ctx.globalAlpha = a; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
   ctx.font = BANNER_FONT;
   ctx.lineWidth = 10; ctx.strokeStyle = '#2a170a'; ctx.strokeText(main, x, y + 4);
@@ -558,7 +567,7 @@ function drawPrompt(state) {
   if (state.mode === 'PLAYING' && input.touchCapable && !input.mouse.used && !input.gripping && input.scAlpha === 0) {
     ctx.font = PROMPT_FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = 'rgba(255,241,194,0.8)';
-    ctx.fillText(holdTouch() ? 'Hold a finger down to open, lift to snip' : 'Put two fingers down — they are the handles', view.W / 2, view.H * 0.5);
+    ctx.fillText(holdTouch() ? 'Hold a finger down to open, lift to snip' : 'Put two fingers down — they are the handles', view.SW / 2, view.SH * 0.5);
   }
 }
 
@@ -568,7 +577,7 @@ function drawBossBar(state) {
   for (let i = 0; i < state.enemies.length; i++) if (state.enemies[i].on && state.enemies[i].type.boss) { boss = state.enemies[i]; break; }
   if (!boss) return;
   const def = C.bosses[boss.name] || {}, name = (def.name || boss.name).toUpperCase();
-  const x = 12, w = view.W - 24, y = 84, h = 14, f = Math.max(0, boss.hp / boss.maxHp);
+  const x = 12, w = view.SW - 24, y = 84, h = 14, f = Math.max(0, boss.hp / boss.maxHp);
   // the name sits at the right end, clear of the HUD's level/wave badge top-left
   ctx.textAlign = 'right'; ctx.textBaseline = 'bottom'; ctx.font = HUD_FONT; ctx.lineJoin = 'round';
   ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,0.65)'; ctx.strokeText(name, x + w - 4, y - 3);
@@ -615,7 +624,7 @@ export function draw(state) {
   vfx.update(dt);
   if (state.mode === 'TITLE') { prevA = -1; return; }                       // the title is all DOM
   takeEvents(state);
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.setTransform(dpr * view.Z, 0, 0, dpr * view.Z, 0, 0);       // the world, zoomed (core.js view.Z)
   ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
   if (fx.camShake > 0) ctx.translate(Math.sin(state.clock * 83) * fx.camShake, Math.cos(state.clock * 71) * fx.camShake);   // kill shake moves the whole world
   ctx.drawImage(bgCanvas, 0, 0, view.W, view.H);
@@ -635,7 +644,7 @@ export function draw(state) {
   } else prevA = -1;                                             // no trail from wherever the blades were last shown
   drawEffects(state);
   if (state.mode === 'TUTORIAL') drawGhost(state);
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);                         // UI from here on: screen px
   refreshHudText(state);
   drawBanner(state);
   if (state.mode === 'PLAYING' || state.mode === 'WAVE_CLEAR' || state.mode === 'GAME_OVER') { drawPrompt(state); drawBossBar(state); }

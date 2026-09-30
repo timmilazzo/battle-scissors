@@ -2,7 +2,7 @@
 // header; try it in tools/level-lab.html), src/levelArt.js paints the plate. The seed varies the details.
 export default {
   id: 'hemline', name: 'Hemline', blurb: 'An S into switchbacks.',
-  recipe: 'wiggle 4, zigzag 3, bend center, entry right 20, heart left', seed: 8,
+  recipe: 'size 1.3, wiggle 4, zigzag 3, bend center, entry right 20, heart left', seed: 8,
   world: 'denim',
   allowedPins: null,         // Pin types that can be built here (null = all)
   // Thread: 6 per kill + 32 to start = 398 for all 61 enemies; its 3 silverfish (30 each) bring it back to
