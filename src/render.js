@@ -97,6 +97,28 @@ function drawWorkshopHit(state) {
   ctx.globalAlpha = 1;
 }
 
+// Entrance arrows (levels with more than one entrance): a faint pair of chevrons where each road comes on screen, which brighten
+// and bounce for entryWarnSec before something comes in there, so the player has to watch every way in, not camp one.
+function drawEntryMarks(state) {
+  const marks = state.entryMarks;
+  if (!marks.length || !live()) return;
+  const u = Math.max(14, view.H * 0.028);
+  for (const m of marks) {
+    const w = m.next < C.entryWarnSec ? 1 - Math.max(0, m.next) / C.entryWarnSec : 0;
+    const bob = w > 0 ? Math.sin(state.clock * 18) * u * 0.25 * w : 0;
+    ctx.save();
+    ctx.translate(m.x, m.y); ctx.rotate(m.ang);
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (let k = 0; k < 2; k++) {
+      const x = (k - 0.5) * u * 0.9 + bob, s = u * (1 + 0.35 * w);
+      ctx.beginPath(); ctx.moveTo(x - s * 0.45, -s * 0.7); ctx.lineTo(x + s * 0.45, 0); ctx.lineTo(x - s * 0.45, s * 0.7);
+      ctx.lineWidth = s * 0.42; ctx.strokeStyle = 'rgba(60,20,0,' + (0.25 + 0.4 * w) + ')'; ctx.stroke();
+      ctx.lineWidth = s * 0.26; ctx.strokeStyle = w > 0 ? 'rgba(255,214,92,' + (0.55 + 0.45 * w) + ')' : 'rgba(255,245,220,0.3)'; ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+
 // The snip's pie slice, bright near the pivot where hits are strongest. The gradient is rebuilt only for a new zone.
 let cutGrad = null, cutGradVer = -1;
 function drawCutZone(cutT) {
@@ -598,6 +620,7 @@ export function draw(state) {
   if (fx.camShake > 0) ctx.translate(Math.sin(state.clock * 83) * fx.camShake, Math.cos(state.clock * 71) * fx.camShake);   // kill shake moves the whole world
   ctx.drawImage(bgCanvas, 0, 0, view.W, view.H);
   drawWorkshopHit(state);
+  drawEntryMarks(state);
   drawTowers(state);
   if (fx.kick > 0) ctx.translate(-input.aimX * C.snipKickPx * fx.kick, -input.aimY * C.snipKickPx * fx.kick);
   drawSplats(state);

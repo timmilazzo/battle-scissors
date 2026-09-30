@@ -2,7 +2,7 @@
 // header; try it in tools/level-lab.html), src/levelArt.js paints the plate. The seed varies the details.
 export default {
   id: 'cross', name: 'Crossroads', blurb: 'Two forks: four ways down.',
-  recipe: 'fork wide, fork narrow', seed: 9,
+  recipe: 'size 1.5, fork wide, fork narrow, entry left 30', seed: 9,
   world: 'denim',
   allowedPins: null,         // Pin types that can be built here (null = all)
   // Thread: 7 per kill + 12 to start = 726 for all 102 enemies; its 3 silverfish (30 each) bring it back to

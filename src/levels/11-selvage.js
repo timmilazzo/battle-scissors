@@ -2,7 +2,7 @@
 // header; try it in tools/level-lab.html), src/levelArt.js paints the plate. The seed varies the details.
 export default {
   id: 'selvage', name: 'Selvage', blurb: 'Button Beetles: round, tough, fireproof.',
-  recipe: 'zigzag 2, fork', seed: 11,
+  recipe: 'size 1.6, zigzag 2, fork, entry right 30', seed: 11,
   world: 'lair',
   allowedPins: null,         // Pin types that can be built here (null = all)
   // Thread: 6 per kill + 50 to start = 560 for all 85 enemies; its 4 silverfish (30 each) bring it back to

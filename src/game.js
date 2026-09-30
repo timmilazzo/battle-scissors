@@ -33,6 +33,9 @@ export const state = {
   fx: { flash: 0, tooSlow: 0, cut: 0, kick: 0, space: 0, ring: 0, ringX: 0, ringY: 0, camShake: 0, hitStop: 0 },
   // one polyline per route of the current level ({ x, y, cum, n, len }, px); enemies walk paths[e.route]
   paths: [],
+  // one per entrance of a level with several (empty otherwise): where its road comes onto the screen, which way it points, and
+  // seconds until something is due there (next, 99 = nothing soon), for the renderer's arrows
+  entryMarks: [],
   enemies: [], frags: [], parts: [], labels: [], nums: [], pops: [], needles: [],
   towers: [],                // one per spot of the current level (towers[i] stands on spot i when on)
   // Helicopter: charge = snip kills banked; phase '' | 'open' | 'spin' | 'close'; spread/rot drive the blades while active.
@@ -156,6 +159,15 @@ function buildPath() {
     for (let i = 1; i < N; i++) cum[i] = cum[i - 1] + Math.hypot(X[i] - X[i - 1], Y[i] - Y[i - 1]);
     path.x = X; path.y = Y; path.cum = cum; path.n = N; path.len = Math.max(1, cum[N - 1]);
   });
+  // where each entrance's road first shows on screen (its first path's first stretch inside the view, a little in from the edges)
+  const lv = level(), marks = state.entryMarks, pad = C.entryMarkInsetPx;
+  marks.length = lv.entries > 1 ? lv.entries : 0;
+  for (let k = 0; k < marks.length; k++) {
+    const r = lv.entryOf.indexOf(k), p = state.paths[r], m = marks[k] || (marks[k] = { x: 0, y: 0, ang: 0, next: 99 });
+    let i = 0;
+    while (i < p.n - 4 && (p.x[i] < pad || p.x[i] > view.W - pad || p.y[i] < pad || p.y[i] > view.H - pad)) i++;
+    m.x = p.x[i]; m.y = p.y[i]; m.ang = Math.atan2(p.y[i + 3] - p.y[i], p.x[i + 3] - p.x[i]);
+  }
   for (const e of enemies) if (e.on && !e.pinned) { if (e.route >= routes.length) e.route = 0; e.seg = 0; pathPoint(e); e.x = e.px + e.ox; e.y = e.py + e.oy; }
 }
 // Each tower sits on its spot; fx/fy = the nearest road point on any route (where the Magnet ring collapses) and
@@ -249,18 +261,20 @@ function resetRun() {
 export const levelWaves = () => level().waves || C.waves;
 
 // Wave schedule from levelWaves(): each [type, count, atSec] entry spawns `count` of `type` from atSec, gapMs apart.
-let spawnList = [], spawnIdx = 0;                             // [[timeSec, typeName], ...] sorted by time
+let spawnList = [], spawnIdx = 0;                             // [[timeSec, typeName, entrance], ...] sorted by time
 const anyEnemyOn = () => { for (let i = 0; i < enemies.length; i++) if (enemies[i].on) return true; return false; };
 // A boss wave opens on the boss's intro card (and roar) instead of the WAVE banner; the boss walks on as it closes.
 function beginWave(n) {
   spawnList = [];
   let boss = '';
-  for (const [name, count, atSec] of levelWaves()[n - 1]) {
+  const ne = level().entries || 1;
+  for (const [name, count, atSec, entry] of levelWaves()[n - 1]) {
     const t = C.enemyTypes[name];
     if (!t) { console.warn('CONFIG.waves: unknown enemy type', name); continue; }
     if (t.boss) boss = name;
     const at = t.boss ? Math.max(atSec, C.bossIntroMs / 1000) : atSec;
-    for (let i = 0; i < count; i++) spawnList.push([at + i * t.gapMs / 1000, name]);
+    // which entrance each comes in by: the entry's own 4th field (an index), else drawn now (only where there's a choice), so its warning can show first
+    for (let i = 0; i < count; i++) spawnList.push([at + i * t.gapMs / 1000, name, entry !== undefined ? Math.min(entry, ne - 1) : ne > 1 ? Math.floor(rng.spawn() * ne) : 0]);
   }
   spawnList.sort((a, b) => a[0] - b[0]);
   spawnIdx = 0;
@@ -1034,7 +1048,9 @@ export const pinIsNew = type => C.pinFrom[type] === view.levelId;
 export const shredIsNew = () => C.shredFrom === view.levelId;
 // Whether SHRED is in this level at all (its meter, charge and triggers; never in level 0).
 export const shredAllowed = () => !isTutorial() && introduced(C.shredFrom);
-export const towerReach = type => C.towers[type].radius * view.L;   // a Pin's radius in px
+// A Pin's radius in px. Its radius is in the usual 941 x 1672 plate's units, so a bigger level (size > 1) scales it up to match: a Pin covers the same stretch of screen either way.
+const levelSize = () => level().size || 1;
+export const towerReach = type => C.towers[type].radius * view.L * levelSize();
 
 // Build a `type` Pin on spot i (the action bar's spot picker). Returns '' on success, else why not.
 export function buildTower(i, type) {
@@ -1096,7 +1112,7 @@ function needleTower(t, dt) {
 // Needles in flight: home on their target at needleSpeed; if it died (or its pool slot was reused) they fly straight on
 // for needleLostSec and vanish. A hit deals the Pin's damage (armor rules as for a snip).
 function updateNeedles(dt) {
-  const sp = C.towers.needle.needleSpeed * view.L;
+  const sp = C.towers.needle.needleSpeed * view.L * levelSize();
   for (let i = 0; i < needles.length; i++) {
     const n = needles[i]; if (!n.on) continue;
     const e = n.target, alive = e && e.on && e.gen === n.gen;
@@ -1146,8 +1162,23 @@ function hpScale(t) {
   const steps = isTutorial() ? 0 : Math.max(0, lv - C.hpLevelFrom + 1);
   return 1 + C.hpPerWave * Math.max(0, state.wave - 1) + C.hpPerLevel * (t.levelHp || 0) * steps;
 }
+// Which route an enemy takes: among the routes of its entrance, at random (weighted where the level says so, e.g. a fork's short
+// arm); single-route levels draw nothing, so their seeded runs replay as before.
+function pickRoute(entry) {
+  const lv = level(), nr = state.paths.length, of = lv.entries > 1 ? lv.entryOf : null, w = lv.pathW;
+  let n = 0, only = 0, total = 0;
+  for (let r = 0; r < nr; r++) if (!of || of[r] === entry) { n++; only = r; total += w ? w[r] : 1; }
+  if (n <= 1) return only;
+  let x = rng.spawn() * total, last = only;
+  for (let r = 0; r < nr; r++) {
+    if (of && of[r] !== entry) continue;
+    last = r; x -= w ? w[r] : 1;
+    if (x < 0) return r;
+  }
+  return last;
+}
 // Returns the enemy, or null if the pool is full (the schedule retries next frame).
-function spawnEnemy(name) {
+function spawnEnemy(name, entry = 0) {
   let e = null;
   for (let i = 0; i < enemies.length; i++) if (!enemies[i].on) { e = enemies[i]; break; }
   if (!e) return null;
@@ -1158,9 +1189,7 @@ function spawnEnemy(name) {
   e.pulling = false; e.pinned = false; e.walking = false; e.escortOf = null; e.holdT = 0; e.gen++;
   e.bossPhase = 0; e.seamT = e.chargeT = e.armorDownT = e.swarmT = e.shieldDownT = 0; e.seamOpen = e.seamWarn = e.charging = e.windup = false;
   e.phase = rng.spawn() * TAU;
-  // a fork: pick a route at random (single-route levels draw nothing, so their seeded runs replay as before)
-  const nr = state.paths.length;
-  e.route = nr > 1 ? Math.min(nr - 1, Math.floor(rng.spawn() * nr)) : 0;
+  e.route = pickRoute(entry);
   pathPoint(e); e.x = e.px; e.y = e.py;
   return e;
 }
@@ -1312,7 +1341,12 @@ export function update(now, dt) {
     if (!hold) state.modeT += dt;
     // board cleared mid-wave: skip the wave clock ahead so the next spawn is at most emptyWaveWaitSec away
     if (!hold && spawnIdx < spawnList.length && !anyEnemyOn()) state.modeT = Math.max(state.modeT, spawnList[spawnIdx][0] - C.emptyWaveWaitSec);
-    while (spawnIdx < spawnList.length && spawnList[spawnIdx][0] <= state.modeT && spawnEnemy(spawnList[spawnIdx][1])) spawnIdx++;
+    while (spawnIdx < spawnList.length && spawnList[spawnIdx][0] <= state.modeT && spawnEnemy(spawnList[spawnIdx][1], spawnList[spawnIdx][2])) spawnIdx++;
+    const marks = state.entryMarks;                                // entrance arrows: seconds to the next thing due at each
+    if (marks.length) {
+      for (const m of marks) m.next = 99;
+      for (let j = spawnIdx, lim = state.modeT + C.entryWarnSec; j < spawnList.length && spawnList[j][0] <= lim; j++) { const m = marks[spawnList[j][2]]; if (m) m.next = Math.min(m.next, spawnList[j][0] - state.modeT); }
+    }
   } else if (state.mode === 'WAVE_CLEAR') {
     state.modeT += dt;
     if (state.modeT * 1000 >= C.waveClearMs) { if (state.wave >= levelWaves().length) endGame(true); else beginWave(state.wave + 1); }

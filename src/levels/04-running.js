@@ -2,7 +2,7 @@
 // header; try it in tools/level-lab.html), src/levelArt.js paints the plate. The seed varies the details.
 export default {
   id: 'running', name: 'Running Stitch', blurb: 'Gentle waves.',
-  recipe: 'wave 3, s', seed: 4,
+  recipe: 'size 1.3, wave 3, s, entry right 20', seed: 4,
   world: 'meadow',
   allowedPins: null,         // Pin types that can be built here (null = all)
   // Thread: 6 per kill + 52 to start = 388 for all 56 enemies; its 2 silverfish (30 each) bring it back to

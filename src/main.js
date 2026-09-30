@@ -157,7 +157,8 @@ initActionBar({ toast: showToast });
 const pauseBtn = document.getElementById('pause');
 pauseBtn.addEventListener('click', e => { e.stopPropagation(); togglePause(); });
 on('resume', () => setPaused(false));
-on('pause-home', e => { e.stopPropagation(); goTitle(); });
+on('pause-map', e => { e.stopPropagation(); openMap(); });
+on('pause-home',e => { e.stopPropagation(); goTitle(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) setPaused(true); });
 
 // Run report (pause card mid-run, GAME_OVER / win card at the end) and the debug panel's export.

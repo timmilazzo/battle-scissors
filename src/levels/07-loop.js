@@ -2,7 +2,7 @@
 // header; try it in tools/level-lab.html), src/levelArt.js paints the plate. The seed varies the details.
 export default {
   id: 'loop', name: 'Button Loop', blurb: 'A Pin pad inside the fork.',
-  recipe: 'bend right, fork pin', seed: 7,
+  recipe: 'size 1.5, bend right, fork pin, entry left 20', seed: 7,
   world: 'denim',
   allowedPins: null,         // Pin types that can be built here (null = all)
   // Thread: 6 per kill + 32 to start = 398 for all 61 enemies; its 3 silverfish (30 each) bring it back to

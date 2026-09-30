@@ -2,7 +2,7 @@
 // header; try it in tools/level-lab.html), src/levelArt.js paints the plate. The seed varies the details.
 export default {
   id: 'bias', name: 'Bias Tape', blurb: 'Waves into a Pin fork.',
-  recipe: 'start right, wave 2, fork pin', seed: 10,
+  recipe: 'size 1.6, start right, wave 2, fork pin, entry left 25, heart left', seed: 10,
   world: 'denim',
   allowedPins: null,         // Pin types that can be built here (null = all)
   // Thread: 6 per kill + 78 to start = 582 for all 84 enemies; its 3 silverfish (30 each) bring it back to

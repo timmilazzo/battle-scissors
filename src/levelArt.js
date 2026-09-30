@@ -74,10 +74,14 @@ export function plateFor(def, onReady) {
 const canvas = (w, h) => { const c = document.createElement('canvas'); c.width = Math.max(1, Math.ceil(w)); c.height = Math.max(1, Math.ceil(h)); return c; };
 
 export function paintLevel(def) {
-  const G = C.levelGen, W = def.w, H = def.h, c = canvas(W, H), g = c.getContext('2d'), rng = makeRng((def.seed | 0) ^ 0x6A09E6);
+  // A bigger level (def.size > 1) is painted in the usual 941 x 1672 space and the screen stretches the canvas over its plate,
+  // so every number here is divided back by the size (the road and pads were grown by less, so they come out thinner).
+  const G = C.levelGen, S = def.size || 1, W = def.w / S, H = def.h / S, c = canvas(W, H), g = c.getContext('2d'), rng = makeRng((def.seed | 0) ^ 0x6A09E6);
+  const un = ([x, y]) => [x / S, y / S], spots = def.spots.map(un), heart = un(def.heart), deco = def.deco.map(d => ({ ...d, x: d.x / S, y: d.y / S, r: d.r / S }));
+  const spotR = def.spotR / S, workshopR = def.workshopR / S, roadHalf = (def.roadHalf || G.roadHalf) / S, roadBorder = (def.roadBorder || G.roadBorder) / S;
   const Z = ZONES[zoneOf(def)], pat = t => g.createPattern(images['tex:' + t], 'repeat');
-  const polys = def.paths.map(p => curve(p, 12));
-  const roadOuter = G.roadHalf + G.roadBorder;
+  const polys = def.paths.map(p => curve(p.map(un), 12));
+  const roadOuter = roadHalf + roadBorder;
 
   // 1. ground; denim is a quilt: squares in slightly different tones, dark seams with a pale running stitch
   g.fillStyle = pat(Z.ground); g.fillRect(0, 0, W, H);
@@ -99,7 +103,7 @@ export function paintLevel(def) {
   }
 
   // 3. the fork buttons (a fork with a Pin pad inside gets the pad instead, in step 5)
-  for (const d of def.deco) if (d.kind === 'button') sprite(g, 'forkButton', d.x, d.y, d.r / SPRITES.forkButton[5], 0, 1);
+  for (const d of deco) if (d.kind === 'button') sprite(g, 'forkButton', d.x, d.y, d.r / SPRITES.forkButton[5], 0, 1);
 
   // 4. road: soft shadow, suede edge, felt, then a running stitch just inside each edge
   const strokeAll = (width, style, gc = g) => {
@@ -115,25 +119,25 @@ export function paintLevel(def) {
   strokeAll(2 * (roadOuter + 12), '#000', qg);
   g.drawImage(quilt, 0, 0);
   strokeAll(2 * roadOuter, pat('roadEdge'));
-  strokeAll(2 * roadOuter - 2 * G.roadBorder + 4, 'rgba(50,26,10,0.85)');                     // dark seam between edge and felt
-  strokeAll(2 * G.roadHalf, pat('roadFelt'));
-  g.save(); g.globalAlpha = 0.18; strokeAll(2 * G.roadHalf, '#6b4a2a'); g.restore();          // edges a touch darker...
-  strokeAll(2 * G.roadHalf - 14, pat('roadFelt'));                                               // ...than the middle
+  strokeAll(2 * roadOuter - 2 * roadBorder + 4, 'rgba(50,26,10,0.85)');                     // dark seam between edge and felt
+  strokeAll(2 * roadHalf, pat('roadFelt'));
+  g.save(); g.globalAlpha = 0.18; strokeAll(2 * roadHalf, '#6b4a2a'); g.restore();          // edges a touch darker...
+  strokeAll(2 * roadHalf - 14, pat('roadFelt'));                                               // ...than the middle
   const st = canvas(W, H), sg = st.getContext('2d');
   sg.setLineDash([16, 12]); sg.lineWidth = 4.5; sg.lineCap = 'round'; sg.strokeStyle = Z.stitch;
-  for (const P of polys) for (const s of [-1, 1]) strokePath(sg, offsetPoly(P, s * (G.roadHalf - 13)));
+  for (const P of polys) for (const s of [-1, 1]) strokePath(sg, offsetPoly(P, s * (roadHalf - 13)));
   sg.setLineDash([]); sg.globalCompositeOperation = 'destination-out';
-  strokeAll(2 * (G.roadHalf - 19), '#000', sg);                                                 // no stitches across another road
+  strokeAll(2 * (roadHalf - 19), '#000', sg);                                                 // no stitches across another road
   g.drawImage(st, 0, 0);
 
   // 5. Pin pads, the heart pad
   const pinKey = zoneOf(def) + 'PinPad', heartKey = zoneOf(def) + 'HeartPad';
-  for (const [x, y] of def.spots) sprite(g, pinKey, x, y, def.spotR / SPRITES[pinKey][5] * 1.04, rng() * TAU, 1);
-  sprite(g, heartKey, def.heart[0], def.heart[1], def.workshopR / SPRITES[heartKey][5] * 1.04, 0, 1);
+  for (const [x, y] of spots) sprite(g, pinKey, x, y, spotR / SPRITES[pinKey][5] * 1.04, rng() * TAU, 1);
+  sprite(g, heartKey, heart[0], heart[1], workshopR / SPRITES[heartKey][5] * 1.04, 0, 1);
 
   // 6. props on the free ground: picked by weight from the zone's sets, placed biggest first, each clear of the road,
   // the pads, the heart, the fork buttons and each other (props may hang off the plate's edges)
-  const taken = def.spots.map(([x, y]) => [x, y, def.spotR + 6]).concat([[def.heart[0], def.heart[1], def.workshopR + 6]], def.deco.map(d => [d.x, d.y, d.r + 10]));
+  const taken = spots.map(([x, y]) => [x, y, spotR + 6]).concat([[heart[0], heart[1], workshopR + 6]], deco.map(d => [d.x, d.y, d.r + 10]));
   const picks = [];
   for (let i = 0; i < G.props; i++) {
     let r = rng(), set = Z.sets[0][0];

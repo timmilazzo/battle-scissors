@@ -2,7 +2,7 @@
 // header; try it in tools/level-lab.html), src/levelArt.js paints the plate. The seed varies the details.
 export default {
   id: 'blanket', name: 'Blanket Stitch', blurb: 'Three switchbacks.',
-  recipe: 'start left, zigzag 3', seed: 6,
+  recipe: 'size 1.3, start left, s, zigzag 2, entry right 15', seed: 6,
   world: 'meadow',
   allowedPins: null,         // Pin types that can be built here (null = all)
   // Thread: 7 per kill + 12 to start = 516 for all 72 enemies; its 2 silverfish (30 each) bring it back to

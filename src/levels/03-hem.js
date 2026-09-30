@@ -2,7 +2,7 @@
 // header; try it in tools/level-lab.html), src/levelArt.js paints the plate. The seed varies the details.
 export default {
   id: 'hem', name: 'Zigzag Hem', blurb: 'Switchbacks, then a fork.',
-  recipe: 'zigzag 2, fork pin', seed: 3,
+  recipe: 'size 1.15, zigzag 2, fork pin, entry left 30', seed: 3,
   world: 'meadow',
   allowedPins: null,         // Pin types that can be built here (null = all)
   // Thread: 6 per kill + 40 to start = 340 for all 50 enemies; its 2 silverfish (30 each) bring it back to

@@ -8,7 +8,7 @@
 export const FEEDBACK_URL = 'mailto:tim@saltandwisdom.com';
 
 // Shown small at the bottom of Settings and recorded in every run report. Bump it with each published change.
-export const VERSION = '0.3.11';
+export const VERSION = '0.3.13';
 
 export const CONFIG = {
   // --- pose / control mapping ---
@@ -132,7 +132,7 @@ export const CONFIG = {
     beetle:     { r: 34, hp: 10, levelHp: 0.5, tier: 3,  score: 80,  traverseSec: 36, gapMs: 3200, pushScale: 0.25, fireImmune: true, flat: true, ringExecute: true, color: '#c8433a', patch: '#f4e3c1', patch2: '#2b1a10' },
     // bosses (boss: true): their rules are in CONFIG.bosses, and their hp is not scaled by hpPerWave or hpPerLevel
     seamRipper: { r: 56, hp: 30, tier: 10, score: 500, traverseSec: 30, gapMs: 0,    pushScale: 0,    boss: true,  color: '#6a3596', patch: '#e84a5f', patch2: '#ffd23f' },
-    bruteKing:  { r: 62, hp: 60, tier: 10, score: 800, traverseSec: 70, gapMs: 0,    pushScale: 0,    boss: true,  armor: true, color: '#9c7650', patch: '#3f6fc4', patch2: '#c0392b' },
+    bruteKing:  { r: 62, hp: 50, tier: 10, score: 800, traverseSec: 70, gapMs: 0,    pushScale: 0,    boss: true,  armor: true, color: '#9c7650', patch: '#3f6fc4', patch2: '#c0392b' },
     unstitcher: { r: 64, hp: 90, tier: 10, score: 1500, traverseSec: 40, gapMs: 0,   pushScale: 0,    boss: true,  color: '#2e2a4a', patch: '#8fe8ff', patch2: '#e84a5f' },
   },
   hpPerWave: 0.1,            // each wave after the first adds this fraction of base hp (wave 6 = 1.5x); fractional hp means a tip hit no longer kills
@@ -161,7 +161,7 @@ export const CONFIG = {
     // windupSec before, so the player can get ready), then its armor is down for armorDownSec (its seams glow): snips
     // then do armorDownMult x normal damage. Ice and SHRED don't slow it. The taunt tells the player the rule.
     bruteKing:  { name: 'The Brute King', taunt: 'My armor only drops after I charge!', roar: 'roarKing',
-                  chargeEverySec: 6, chargePx: 200, chargeSec: 1.4, windupSec: 1.2, armorDownSec: 2.2, armorDownMult: 3 },
+                  chargeEverySec: 7, chargePx: 200, chargeSec: 1.4, windupSec: 1.2, armorDownSec: 2.6, armorDownMult: 3 },
     // three phases, switching at phaseAt (hp fractions). 1: its escort Scraps (swarmSize of them, swarmGapPx apart along
     // the road, half ahead and half behind) hold up a shield that blocks every hit. Cutting the last one drops it for
     // shieldDownSec (snips do shieldDownMult x graded damage); it comes back with a fresh swarm. While the shield is up,
@@ -239,11 +239,22 @@ export const CONFIG = {
     spotEveryLen: 650,       // ...about one per this much road
     spotXMin: 180, spotXMax: 761, // pad centres stay in this band (narrow phones crop the sides)
     spotYMin: 250, spotYMax: 1330, // pad centres stay out of the HUD row and off the action bar
-    maxRoutes: 4,            // at most this many routes (each fork doubles them)
+    maxRoutes: 6,            // at most this many routes from forks (a fork doubles them, a "triple" triples them)
+    maxPaths: 9,             // at most this many paths in all, counting the copies each side entrance adds
+    // Bigger play surface: a recipe's "size n" (or a level file's `size`) lays the road out on a plate n times the usual
+    // 941 x 1672 (same shape). Scissors, Pins' reach and enemies stay the same size on screen, so more road fits under the
+    // same screen. The road, pads and heart pad grow only by n^sizeRoadExp (0 = they stay put on the plate, so they look
+    // thinner; 1 = they grow with the plate, so the picture is just the same as before).
+    sizeRoadExp: 0.6,
+    entryClear: 230,         // "entry": how far a side road runs beside the road it joins before it merges in (plate units)
+    entryTries: 40,          // "entry": merge points tried before the entrance is dropped
+    heartShift: 130,         // "heart left/right": how far the heart pad moves off the middle
     props: 34,               // kit props tried per plate (src/kit.js: each zone's mix); fewer land if there's no room
     patches: 7,              // fabric patches sewn under the road
   },
-  pathSmoothSteps: 16,       // Catmull-Rom samples per path segment (road smoothness)
+  entryWarnSec: 1.4,         // an entrance's arrow flashes this long before something comes in (levels with more than one entrance)
+  entryMarkInsetPx: 26,      // an entrance's arrow sits where its road first comes this far inside the screen edge
+  pathSmoothSteps: 16,     // Catmull-Rom samples per path segment (road smoothness)
   workshopHp: 10,            // workshop hit points; an enemy that arrives deals its size tier
   workshopHitMs: 400,        // red flash on the workshop when it takes damage
   hudLowHp: 3,               // the HUD's heart counter turns red at or below this many hearts
