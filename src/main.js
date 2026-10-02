@@ -1,9 +1,10 @@
 // Entry point: apply saved debug overrides, pick the remembered weapon, wire input and screens (title, action bar,
 // coach, pause, mute, run report) to the game, size the canvas, load weapon art, then run the loop: update then draw every frame.
-import { CONFIG as C, FEEDBACK_URL, VERSION } from './config.js';
+import { CONFIG as C, FEEDBACK_URL, ANALYTICS_KEY, VERSION } from './config.js';
+import { track, sendFeedback } from './analytics.js';
 import { input, initInput, setControls } from './input.js';
 import { state, gameHooks, goTitle, goMap, goSelect, goSettings, startGame, selectWeapon, setLevel, setLevelHook, setTutorialDoneHook, setRunEndHook, nextLevelId, layout, update, lastReport,
-  tutSkip, setPaused, togglePause, reportNow } from './game.js';
+  tutSkip, setPaused, togglePause } from './game.js';
 import { weapon, setWeapon } from './scissors.js';
 import { view } from './core.js';
 import { draw, sizeCanvas, prerender } from './render.js';
@@ -15,7 +16,7 @@ import { levelIds, levelInfo, hasLevel } from './levels/index.js';
 import { Save, persist, wipeSave, unlockAll } from './save.js';
 import { initLevelMap, refreshLevelMap } from './levelMap.js';
 import { isMuted, setMuted, unlockAudio, sfx } from './audio.js';
-import { loadRuns, copyText, downloadJson } from './runlog.js';
+import { loadRuns, downloadJson } from './runlog.js';
 import { initActionBar, refreshActionBar, measureActionBar, buildSpotButtons } from './actionBar.js';
 import { refreshHud } from './hud.js';
 import { showResults, refreshResultsShop } from './results.js';
@@ -183,37 +184,65 @@ on('pause-map', e => { e.stopPropagation(); openMap(); });           // hidden o
 on('pause-home',e => { e.stopPropagation(); goTitle(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) setPaused(true); });
 
-// Run report (pause card mid-run, GAME_OVER / win card at the end) and the debug panel's export.
-// The only outbound action is opening FEEDBACK_URL.
-for (const b of document.querySelectorAll('[data-copy-report]')) b.addEventListener('click', () => {
-  const report = state.paused ? reportNow() : lastReport;
-  if (!report) return;
-  copyText(JSON.stringify(report)).then(ok => showToast(ok ? 'Run report copied' : 'Copy failed: clipboard blocked'));
-});
-// A mailto: FEEDBACK_URL opens a draft email: subject with the outcome, room for comments, then the run report (the
-// same JSON as Copy run report). Some mail apps cut very long links, so the report is compact JSON.
-// `ask` (the button's data-send-feedback value) picks the prompt: 'demo' = the credits card's question.
-function feedbackMail(report, ask) {
-  const what = ask === 'demo' ? 'finished the demo' : report ? (report.won ? 'won' : report.inProgress ? 'wave ' + report.wavesReached + ', mid-run' : 'lost on wave ' + report.wavesReached) + ', ' + report.weapon : 'no run yet';
-  const prompt = ask === 'demo' ? 'The least fun thing, and what should change:\n\n\n\nAnything else (what felt good, what felt off):' : 'What happened, what felt good or off:';
-  const body = prompt + '\n\n\n\n---\nRun report (please leave this in):\n' + (report ? JSON.stringify(report) : '(none)');
-  return FEEDBACK_URL + '?subject=' + encodeURIComponent('Battle Scissors feedback (' + what + ')') + '&body=' + encodeURIComponent(body);
+// (Outbound: the feedback card and play events go to PostHog, analytics.js; Email instead opens FEEDBACK_URL.)
+// Send feedback: a card with a note (and an optional contact) that posts to PostHog (analytics.js) along with the last
+// run's stats, if any. It opens from Settings, the credits card (`ask` = the button's data-send-feedback value: 'demo'
+// = that card's question) and a skill idea (the Shop's Moves tab, about that skill). Email instead (FEEDBACK_URL, a mailto:) is the fallback when
+// sending fails or there's no analytics key; the card keeps the note if sending fails.
+const fb = { screen: document.getElementById('feedback'), prompt: document.getElementById('fb-prompt'), text: document.getElementById('fb-text'),
+  contact: document.getElementById('fb-contact'), send: document.getElementById('fb-send'), email: document.getElementById('fb-email') };
+let fbCtx = null;
+function openFeedback(ctx) {
+  fbCtx = ctx;
+  fb.prompt.textContent = ctx.prompt;
+  fb.send.disabled = false; fb.email.hidden = !FEEDBACK_URL;
+  fb.screen.hidden = false;
+  setTimeout(() => fb.text.focus(), 50);
 }
-// The Shop's Moves tab: Want this on a skill to come: a feedback draft about that skill (no run report needed).
-function skillFeedback(k) {
+const closeFeedback = () => { fb.screen.hidden = true; fbCtx = null; fb.text.blur(); fb.contact.blur(); };
+function emailFeedback(ctx, text) {
   if (!FEEDBACK_URL) { showToast('No feedback link set (FEEDBACK_URL in config.js)'); return; }
-  if (!FEEDBACK_URL.startsWith('mailto:')) { window.open(FEEDBACK_URL, '_blank', 'noopener'); return; }
-  const body = "I'd want " + k.name + ' (' + k.blurb + ")\n\nWhy, or how I'd change it:\n\n\n---\nv" + VERSION;
-  location.href = FEEDBACK_URL + '?subject=' + encodeURIComponent('Battle Scissors skill idea: ' + k.name) + '&body=' + encodeURIComponent(body);
-  showToast('Opening your email app…');
+  const url = FEEDBACK_URL + '?subject=' + encodeURIComponent('Battle Scissors feedback (' + ctx.what + ')') +
+    '&body=' + encodeURIComponent(ctx.prompt + '\n\n' + text + '\n\n---\n' + (ctx.report ? 'Run report (please leave this in):\n' + JSON.stringify(ctx.report) : 'v' + VERSION));
+  if (FEEDBACK_URL.startsWith('mailto:')) { location.href = url; showToast('Opening your email app…'); } else window.open(FEEDBACK_URL, '_blank', 'noopener');
 }
+function openRunFeedback(ask) {
+  const report = lastReport;
+  const what = ask === 'demo' ? 'finished the demo' : report ? (report.won ? 'won' : 'lost on wave ' + report.wavesReached) + ', ' + report.weapon : 'no run yet';
+  openFeedback({ kind: ask === 'demo' ? 'demo' : 'general', what, report,
+    prompt: ask === 'demo' ? 'The least fun thing, and what should change? Anything that felt good?' : "What's fun, what isn't, and what should change?" });
+}
+// The Shop's Moves tab: Want this on a skill to come.
+function skillFeedback(k) {
+  openFeedback({ kind: 'skill', skill: k.id || k.name, what: 'skill idea: ' + k.name, report: null, prompt: "You'd want " + k.name + ' (' + k.blurb + "). Why, or how would you change it?" });
+}
+fb.send.addEventListener('click', () => {
+  const text = fb.text.value.trim(), ctx = fbCtx;
+  if (!ctx) return;
+  if (!text) { showToast('Write a note first'); return; }
+  if (!ANALYTICS_KEY) { emailFeedback(ctx, text); return; }
+  fb.send.disabled = true;
+  const { config, device, ...slim } = ctx.report || {};         // the report's tuning snapshot and user agent aren't needed here
+  sendFeedback({ kind: ctx.kind, skill: ctx.skill, message: text, contact: fb.contact.value.trim(), prompt: ctx.prompt, report: ctx.report ? slim : undefined,
+    level: view.levelId }).then(ok => {
+    if (ok) { fb.text.value = ''; closeFeedback(); showToast('Thanks! Sent.'); }
+    else { fb.send.disabled = false; showToast('Could not send. Check your connection.'); }
+  });
+});
+on('fb-cancel', closeFeedback);
+fb.email.addEventListener('click', () => { if (fbCtx) emailFeedback(fbCtx, fb.text.value.trim()); });
+fb.screen.addEventListener('keydown', e => { if (e.key === 'Escape') closeFeedback(); });
 // Delegated, so buttons built later (the credits card in levelMap.js) work too.
 document.addEventListener('click', e => {
-  const b = e.target.closest('[data-send-feedback]'); if (!b) return;
-  if (!FEEDBACK_URL) { showToast('No feedback link set (FEEDBACK_URL in config.js)'); return; }
-  if (FEEDBACK_URL.startsWith('mailto:')) { location.href = feedbackMail(state.paused ? reportNow() : lastReport, b.dataset.sendFeedback); showToast('Opening your email app…'); }
-  else window.open(FEEDBACK_URL, '_blank', 'noopener');
+  const b = e.target.closest('[data-send-feedback]'); if (b) openRunFeedback(b.dataset.sendFeedback);
 });
+
+// Share play data (Settings): anonymous run events to PostHog (analytics.js); feedback is separate and always the player's choice.
+const analyticsBtn = document.getElementById('settings-analytics');
+function showAnalytics() { const on = Save.settings.analytics !== false; analyticsBtn.textContent = on ? 'Share play data: on' : 'Share play data: off'; analyticsBtn.setAttribute('aria-pressed', String(!on)); }
+analyticsBtn.addEventListener('click', () => { Save.settings.analytics = Save.settings.analytics === false; persist(); showAnalytics(); });
+showAnalytics();
+track('session_start');
 
 // Readout for the debug panel (snip-feel numbers and the run seed).
 function debugInfo() {

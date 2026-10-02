@@ -777,6 +777,12 @@
   /* what this level brings for the first time (main.js: CONFIG.pinFrom / shredFrom) */
   .select-new { margin: -8px 0 0; padding: 3px 12px 4px; border-radius: 10px; flex-shrink: 0; font: 400 15px var(--ui-font); letter-spacing: 0.4px; color: #2a170a; background: #ffd23f; box-shadow: 0 2px 0 #2a170a; }
   .select-new[hidden] { display: none; }
+  /* the level's star goals on the weapon screen: the goal list as small wrapping chips, so the pair's panel keeps its room */
+  #select-goals { flex-shrink: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 6px; }
+  #select-goals li { display: inline-flex; gap: 5px; padding: 3px 9px 3px 6px; font-size: 13px; background: rgba(0, 0, 0, 0.18); }
+  #select-goals li i { width: 16px; height: 16px; flex-shrink: 0; }
+  #select-goals li.feat { padding: 3px 9px 3px 6px; font-size: 13px; }
+  #select-goals li.feat i { transform: none; }
   .select-actions { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; width: 100%; }
   .card .felt-btn.back { font-size: clamp(20px, 5.5vw, 26px); }
   /* settings: the control-mode options reuse the weapon card's sunken slot and gold "chosen" rim */
@@ -789,6 +795,14 @@
   .ctl-tag { font: 400 13px var(--ui-font); letter-spacing: 0.4px; padding: 3px 9px 4px; border-radius: 9px; color: #2a170a; background: #ffd23f; }
   .ctl-tag.pro { background: #c79bff; }
   #settings .felt-btn.small { width: 100%; }
+  .set-note { margin: -4px 0 0; font: 600 12px system-ui, sans-serif; color: rgba(255, 228, 170, 0.7); text-align: center; }
+  /* feedback card: sits over the pause / game-over card; the fields are sunken felt like the weapon cards' slots */
+  #feedback { z-index: 20; overflow-y: auto; justify-content: safe center; }
+  #feedback .card { width: min(420px, 100%); gap: 10px; }
+  #feedback textarea, #feedback input { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 12px; border: 3px solid #1f1006; resize: none;
+    font: 600 16px system-ui, sans-serif; color: #fff1c2; background: rgba(20, 10, 4, 0.55); box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.5); }
+  #feedback textarea::placeholder, #feedback input::placeholder { color: rgba(255, 228, 170, 0.5); }
+  #feedback textarea:focus, #feedback input:focus { outline: 2px solid #ffd23f; }
   .version { margin: -4px 0 0; font: 600 11px system-ui, sans-serif; letter-spacing: 0.5px; color: rgba(255, 228, 170, 0.55); }
   @media (max-height: 520px) { #select .card { padding: 22px 14px 14px; gap: 8px; } .wc-blurb { display: none; } #select .card h2 { font-size: 28px; margin-top: -50px; } .sel-hero > img { height: 80px; } }
 
@@ -925,6 +939,7 @@
     <h2 class="blue" data-text="CHOOSE YOUR SHEARS">CHOOSE YOUR SHEARS</h2>
     <p id="select-level" class="select-level"></p>
     <p id="select-new" class="select-new" hidden></p>
+    <ul id="select-goals" class="goal-list" aria-label="Star goals" hidden></ul>
     <!-- the chosen pair, large (src/weaponSelect.js fills it); the Sharpen quick action sits under its stats -->
     <div id="sel-hero" class="sel-hero">
       <img alt="">
@@ -951,6 +966,9 @@
     </div>
     <button id="settings-sound" class="felt-btn small" type="button" aria-pressed="false">Sound: on</button>
     <button id="settings-haptics" class="felt-btn small" type="button" aria-pressed="false">Vibration: on</button>
+    <button id="settings-analytics" class="felt-btn small" type="button" aria-pressed="false">Share play data: on</button>
+    <p class="set-note">Anonymous: levels, scores and how a run went. No names, no email.</p>
+    <button class="felt-btn small" type="button" data-send-feedback>Send feedback</button>
     <button id="settings-back" class="felt-btn back" type="button">BACK</button>
     <p id="version" class="version"></p>
   </div>
@@ -998,10 +1016,6 @@
       <button id="pause-sound" class="felt-btn small" type="button" aria-pressed="false">Sound: on</button>
       <button id="pause-home" class="felt-btn small" type="button">Title screen</button>
     </div>
-    <div class="over-actions">
-      <button class="felt-btn small" type="button" data-copy-report>Copy run report</button>
-      <button class="felt-btn small" type="button" data-send-feedback>Send feedback</button>
-    </div>
     <p id="hint"><b>Desktop controls:</b> move = aim point · hold left button to open, release to snip (wider = stronger) · wheel = open/close (flick fast to snip) · A/D or Shift+wheel = rotate · Space = instant snip · E = SHRED · P/Esc = pause · R = title</p>
   </div>
 </div>
@@ -1033,10 +1047,21 @@
       <button id="over-map" class="felt-btn small" type="button" hidden>Map</button>
       <button id="again" class="felt-btn small" type="button">Play again</button>
     </div>
-    <div class="over-actions">
-      <button class="felt-btn small" type="button" data-copy-report>Copy run report</button>
-      <button class="felt-btn small" type="button" data-send-feedback>Send feedback</button>
     </div>
+  </div>
+</div>
+<!-- Send feedback (main.js): the player's note goes to PostHog with the run's stats; Email instead is the fallback -->
+<div id="feedback" class="screen" role="dialog" aria-labelledby="fb-title" hidden>
+  <div class="card">
+    <h2 id="fb-title" data-text="FEEDBACK">FEEDBACK</h2>
+    <p id="fb-prompt" class="lead"></p>
+    <textarea id="fb-text" rows="5" maxlength="2000" aria-label="Your feedback"></textarea>
+    <input id="fb-contact" type="text" maxlength="120" placeholder="Email or name, if you'd like a reply (optional)" aria-label="Contact (optional)">
+    <p class="set-note">Sends your note with this run's stats, anonymously.</p>
+    <button id="fb-send" class="felt-btn" type="button">SEND</button>
+    <div class="over-actions">
+      <button id="fb-cancel" class="felt-btn small" type="button">Cancel</button>
+      <button id="fb-email" class="felt-btn small" type="button" hidden>Email instead</button>
     </div>
   </div>
 </div>

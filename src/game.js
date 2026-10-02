@@ -16,6 +16,7 @@ import { loadLevel, hasLevel, levelInfo } from './levels/index.js';
 import { recordLevelResult, onMap } from './levelSelect.js';
 import { Save, persist } from './save.js';
 import { STORY } from './story.js';
+import { trackRunStart, trackRunEnd } from './analytics.js';
 import { KNOB_KEYS } from './debug.js';
 import { levelBefore, settleRun, wearBlade, mapLevelNum as levelNumOf } from './meta.js';
 import { pinDef, pinCost, towerDef, towerReachOf, rankUpCost } from './pins.js';
@@ -94,7 +95,7 @@ const els = {
   bossCard: document.getElementById('boss-card'), bossName: document.getElementById('boss-name'), bossPortrait: document.getElementById('boss-portrait'), bossTaunt: document.getElementById('boss-taunt'), mute: document.getElementById('mute'), pauseBtn: document.getElementById('pause'),
   pause: document.getElementById('pause-screen'), pinsIntro: document.getElementById('pins-intro'), pauseWave: document.getElementById('pause-wave'), pauseScore: document.getElementById('pause-score'),
   pauseAcc: document.getElementById('pause-acc'), pauseSeed: document.getElementById('pause-seed'), pauseGoals: document.getElementById('pause-goals'),
-  goals: document.getElementById('goals'), goalsList: document.getElementById('goals-list'), goalsDispatch: document.getElementById('goals-dispatch'),
+  goals: document.getElementById('goals'), goalsList: document.getElementById('goals-list'), goalsDispatch: document.getElementById('goals-dispatch'), selectGoals: document.getElementById('select-goals'),
   overTitle: document.getElementById('over-title'), overScore: document.getElementById('over-score'), overLevel: document.getElementById('over-level'),
   overSelect: document.getElementById('over-select'), overPrimary: document.getElementById('over-primary'), overMap: document.getElementById('over-map'), again: document.getElementById('again'),
   overWaves: document.getElementById('over-waves'), overAcc: document.getElementById('over-acc'), overSeed: document.getElementById('over-seed'),
@@ -211,6 +212,7 @@ function pathPoint(e) {
 
 // ======================= flow =======================
 function clearWorld() {
+  if (state.mode === 'PLAYING' || state.mode === 'WAVE_CLEAR') trackRunEnd(buildReport(true));   // a run left mid-way: a quit
   for (const e of enemies) e.on = false;
   for (const f of frags) f.on = false;
   for (const p of parts) p.on = false;
@@ -233,7 +235,13 @@ function clearWorld() {
 
 export function goTitle() { clearWorld(); state.mode = 'TITLE'; showScreens(); }
 export function goMap() { clearWorld(); state.mode = 'MAP'; showScreens(); }
-export function goSelect() { clearWorld(); state.mode = 'SELECT'; showScreens(); }
+// The weapon screen lists the level's star goals (all still to play for), so the run itself starts quiet.
+export function goSelect() {
+  clearWorld(); state.mode = 'SELECT';
+  els.selectGoals.hidden = isTutorial();
+  if (!isTutorial()) fillGoals(els.selectGoals, true);
+  showScreens();
+}
 export function goSettings() { clearWorld(); state.mode = 'SETTINGS'; showScreens(); }
 
 // Start a run on the current level. Level 0 (CONFIG.tutLevel) is the tutorial: its script runs instead of waves.
@@ -244,7 +252,9 @@ export function setLevelHook(fn) { onLevelBuilt = fn; }
 export function setRunEndHook(fn) { onRunEnd = fn; }            // the results card (results.js) plays the tally
 export function setTutorialDoneHook(fn) { onTutorialDone = fn; }
 
+let bgWaitT = 0;                                                 // seconds this run's wave clock has waited for the level art
 export function startGame() {
+  bgWaitT = 0;
   clearWorld();
   seedRun(urlSeed !== null ? urlSeed : Date.now());
   if (levelInfo(view.levelId).random) { setLevel(view.levelId, state.seed); onLevelBuilt(); }   // a new road every run
@@ -254,6 +264,7 @@ export function startGame() {
     setEasyOnly(true); tutEnter(1); showScreens(); return;
   }
   beginWave(1);
+  trackRunStart(view.levelId, weapon.id);
   showGoals();
   showScreens();
 }
@@ -336,21 +347,23 @@ export function starGoals() {
   }
   return out;
 }
-// A goal list (the star goals card, the pause card): a star and the words per goal; the third star's goal (the
-// level's feat) is marked out.
-function fillGoals(ul) {
+// A goal list (the weapon screen, the star goals card, the pause card): a star and the words per goal; the third
+// star's goal (the level's feat) is marked out. fresh = before a run (the weapon screen): every goal still 'on'.
+function fillGoals(ul, fresh = false) {
   ul.textContent = '';
   starGoals().forEach((g, i) => {
     const li = document.createElement('li');
-    li.className = g.status + (i >= 2 ? ' feat' : '');
+    li.className = (fresh ? 'on' : g.status) + (i >= 2 ? ' feat' : '');
     li.innerHTML = '<i></i><span></span>'; li.lastChild.textContent = g.text;
     ul.appendChild(li);
   });
 }
-// A level's first wave: its star goals show under the banner for CONFIG.starGoalsMs, with Tomato's dispatch line
-// for the level above them (story.js; none on level 0 or off the map).
+// A level's first wave: Tomato's dispatch line (story.js) with the star goals under it, under the banner for
+// CONFIG.starGoalsMs. Only levels with a line get the card: one with something new (a boss, a new Pin, enemy or
+// mechanic); the goals alone don't earn one (they're on the weapon screen and the pause card).
 function showGoals() {
   const line = STORY.dispatch[view.levelId] || '';
+  if (!line) return;
   els.goalsDispatch.hidden = !line;
   els.goalsDispatch.firstChild.textContent = STORY.narrator.toUpperCase() + ' SAYS';
   els.goalsDispatch.lastChild.textContent = line;
@@ -388,12 +401,13 @@ function endGame(won) {
   state.tally.unlock = won && !before.cleared ? level().unlockOnClear : null;
   lastReport.buttons = { stars: state.tally.starButtons, score: state.tally.scoreButtons, achievements: state.tally.achievements.map(a => a.id), total: state.tally.total };
   saveRun(lastReport);
+  trackRunEnd(lastReport);
   showScreens();
   onRunEnd();
 }
 
-// Compact playtest report for the "Copy run report" button (also kept in localStorage). inProgress = taken from the
-// pause screen mid-run (not saved).
+// Compact playtest report (kept in localStorage, sent as run_ended by analytics.js, carried by feedback). inProgress =
+// a run left mid-way (clearWorld: quit to the map or title, or restarted); only sent, never saved.
 function buildReport(inProgress = false) {
   const s = state.stats, r = state.run, cfg = {};
   for (const k of KNOB_KEYS) cfg[k] = C[k];
@@ -435,7 +449,6 @@ export function setPaused(p, card = 'menu') {
   showScreens();
 }
 export const togglePause = () => setPaused(!state.paused);
-export const reportNow = () => buildReport(true);
 
 // ======================= level 0: the no-text tutorial =======================
 // For a young player who can't read, Hold controls only: a translucent ghost hand (tut.ghost, drawn by render.js) shows
@@ -1452,7 +1465,10 @@ export function update(now, dt) {
 
   // --- waves / onboarding ---
   if (state.mode === 'PLAYING') {
-    const hold = introActive();                                  // the scripted first critter crosses in a quiet moment
+    // wait for the level's art (a recipe level paints its plate once the kit has loaded) so nothing walks onto bare felt;
+    // bgWaitMaxSec caps the wait in case an image never arrives
+    const artWait = !view.bgReady && (bgWaitT += dt) < C.bgWaitMaxSec;
+    const hold = artWait || introActive();                       // the scripted first critter crosses in a quiet moment
     if (!hold) state.modeT += dt;
     // board cleared mid-wave: skip the wave clock ahead so the next spawn is at most emptyWaveWaitSec away
     if (!hold && spawnIdx < spawnList.length && !anyEnemyOn()) state.modeT = Math.max(state.modeT, spawnList[spawnIdx][0] - C.emptyWaveWaitSec);

@@ -18,7 +18,8 @@
 //   pinTiers: { pinType: tier },                     each Pin type's permanent tier 0..3 (meta.js buyPinTier; src/pins.js)
 //   skills: { shred },                               SHRED's tier 0..3 (CONFIG.shredTiers; meta.js buyShred)
 //   equippedScissors, lastLevel,                     last weapon and level picked
-//   settings: { sound, haptics, leftHanded, grip },  grip = touch controls 'hold' | 'pinch'; leftHanded not used yet
+//   settings: { sound, haptics, leftHanded, grip, analytics },  grip = touch controls 'hold' | 'pinch'; leftHanded not used yet;
+//     analytics = share anonymous play data (src/analytics.js); anonId = the random id those events carry (made on first use)
 //   tutorialDone, tips: { pins, shred, shredRuns, shopSeen, rank },  one-time onboarding flags (tutorialDone = level 0 cleared; pins = Pin
 //                                                    types the explainer has introduced; shredRuns = runs the SHRED ready tip showed
 //                                                    in; shopSeen = Shop / Sewing Box deals (meta.js deals() ids) the player has had
@@ -35,7 +36,7 @@ const KEY = 'battleScissors.save';
 const defaults = () => ({
   version: SAVE_VERSION, levels: {}, buttons: 0, achievements: [], chests: [], sharpness: {},
   cosmetics: { owned: [], handle: '', glow: '' }, unlocks: { scissors: [], pins: [], levels: [] }, upgrades: {}, pinTiers: {}, skills: { shred: 0 },
-  equippedScissors: '', lastLevel: '', settings: { sound: true, haptics: true, leftHanded: false, grip: 'hold' },
+  equippedScissors: '', lastLevel: '', settings: { sound: true, haptics: true, leftHanded: false, grip: 'hold', analytics: true }, anonId: '',
   tutorialDone: false, tips: { pins: [], shred: false, shredRuns: 0, shopSeen: [], rank: false }, reveals: [], critterKills: 0,
 });
 export const Save = defaults();

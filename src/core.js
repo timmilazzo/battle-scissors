@@ -27,6 +27,7 @@ const cv = document.getElementById('c');
 // levelId: the CONFIG.levels key being played; levelDef: that level as played (the CONFIG entry itself for a painted
 // level, the generated level for a recipe / random one). Both set by game.setLevel.
 export const view = { cv, ctx: cv.getContext('2d'), W: 0, H: 0, SW: 0, SH: 0, Z: 1, dpr: 1, S: 1, L: 1, LX: 0, pickupX: 40, pickupY: 40,
-  levelId: C.defaultLevel, levelDef: null };
+  levelId: C.defaultLevel, levelDef: null,
+  bgReady: false };   // bgReady: the level's plate is painted and drawn (render.js renderBackground); game.js holds the wave clock until it is
 // The current level, as src/levels/index.js loadLevel() returned it.
 export const level = () => view.levelDef;

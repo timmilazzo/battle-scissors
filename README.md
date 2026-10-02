@@ -29,7 +29,7 @@ Every run is seeded, and all gameplay randomness (spawns, which side of a fork e
 https://<user>.github.io/<repo>/?seed=1234
 ```
 
-The seed shows on the game-over card, in the pause menu and in the debug panel. Every run report (*Copy run report* / *Send feedback*) includes a `replay` link with its seed and level (`?level=meadow`, `fork`, `hem`, ... or `random` picks the level; the ids are in `CONFIG.levels`), so a tester's bad run can be replayed with the same enemy variation.
+The seed shows on the game-over card, in the pause menu and in the debug panel. Every run report (kept in the debug panel's Export all runs; feedback sent from Settings carries the last one) includes a `replay` link with its seed and level (`?level=meadow`, `fork`, `hem`, ... or `random` picks the level; the ids are in `CONFIG.levels`), so a tester's bad run can be replayed with the same enemy variation.
 
 ## Generated levels
 

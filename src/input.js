@@ -258,6 +258,7 @@ export function initInput(h) {
     else mouse.dist = clamp(mouse.dist - d * C.wheelDistStep, C.closedDistPx, C.openDistPx);
   }, { passive: false });
   window.addEventListener('keydown', e => {
+    if (e.target && /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;   // typing in the feedback card isn't a game key
     if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) hooks.onSpace(); }
     else if (e.code === 'KeyA') mouse.rot -= C.keyRotStep;
     else if (e.code === 'KeyD') mouse.rot += C.keyRotStep;

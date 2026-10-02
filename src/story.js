@@ -13,23 +13,20 @@
 export const STORY = {
   narrator: 'Tomato',          // the pincushion; the goals card's kicker says who's talking
 
-  // One line as a level starts, under the wave 1 banner, by level id. None for level 0 (it's wordless on purpose),
-  // Random Quilt or Custom Road.
+  // One line as a level starts, under the wave 1 banner, by level id, only where there's something new to say: a boss,
+  // a new Pin, enemy or mechanic (a level without a line starts with no card; its star goals are on the weapon
+  // screen). None for level 0 (it's wordless on purpose), Random Quilt or Custom Road.
   dispatch: {
     meadow:  'Front of the drawer, lights out. Here they come.',
     fork:    'A silverfish lives here. The one thing in this drawer that’s real. Squish it.',
-    hem:     'Runners tonight. Quick little things. SHRED was made for them.',
+    hem:     'Runners tonight. Quick little things. When they bunch up, let SHRED loose.',
     running: 'The seam ripper’s gone bad. It was always going to.',
     double:  'Brutes, with thimbles on. Chill one and the thimble’s just a hat.',
-    blanket: 'Three switchbacks. They’ll be on the road a long while. Make them regret it.',
     loop:    'Old jeans, back of the drawer. Nobody’s folding those. Fire helps.',
     hemline: 'The Brute King. Even his helmet has a helmet. Wait for the charge.',
     cross:   'Four roads, two hands. The Magnet Pin has the rest.',
-    bias:    'Past where fingers reach now. Nobody has cleaned here. Ever.',
     selvage: 'Button Beetles. Hard as, well, buttons. A hole does what a blade can’t.',
-    whip:    'The back seam. The Unstitcher’s behind it. Finish this and the house never knows.',
-    lair:    'The last stretch. Nothing back here but what you cut.',
-  },
+    whip:    'The back seam. The Unstitcher’s behind it. Finish this and the house never knows.',  },
 
   // The morning after a boss, by the boss level's id: `from` = where the note was found, `note` = what the human
   // wrote, `reply` = Tomato, `paper` = what it's written on (index.html .rv-note: sticky (under a fridge magnet), lined

@@ -74,7 +74,9 @@ function renderBackground() {
   const g = bgCanvas.getContext('2d');
   g.setTransform(dpr * view.Z, 0, 0, dpr * view.Z, 0, 0);        // world px (W x H) onto the screen-sized backdrop
   g.fillStyle = '#2f5a1c'; g.fillRect(0, 0, W, H);
+  view.bgReady = false;
   if (lv.gen ? !gen : !plate.complete || !plate.naturalWidth || plate.getAttribute('src') !== lv.bg) return;
+  view.bgReady = true;
   if (LX > 0) {                                                  // side bars: the plate stretched to cover, blurred
     const cover = Math.max(W / lv.w, H / lv.h), cw = lv.w * cover, ch = lv.h * cover;
     g.save();
@@ -427,7 +429,7 @@ function drawNeedles(state) {
 // Reads new entries of state.events (thread pickups, Pin built) and animates them here.
 let lastEventSeq = null;
 const floaters = [], rings = [];
-for (let i = 0; i < 16; i++) floaters.push({ on: false, x0: 0, y0: 0, p: 0, text: '', big: false });
+for (let i = 0; i < 16; i++) floaters.push({ on: false, x0: 0, y0: 0, p: 0, text: '', big: false, hold: 0 });
 for (let i = 0; i < 8; i++) rings.push({ on: false, x: 0, y: 0, p: 0, color: '' });
 const FLY_DONE = { p: 1 }, off = o => { o.on = false; };
 function takeEvents(state) {
@@ -437,8 +439,12 @@ function takeEvents(state) {
     if (e.seq <= lastEventSeq || e.seq < 0) continue;
     if (e.kind === 'thread' || e.kind === 'bonus') {                 // bonus = a critter's squish: bigger, gold
       const f = floaters.find(o => !o.on) || floaters[0];
-      f.on = true; f.x0 = e.x; f.y0 = e.y; f.p = 0; f.text = '+' + e.n; f.big = e.kind === 'bonus';
-      vfx.cancel(f); vfx.add(f, FLY_DONE, C.pickupFlyMs, easing.inOutSine, off, f);
+      f.on = true; f.x0 = e.x; f.y0 = e.y; f.p = 0; f.big = e.kind === 'bonus';
+      f.text = f.big ? '+' + e.n + ' thread' : '+' + e.n;
+      // a squish's pickup hangs where the critter died first (hold = that share of p), then flies like the others
+      const hold = f.big ? C.bonusHoldMs : 0;
+      f.hold = hold / (hold + C.pickupFlyMs);
+      vfx.cancel(f); vfx.add(f, FLY_DONE, hold + C.pickupFlyMs, hold ? easing.linear : easing.inOutSine, off, f);
     } else if (e.kind === 'place') {                              // a Pin built: a soft ring pops out of its spot
       const r = rings.find(o => !o.on) || rings[0];
       r.on = true; r.x = e.x; r.y = e.y; r.p = 0; r.color = '#fff1c2';
@@ -454,8 +460,13 @@ function drawEventFx() {
   for (const f of floaters) {
     if (!f.on) continue;
     const x0 = f.x0 * Z, y0 = f.y0 * Z;
-    const x = x0 + (view.pickupX - x0) * f.p, y = y0 + (view.pickupY - y0) * f.p - Math.sin(f.p * Math.PI) * 30;   // to the action bar's thread counter
-    ctx.globalAlpha = f.p < 0.8 ? 1 : (1 - f.p) / 0.2;
+    let p = f.p, rise = 0;
+    if (f.hold) {                                   // hold phase: drift up a little in place; then fly on easing
+      if (p < f.hold) { rise = easing.outCubic(p / f.hold) * 28; p = 0; }
+      else { rise = 28; p = easing.inOutSine((p - f.hold) / (1 - f.hold)); }
+    }
+    const x = x0 + (view.pickupX - x0) * p, y = y0 + (view.pickupY - y0) * p - Math.sin(p * Math.PI) * 30 - rise * (1 - p);   // to the action bar's thread counter
+    ctx.globalAlpha = p < 0.8 ? 1 : (1 - p) / 0.2;
     ctx.font = f.big ? POP_FONT : NUM_FONT;
     ctx.lineWidth = f.big ? 4 : 3; ctx.strokeStyle = 'rgba(60,30,0,0.8)'; ctx.strokeText(f.text, x, y);
     ctx.fillStyle = f.big ? '#ffd23f' : '#9ff3c8'; ctx.fillText(f.text, x, y);

@@ -3,12 +3,17 @@
 // Modules read these at runtime (C.x), so the debug panel can change them live.
 // (Sound parameter arrays are the one exception: they live in src/sfx.js for pasting to/from the ZzFX designer.)
 
-// Where "Send feedback" (pause and game-over cards) goes. A mailto: address opens an email with the run report in the
-// body; any other link just opens in a new tab. Empty = the button only shows a toast.
+// The "Email instead" fallback on the feedback card (used when sending fails or ANALYTICS_KEY is empty). A mailto:
+// address opens an email with the run report in the body; any other link opens in a new tab. Empty = no fallback button.
 export const FEEDBACK_URL = 'mailto:tim@saltandwisdom.com';
 
+// PostHog (src/analytics.js): anonymous play events and the in-game feedback card both post here. The key is a public
+// project token (safe in client code). Empty ANALYTICS_KEY = nothing is ever sent.
+export const ANALYTICS_HOST = 'https://us.i.posthog.com';
+export const ANALYTICS_KEY = 'phc_z4235bmczBCg65dxaMJcEEsqTKypip6ut2fv5ghLx76T';
+
 // Shown small at the bottom of Settings and recorded in every run report. Bump it with each published change.
-export const VERSION = '0.5.0';
+export const VERSION = '0.5.1';
 
 export const CONFIG = {
   // --- pose / control mapping ---
@@ -601,6 +606,8 @@ export const CONFIG = {
   trailMinSpeed: 2.5,        // blade trails appear when the blades open/close/turn faster than this (rad/s)
   trailFadeMs: 140,          // how long each trail ghost takes to fade
   pickupFlyMs: 650,          // "+8" thread pickup flight time to the HUD counter
+  bgWaitMaxSec: 6,           // the wave clock waits this long at most for a level's art to load (then plays on, art or not)
+  bonusHoldMs: 900,         // a squish's "+30 thread" floats up where it died this long before flying to the counter
 
   // --- meta economy: Buttons (src/meta.js). Earned only from playing: never from a clock, a streak, a purchase or a
   // chance roll. Thread (in-level) and Buttons (meta) are never converted. Stars are never sold; Pins are unlocked by
