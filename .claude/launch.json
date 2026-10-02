@@ -27,6 +27,61 @@
         "8031"
       ],
       "port": 8031
+    },
+    {
+      "name": "battle-scissors-critters",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "tools/serve.js",
+        "8047"
+      ],
+      "port": 8047
+    },
+    {
+      "name": "battle-scissors-playtest",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "tools/serve.js",
+        "8059"
+      ],
+      "port": 8059
+    },
+    {
+      "name": "battle-scissors-sharp",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "tools/serve.js",
+        "8063"
+      ],
+      "port": 8063
+    },
+    {
+      "name": "battle-scissors-pins",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "tools/serve.js",
+        "8071"
+      ],
+      "port": 8071
+    },
+    {
+      "name": "battle-scissors-story",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "tools/serve.js",
+        "8093"
+      ],
+      "port": 8093
+    },
+    {
+      "name": "battle-scissors-import",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "tools/serve.js",
+        "8087",
+        "--write"
+      ],
+      "port": 8087
     }
   ]
 }

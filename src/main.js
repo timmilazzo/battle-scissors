@@ -10,18 +10,19 @@ import { draw, sizeCanvas, prerender } from './render.js';
 import { art, preloadWeapons, rasterizeArt } from './weaponArt.js';
 import { applySavedOverrides, initDebug } from './debug.js';
 import { savedWeapon, initWeaponSelect, refreshWeaponSelect } from './weaponSelect.js';
-import { savedLevel, rememberLevel, levelLabel } from './levelSelect.js';
-import { levelIds, levelInfo } from './levels/index.js';
+import { savedLevel, rememberLevel, levelLabel, onMap } from './levelSelect.js';
+import { levelIds, levelInfo, hasLevel } from './levels/index.js';
 import { Save, persist, wipeSave, unlockAll } from './save.js';
 import { initLevelMap, refreshLevelMap } from './levelMap.js';
 import { isMuted, setMuted, unlockAudio, sfx } from './audio.js';
 import { loadRuns, copyText, downloadJson } from './runlog.js';
 import { initActionBar, refreshActionBar, measureActionBar, buildSpotButtons } from './actionBar.js';
 import { refreshHud } from './hud.js';
-import { showResults } from './results.js';
-import { initShop, openShop, openTrophies } from './shop.js';
-import { initArmory, openArmory } from './armory.js';
-import { buySharpen } from './meta.js';
+import { showResults, refreshResultsShop } from './results.js';
+import { initShop, openShop, openTrophies, refreshShop } from './shop.js';
+import { initBox, openBox, refreshBox } from './sewingBox.js';
+import { initArmory } from './armory.js';
+import { buySharpen, newDeals } from './meta.js';
 
 applySavedOverrides();
 // The canvas draws banners and labels in the felt font (Lilita One, index.html); ask for it now so it's ready.
@@ -49,6 +50,14 @@ const play = () => { unlockAudio(); toast.hidden = true; startGame(); };
 // PLAY: level 0 (the tutorial) until it has been cleared once, then the level map. How to play: level 0 again.
 on('play', () => { unlockAudio(); toast.hidden = true; if (Save.tutorialDone) openMap(); else playTutorial(); });
 on('how', () => { unlockAudio(); toast.hidden = true; playTutorial(); });
+// Random Quilt (title, once the tutorial is done): a new generated road each run, off the map, so its weapon screen and
+// results lead back to the title. Custom Road (?recipe=, the level lab's Play it) sits top left of the title.
+const quiltBtn = document.getElementById('title-quilt'), customBtn = document.getElementById('title-custom');
+const showQuilt = () => quiltBtn.classList.toggle('locked', !Save.tutorialDone);
+on('title-quilt', () => { unlockAudio(); toast.hidden = true; if (Save.tutorialDone) chooseLevel('random'); else showToast('Play the tutorial first: tap PLAY'); });
+customBtn.hidden = !hasLevel('custom');
+on('title-custom', () => { unlockAudio(); toast.hidden = true; chooseLevel('custom'); });
+showQuilt();
 on('again', play);
 // Settings (title's gear icon): touch control mode (input.js remembers it) and sound.
 on('title-settings', () => { unlockAudio(); toast.hidden = true; goSettings(); });
@@ -60,10 +69,13 @@ for (const b of ctlBtns) b.addEventListener('click', () => { setControls(b.datas
 showControls();
 // The quick Sharpen on the weapon screen (a failed one says why).
 const sharpenFail = { buttons: 'Not enough Buttons', sharp: 'Already sharp', locked: 'Not yours yet' };
-initWeaponSelect({ onPick: id => { selectWeapon(id); rasterizeArt(); }, onStart: play, onBack: () => openMap(),
+initWeaponSelect({ onPick: id => { selectWeapon(id); rasterizeArt(); }, onStart: play, onBack: () => backOut(),
   onSharpen: id => { unlockAudio(); const why = buySharpen(id); if (why) showToast(sharpenFail[why] || why); else sfx('pinPop', 0); return why; } });
 // Level picker (same screen): switch the plate, road(s) and Pin spots, then re-run the resize chain for the new plate.
-function switchLevel(id) { setLevel(id); buildSpotButtons(); resize(); }
+// The pause card's Back to map only shows for a map level (Random Quilt / Custom Road have Title screen beside it).
+const pauseMap = document.getElementById('pause-map');
+function switchLevel(id) { setLevel(id); buildSpotButtons(); resize(); pauseMap.hidden = !onMap(id); }
+pauseMap.hidden = !onMap(view.levelId);
 setLevelHook(() => { buildSpotButtons(); resize(); });            // a random level's new road at the start of a run
 // A level with its own weapon (level 0: Dagger Shears) plays with it; any other level goes back to the equipped one.
 function useWeapon(id) { if (weapon.id !== id) { selectWeapon(id); rasterizeArt(); } }
@@ -73,7 +85,7 @@ function playTutorial() {
   useWeapon(levelInfo(C.tutLevel).weapon || savedWeapon());
   play();
 }
-setTutorialDoneHook(() => { useWeapon(savedWeapon()); openMap(); });
+setTutorialDoneHook(() => { useWeapon(savedWeapon()); showQuilt(); openMap(); });
 // Level map (PLAY on the title): a level opens the shears screen (named there); BACK returns to the title.
 const selectLevel = document.getElementById('select-level'), selectNew = document.getElementById('select-new');
 // What level id brings for the first time: its new Pins and SHRED (CONFIG.pinFrom / shredFrom), on the weapon screen.
@@ -90,35 +102,45 @@ function chooseLevel(id) {
   useWeapon(savedWeapon()); refreshWeaponSelect();
   showLevelName(id); goSelect();
 }
-function openMap() { refreshLevelMap(); goMap(); }
-initLevelMap({ toast: showToast, onPick: chooseLevel, onBack: goTitle });
-// Your Scissors, Shop and Trophies (map, top left; the title's Upgrades tile opens Your Scissors, its Shop tile the Shop).
-// A purchase re-applies the weapon's upgrades and the cosmetics (a resize re-rasterizes). Closing returns to whichever
-// screen opened it (the map refreshes, since a purchase can change it).
+function openMap() { refreshNews(); refreshLevelMap(); goMap(); }
+// The gold dot on the Shop's entrances (title tile, map button) and the Sewing Box's (map button, weapon screen link):
+// something on that screen the balance covers that the player hasn't seen on its tab yet. Re-checked whenever Buttons
+// or the seen list can have changed: a run settled, a chest opened, a screen closed, the map opened.
+const newsBtns = { shop: ['title-shop', 'map-shop'], box: ['map-box', 'sel-box'] };
+function refreshNews() {
+  for (const screen in newsBtns) { const has = newDeals(screen).length > 0; for (const id of newsBtns[screen]) document.getElementById(id).classList.toggle('news', has); }
+}
+// Leaving a level's screens (weapon screen BACK, the results' Map, the pause card's Back to map): the map for a map
+// level, the title for Random Quilt / Custom Road.
+function backOut() { if (onMap(view.levelId)) openMap(); else goTitle(); }
+const openMeta = (screen, tab) => { unlockAudio(); if (screen === 'box') openBox(tab); else openShop(tab); };
+initLevelMap({ toast: showToast, onPick: chooseLevel, onBack: goTitle, onOpen: openMeta, onChange: refreshNews });
+// The Sewing Box (map, top left, and the weapon screen; tabs: Scissors, Pins, Moves: what you hold and its upgrades),
+// the Shop (map, and the title's Shop tile; tabs: Pairs, Style: new things) and Trophies (map). A purchase re-applies
+// the weapon's upgrades and the cosmetics (a resize re-rasterizes). Closing returns to whichever screen opened it (the
+// map refreshes, since a purchase can change it).
 const openScreen = fn => () => { unlockAudio(); toast.hidden = true; fn(); };
-on('map-armory', openScreen(openArmory));
-on('title-upgrades', openScreen(openArmory));
-on('map-shop', openScreen(openShop));
-on('title-shop', openScreen(openShop));
-on('map-trophies', () => { unlockAudio(); toast.hidden = true; openTrophies(); });
+on('map-box', openScreen(() => openBox()));
+on('sel-box', openScreen(() => openBox()));
+on('map-shop', openScreen(() => openShop()));
+on('title-shop', openScreen(() => openShop()));
+on('map-trophies', openScreen(() => openTrophies()));
 const metaChanged = () => { selectWeapon(weapon.id); resize(); refreshWeaponSelect(); };
-const metaClosed = () => { if (state.mode === 'MAP') refreshLevelMap(); };
-initShop({ toast: showToast, onChange: metaChanged, onClose: metaClosed });
-initArmory({ toast: showToast, onChange: metaChanged, onClose: metaClosed,
+const metaClosed = () => { refreshNews(); if (state.mode === 'MAP') refreshLevelMap(); if (state.mode === 'GAME_OVER') refreshResultsShop(); if (state.mode === 'SELECT') refreshWeaponSelect(); };
+initShop({ onChange: metaChanged, onClose: metaClosed });
+initBox({ onClose: metaClosed });
+initArmory({ toast: showToast, onChange: metaChanged, refresh: () => { refreshShop(); refreshBox(); },
   onEquip: id => { Save.equippedScissors = id; persist(); useWeapon(id); refreshWeaponSelect(); }, onFeedback: skillFeedback });
 // The run is over: the results card plays its Button tally.
-setRunEndHook(() => showResults(state.tally));
+setRunEndHook(() => { showResults(state.tally); refreshNews(); });
+// The results card's Shop line: its button opens the Shop on the deal's tab (the card's tap-to-skip must not fire).
+on('res-shop-btn', e => { e.stopPropagation(); openMeta(e.currentTarget.dataset.screen, e.currentTarget.dataset.tab); });
 showLevelName(view.levelId);
-// Run-end card: one big button (endGame sets its act): NEXT LEVEL plays the next level on the map with the same weapon
-// (a level that brings a new Pin or SHRED opens the weapon screen first, which says so), CONTINUE opens the map,
-// TRY AGAIN replays. The small Map and Play again buttons cover the rest.
-function nextLevel() {
-  const id = nextLevelId(); if (!id) { openMap(); return; }
-  if (C.shredFrom === id || Object.values(C.pinFrom).includes(id)) { unlockAudio(); toast.hidden = true; chooseLevel(id); return; }
-  rememberLevel(id); switchLevel(id); showLevelName(id); play();
-}
-const toMap = () => { unlockAudio(); toast.hidden = true; openMap(); };
-on('over-select', () => { const act = document.getElementById('over-select').dataset.act; if (act === 'next') nextLevel(); else if (act === 'again') play(); else toMap(); });
+// Run-end card: one big button (endGame sets its act): TO THE MAP after a win (the map plays the reward cards and
+// shows what's next: the next patch pulses, the Sewing Box / Shop buttons carry a dot when something new is
+// affordable), TRY AGAIN after a loss. The small Map / Title and Play again buttons cover the rest.
+const toMap = () => { unlockAudio(); toast.hidden = true; backOut(); };
+on('over-select', () => { const act = document.getElementById('over-select').dataset.act; if (act === 'again') play(); else toMap(); });
 on('over-map', toMap);
 // Pressing anywhere on the title is a gesture that unlocks audio.
 document.getElementById('title').addEventListener('pointerdown', () => unlockAudio());
@@ -157,7 +179,7 @@ initActionBar({ toast: showToast });
 const pauseBtn = document.getElementById('pause');
 pauseBtn.addEventListener('click', e => { e.stopPropagation(); togglePause(); });
 on('resume', () => setPaused(false));
-on('pause-map', e => { e.stopPropagation(); openMap(); });
+on('pause-map', e => { e.stopPropagation(); openMap(); });           // hidden off the map (switchLevel)
 on('pause-home',e => { e.stopPropagation(); goTitle(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) setPaused(true); });
 
@@ -170,12 +192,14 @@ for (const b of document.querySelectorAll('[data-copy-report]')) b.addEventListe
 });
 // A mailto: FEEDBACK_URL opens a draft email: subject with the outcome, room for comments, then the run report (the
 // same JSON as Copy run report). Some mail apps cut very long links, so the report is compact JSON.
-function feedbackMail(report) {
-  const what = report ? (report.won ? 'won' : report.inProgress ? 'wave ' + report.wavesReached + ', mid-run' : 'lost on wave ' + report.wavesReached) + ', ' + report.weapon : 'no run yet';
-  const body = 'What happened, what felt good or off:\n\n\n\n---\nRun report (please leave this in):\n' + (report ? JSON.stringify(report) : '(none)');
+// `ask` (the button's data-send-feedback value) picks the prompt: 'demo' = the credits card's question.
+function feedbackMail(report, ask) {
+  const what = ask === 'demo' ? 'finished the demo' : report ? (report.won ? 'won' : report.inProgress ? 'wave ' + report.wavesReached + ', mid-run' : 'lost on wave ' + report.wavesReached) + ', ' + report.weapon : 'no run yet';
+  const prompt = ask === 'demo' ? 'The least fun thing, and what should change:\n\n\n\nAnything else (what felt good, what felt off):' : 'What happened, what felt good or off:';
+  const body = prompt + '\n\n\n\n---\nRun report (please leave this in):\n' + (report ? JSON.stringify(report) : '(none)');
   return FEEDBACK_URL + '?subject=' + encodeURIComponent('Battle Scissors feedback (' + what + ')') + '&body=' + encodeURIComponent(body);
 }
-// Your Scissors' Want this on a skill to come: a feedback draft about that skill (no run report needed).
+// The Shop's Moves tab: Want this on a skill to come: a feedback draft about that skill (no run report needed).
 function skillFeedback(k) {
   if (!FEEDBACK_URL) { showToast('No feedback link set (FEEDBACK_URL in config.js)'); return; }
   if (!FEEDBACK_URL.startsWith('mailto:')) { window.open(FEEDBACK_URL, '_blank', 'noopener'); return; }
@@ -183,9 +207,11 @@ function skillFeedback(k) {
   location.href = FEEDBACK_URL + '?subject=' + encodeURIComponent('Battle Scissors skill idea: ' + k.name) + '&body=' + encodeURIComponent(body);
   showToast('Opening your email app…');
 }
-for (const b of document.querySelectorAll('[data-send-feedback]')) b.addEventListener('click', () => {
+// Delegated, so buttons built later (the credits card in levelMap.js) work too.
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-send-feedback]'); if (!b) return;
   if (!FEEDBACK_URL) { showToast('No feedback link set (FEEDBACK_URL in config.js)'); return; }
-  if (FEEDBACK_URL.startsWith('mailto:')) { location.href = feedbackMail(state.paused ? reportNow() : lastReport); showToast('Opening your email app…'); }
+  if (FEEDBACK_URL.startsWith('mailto:')) { location.href = feedbackMail(state.paused ? reportNow() : lastReport, b.dataset.sendFeedback); showToast('Opening your email app…'); }
   else window.open(FEEDBACK_URL, '_blank', 'noopener');
 });
 
@@ -224,5 +250,6 @@ window.addEventListener('resize', resize);
 window.addEventListener('orientationchange', () => setTimeout(resize, 150));
 resize();
 preloadWeapons();
+refreshNews();
 goTitle();
 requestAnimationFrame(frame);

@@ -15,22 +15,28 @@
 //   cosmetics: { owned: [id], handle, glow },        cosmetics owned and the one equipped per slot ('' = none)
 //   unlocks: { scissors: [], pins: [], levels: [] }, extra unlocks (levels: opened early, e.g. by "Unlock all")
 //   upgrades: { scissorsId: tier },                  scissors upgrade tier 0..3 (meta.js)
+//   pinTiers: { pinType: tier },                     each Pin type's permanent tier 0..3 (meta.js buyPinTier; src/pins.js)
 //   skills: { shred },                               SHRED's tier 0..3 (CONFIG.shredTiers; meta.js buyShred)
 //   equippedScissors, lastLevel,                     last weapon and level picked
 //   settings: { sound, haptics, leftHanded, grip },  grip = touch controls 'hold' | 'pinch'; leftHanded not used yet
-//   tutorialDone, tips: { pinIntro, shred, shredRuns }, one-time onboarding flags (tutorialDone = level 0 cleared; shredRuns = runs the SHRED ready tip showed in)
-//   reveals: [{ scissors } | { credits }],           rewards won but not yet shown (the level map plays them in order)
+//   tutorialDone, tips: { pins, shred, shredRuns, shopSeen, rank },  one-time onboarding flags (tutorialDone = level 0 cleared; pins = Pin
+//                                                    types the explainer has introduced; shredRuns = runs the SHRED ready tip showed
+//                                                    in; shopSeen = Shop / Sewing Box deals (meta.js deals() ids) the player has had
+//                                                    on screen; rank = the Pin rank-up tip has shown)
+//   reveals: [{ morning } | { scissors } | { shop } | { credits } | { chest }],  rewards won but not yet shown (the level map plays
+//                                                    them in order; morning = a boss level id whose morning-after note (story.js)
+//                                                    is due; shop = 'shred' or a weapon id: stock a level clear put on sale)
 //   critterKills,                                    critters squished, all runs (the one-time "Squish 25" achievement)
 // }
 import { CONFIG as C } from './config.js';
 
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 const KEY = 'battleScissors.save';
 const defaults = () => ({
   version: SAVE_VERSION, levels: {}, buttons: 0, achievements: [], chests: [], sharpness: {},
-  cosmetics: { owned: [], handle: '', glow: '' }, unlocks: { scissors: [], pins: [], levels: [] }, upgrades: {}, skills: { shred: 0 },
+  cosmetics: { owned: [], handle: '', glow: '' }, unlocks: { scissors: [], pins: [], levels: [] }, upgrades: {}, pinTiers: {}, skills: { shred: 0 },
   equippedScissors: '', lastLevel: '', settings: { sound: true, haptics: true, leftHanded: false, grip: 'hold' },
-  tutorialDone: false, tips: { pinIntro: false, shred: false, shredRuns: 0 }, reveals: [], critterKills: 0,
+  tutorialDone: false, tips: { pins: [], shred: false, shredRuns: 0, shopSeen: [], rank: false }, reveals: [], critterKills: 0,
 });
 export const Save = defaults();
 
@@ -41,6 +47,9 @@ export function migrate(old) {
   if ((s.version | 0) < 3) {                                        // v3: each pair's own sharpness replaces held
     s.buttons = (s.buttons | 0) + (s.sharpen | 0) * 40; delete s.sharpen;   // Sharpenings, refunded at their old price
   }
+  if ((s.version | 0) < 4 && s.tips) {                              // v4: one explainer per Pin type replaces the single
+    s.tips.pins = s.tips.pinIntro ? ['needle'] : []; delete s.tips.pinIntro;   // one-time one (which always led with the Needle)
+  }
   s.version = SAVE_VERSION;
   return s;
 }
@@ -49,8 +58,10 @@ export function migrate(old) {
 function adopt(data) {
   const d = defaults();
   Object.assign(Save, d, data);
-  for (const k of ['unlocks', 'settings', 'tips', 'cosmetics', 'sharpness', 'skills']) Save[k] = Object.assign(d[k], data[k]);
+  for (const k of ['unlocks', 'settings', 'tips', 'cosmetics', 'sharpness', 'skills', 'upgrades', 'pinTiers']) Save[k] = Object.assign(d[k], data[k]);
   for (const k of ['achievements', 'chests']) Save[k] = Array.isArray(data[k]) ? data[k] : [];
+  if (!Array.isArray(Save.tips.pins)) Save.tips.pins = [];
+  if (!Array.isArray(Save.tips.shopSeen)) Save.tips.shopSeen = [];
   Save.levels = Object.assign({}, data.levels);
   Save.reveals = Array.isArray(data.reveals) ? data.reveals : [];
 }

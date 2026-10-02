@@ -289,7 +289,7 @@ function build(items, recipe, seed, base, warnings) {
 function addEntry(routes, wts, nMain, spec, span, xs, rng, warnings) {
   const G = GEN, W = G.w, mid = (G.xMin + G.xMax) / 2, need = 2 * outer() + G.roadGap * 0.5, clear = C.levelGen.entryClear;
   const edge = spec.includes('right') ? 'right' : spec.includes('top') ? 'top' : 'left';
-  // keep entrances out from under the HUD (top left: wave badge, hearts, SHRED) and the pause button (top right)
+  // keep entrances out from under the HUD (top left: wave badge, SHRED) and the pause button (top right)
   const yE = Math.max(G.startY + span * clamp(numOf(spec, 30), 5, 60) / 100, edge === 'left' ? 400 : 260);
   const trunk = routes.map(r => curve(r, 10));
   // merge point candidates: control points of the main routes, below where the side road enters

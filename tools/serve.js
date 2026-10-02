@@ -1,8 +1,11 @@
 // Local dev server for Battle Scissors (no dependencies; needs Node.js).
-//   node tools/serve.js [port] [--open]
+//   node tools/serve.js [port] [--open] [--write]
 // Serves the project folder over http (ES modules don't load from file://) on all network interfaces (default port
 // 8000; if it's busy, the next free one up to 9 higher, and the printed/opened addresses use that one),
 // so a phone on the same Wi-Fi can open the printed LAN address. --open launches the default browser.
+// --write (dev tooling only, e.g. tools/kit-import.html): a PUT to a path under /assets/kit/ writes the request body to
+// that file, creating folders as needed, and answers 204. Any other path, or one with '..', is refused (403). Without
+// the flag PUT isn't special. Never run it with --write on a network you don't trust: it listens on all interfaces.
 const http = require('http'), fs = require('fs'), path = require('path'), os = require('os'), { exec } = require('child_process');
 
 const root = path.resolve(__dirname, '..');
@@ -14,7 +17,31 @@ const types = {
   '.md': 'text/markdown; charset=utf-8', '.webmanifest': 'application/manifest+json', '.ttf': 'font/ttf',
 };
 
+const allowWrite = args.includes('--write');
+const kitDir = path.join(root, 'assets', 'kit');
+
+// --write: PUT /assets/kit/<...> stores the body at that path.
+function handlePut(req, res) {
+  const rel = decodeURIComponent(req.url.split('?')[0]);
+  const file = path.join(root, rel);
+  if (!rel.startsWith('/assets/kit/') || rel.includes('..') || !file.startsWith(kitDir + path.sep)) {
+    res.writeHead(403); return res.end('forbidden');
+  }
+  const chunks = [];
+  req.on('data', c => chunks.push(c));
+  req.on('end', () => {
+    fs.mkdir(path.dirname(file), { recursive: true }, err => {
+      if (err) { res.writeHead(500); return res.end(err.message); }
+      fs.writeFile(file, Buffer.concat(chunks), err2 => {
+        if (err2) { res.writeHead(500); return res.end(err2.message); }
+        res.writeHead(204); res.end();
+      });
+    });
+  });
+}
+
 const server = http.createServer((req, res) => {
+  if (allowWrite && req.method === 'PUT') return handlePut(req, res);
   let rel = decodeURIComponent(req.url.split('?')[0]);
   if (rel.endsWith('/')) rel += 'index.html';
   const file = path.join(root, rel);
@@ -44,6 +71,7 @@ server.on('listening', () => {
   for (const nets of Object.values(os.networkInterfaces())) {
     for (const n of nets || []) if (n.family === 'IPv4' && !n.internal) console.log(`  Phone (same Wi-Fi): http://${n.address}:${port}/`);
   }
+  if (allowWrite) console.log('  --write: PUT under /assets/kit/ writes files.');
   console.log('Close this window (or press Ctrl+C) to stop.');
   if (args.includes('--open')) {
     const cmd = process.platform === 'win32' ? `start "" "${local}"` : process.platform === 'darwin' ? `open "${local}"` : `xdg-open "${local}"`;

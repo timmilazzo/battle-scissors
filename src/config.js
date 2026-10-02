@@ -8,7 +8,7 @@
 export const FEEDBACK_URL = 'mailto:tim@saltandwisdom.com';
 
 // Shown small at the bottom of Settings and recorded in every run report. Bump it with each published change.
-export const VERSION = '0.4.1';
+export const VERSION = '0.5.0';
 
 export const CONFIG = {
   // --- pose / control mapping ---
@@ -35,21 +35,27 @@ export const CONFIG = {
   // every regular enemy it hits in place this long. ringScale (Cigar Cutter): the hole's cut radius x this.
   // How each is won: defaultWeapon is held from the start; one that is some map level's unlockOnClear is won there;
   // shop = its price in Buttons, buyable in the Shop once level shopAfter has been cleared (never for anything else).
+  // story = the line on its "new scissors" card when it is won or bought (why it turns up now).
   weapons: {
     safety:  { name: 'Safety Firsts', blurb: 'Round tips, crayon-box grip. Every hero starts somewhere.',
+               story: "From the kids' craft box, round tips and all. Every drawer's defence starts somewhere: go snip some scraps!",
                svg: 'assets/weapons/safety-firsts.svg', viewW: 800, viewH: 1000, pivotX: 400, pivotY: 440,
                bladeLen: 274, maxOpenDeg: 28, reachFrac: 0.105, damageMult: 0.85, openMs: 560, signature: 'all' },
     dagger:  { name: 'Dagger Shears', blurb: 'Long engraved blades that reach deep into the road.',
+               story: "The good scissors. The ones nobody is allowed to use on paper. Long blades that reach deep into the road.",
                svg: 'assets/weapons/dagger-shears.svg', viewW: 800, viewH: 1000, pivotX: 400, pivotY: 440,
                bladeLen: 370, maxOpenDeg: 32, reachFrac: 0.132, damageMult: 1, openMs: 500, signature: 'all' },
     nippers: { name: 'War Nippers', blurb: 'Short crescent jaws that bite hard. Get close.',
+               story: "Pried out of the Brute King's own stuffing. Short crescent jaws that bite back just as hard as he did.",
                svg: 'assets/weapons/battle-cuticle-nippers.svg', viewW: 800, viewH: 1000, pivotX: 400, pivotY: 440,
                bladeLen: 242, maxOpenDeg: 28, reachFrac: 0.088, damageMult: 1.3, openMs: 380, signature: 'damage' },
     barber:  { name: 'Split Enders', blurb: 'Opens wide enough to take a whole crowd, but cuts light.',
+               story: "Bathroom drawer, next to the tweezers. They open wide enough to catch a whole crowd in one cut.",
                svg: 'assets/weapons/barber-scissors.svg', viewX: -80, viewW: 960, viewH: 1000, pivotX: 400, pivotY: 440,
                bladeLen: 404, maxOpenDeg: 60, reachFrac: 0.12, damageMult: 0.85, openMs: 650, signature: 'angle',
                shop: 200, shopAfter: 'fork' },
     scrap:   { name: 'Scrap Snippers', blurb: 'Long heavy blades with a narrow bite. Aim true.',
+               story: "Off the garage bench. Someone cut wire with these. Land a snip right by the pivot for a critical hit.",
                svg: 'assets/weapons/scrap-shears.svg', viewW: 800, viewH: 1000, pivotX: 400, pivotY: 440,
                bladeLen: 408, maxOpenDeg: 24, reachFrac: 0.144, damageMult: 1.25, openMs: 580,
                signature: 'crit', critZone: 0.25, critMult: 1.5, shop: 300, shopAfter: 'blanket' },
@@ -57,11 +63,13 @@ export const CONFIG = {
     // left of the art's axis; fully open, the gap spans -40..+22deg (centre -9deg, 62deg wide). The aim offset turns
     // the art 41deg -> 9deg as it opens so the tip, then the gap's centre, lines up with the aim.
     pruners: { name: 'Ratchet Pruners', blurb: 'A hooked jaw holds, one heavy blade bites down. Big hits up close.',
+               story: "In from the shed with the mud still on. A hooked jaw that grabs hold and doesn't let go.",
                svg: 'assets/weapons/ratchet-pruners.svg', viewW: 800, viewH: 1000, pivotX: 400, pivotY: 320,
                bladeLen: 240, maxOpenDeg: 31, aimOffsetDeg: 41, aimOffsetOpenDeg: -32, reachFrac: 0.1, damageMult: 1.4, openMs: 620,
                signature: 'hold', holdSec: 0.5, shop: 400, shopAfter: 'selvage' },
     // blades slide 155 units each way inside a 131-unit round window; the finger rings sit about 426 units out
     cigar:   { name: 'Cigar Cutter', blurb: 'No blades to swing: fit them in the hole and slam it shut.',
+               story: "Grandpa's. Nobody asks. No blades to swing: fit a Button Beetle in the hole and slam it shut!",
                svg: 'assets/weapons/cigar-cutter.svg', viewW: 1300, viewH: 640, pivotX: 650, pivotY: 320, kind: 'slide',
                bladeLen: 131, maxOpenDeg: 0, spinLen: 426, reachFrac: 0.036, damageMult: 2.2, openMs: 440,
                signature: 'ring', ringScale: 1, shop: 500, shopAfter: 'bias' },
@@ -135,6 +143,27 @@ export const CONFIG = {
     bruteKing:  { r: 62, hp: 50, tier: 10, score: 800, traverseSec: 70, gapMs: 0,    pushScale: 0,    boss: true,  armor: true, color: '#9c7650', patch: '#3f6fc4', patch2: '#c0392b' },
     unstitcher: { r: 64, hp: 90, tier: 10, score: 1500, traverseSec: 40, gapMs: 0,   pushScale: 0,    boss: true,  color: '#2e2a4a', patch: '#8fe8ff', patch2: '#e84a5f' },
   },
+  // Enemy ranks: from map level fromLevel on, wave spawns (not bosses, their escorts or level 0) can come as a tougher,
+  // recoloured rank 2 or 3 of their type. The rank mix m = start + perLevel x (map level - fromLevel) + perWave x (wave - 1)
+  // (Random Quilt / Custom Road count as map level hpOffMapLevel): up to 1 it is the share of rank 2 (the rest rank 1);
+  // past 1 there are no rank 1s left and m - 1 is the share of rank 3 (the rest rank 2).
+  enemyRanks: {
+    fromLevel: 4,            // the first map level with ranked enemies (L4: a few rank 2s)
+    start: 0.12,             // the mix at that level's first wave...
+    perLevel: 0.16,          // ...plus this per map level after it (rank 1s are gone around L9, rank 3s grow from there)...
+    perWave: 0.04,           // ...plus this per wave within a level
+    hpMult: [1, 1.4, 1.8],   // hp x by rank (on top of the wave and level scaling)
+    speedMult: [1, 1.06, 1.12], // walking speed x by rank (a touch quicker, not a sprint)
+    scoreMult: [1, 1.5, 2],  // kill score x by rank (thread per kill is the same)
+    // each type's colours at ranks 2 and 3 (body, patch, patch2; the rank 1 colours are the type's own)
+    colors: {
+      scrap:   [{ color: '#9fb8d8', patch: '#e8a33d', patch2: '#6b3fa0' }, { color: '#4f4468', patch: '#ff5a6e', patch2: '#ffd23f' }],
+      bolster: [{ color: '#d9854a', patch: '#3f73d8', patch2: '#2e8a6a' }, { color: '#8c3b3b', patch: '#ffd23f', patch2: '#8fe8ff' }],
+      brute:   [{ color: '#7f8fa3', patch: '#d8423a', patch2: '#e6b85c' }, { color: '#45404f', patch: '#ff5a6e', patch2: '#9fe36a' }],
+      runner:  [{ color: '#3fae9e', patch: '#ff8a3d', patch2: '#f2c230' }, { color: '#2f5a3a', patch: '#ffd23f', patch2: '#ff4a3d' }],
+      beetle:  [{ color: '#3d7dc8', patch: '#f4e3c1', patch2: '#2b1a10' }, { color: '#6a2f8a', patch: '#ffd23f', patch2: '#2b1a10' }],
+    },
+  },
   hpPerWave: 0.1,            // each wave after the first adds this fraction of base hp (wave 6 = 1.5x); fractional hp means a tip hit no longer kills
   hpPerLevel: 0.1,           // each map level from hpLevelFrom on adds this fraction of base hp x the type's levelHp (added to the wave's)
   hpLevelFrom: 3,            // the first map level that gets a hpPerLevel step (L3 = 1 step, L12 = 10)
@@ -144,9 +173,16 @@ export const CONFIG = {
 
   // --- bosses: only on boss levels (the level's last wave is the boss alone). Each tests one skill. ---
   // name + taunt = the intro card (two short lines, auto-dismissed after bossIntroMs); roar = its sfx.js entry.
+  // taunt2 = one more line under its HP bar once its HP drops to bossTauntAt (render.js drawBossHint). The taunts
+  // carry the story (src/story.js); the rule the player needs is the bossHints line under the bar.
   bossIntroMs: 3000,         // the intro card shows this long; the boss walks on as it closes
+  bossTauntAt: 0.5,          // the boss's taunt2 shows once its HP fraction drops to this...
+  bossTauntSec: 4,           // ...for this long, under the rule line
   bossTurns: [0.8, 0.2],     // seam bosses walk forward to 80% of the road, back to 20%, then on to the workshop
   bossTremblePx: 3,          // how far an armored boss shakes side to side while winding up for a charge
+  helmFlySec: 0.55,          // an armored boss's charge knocks its thimble helmet off: it tumbles to the ground beside it this long...
+  helmPickupSec: 0.6,        // ...and the last this-long of armorDownSec it picks it back up (the armor is on again as it lands on its head)
+  helmLand: [1.45, 0.75],    // where the helmet lands, in the boss's radii from its centre: sideways (alternating sides), down
   seamPeriodSec: 2,         // the seam's spot goes once around the body in this long (where Expert blades must cross it)
   seamArcDeg: 22,            // half-width of the seam arc
   seamHitTolPx: 12,          // Expert: the closed-blade line must pass this close to the seam to count as over it
@@ -154,20 +190,21 @@ export const CONFIG = {
     // timing: every seamEverySec its seam splits open for seamOpenSec (a dim shimmer seamWarnSec before). A snip while
     // it's open does openDmg, otherwise closedDmg (flat). Expert (Pinch) controls: an open-seam snip whose blades don't
     // cross the seam does expertOffSeamDmg instead.
-    seamRipper: { name: 'The Seam Ripper', taunt: 'I pull every stitch apart!', roar: 'roarRipper',
+    seamRipper: { name: 'The Seam Ripper', taunt: 'They never once used me. Now I undo everything!', taunt2: 'Nobody even noticed I was gone!', roar: 'roarRipper',
                   seamEverySec: 3, seamOpenSec: 1, seamWarnSec: 0.4, openDmg: 5, closedDmg: 1, expertOffSeamDmg: 2 },
-    // timing + patience: armored; every chargeEverySec it charges chargePx along the road over chargeSec (a burst of
+    // timing + patience: armored (a thimble helmet); every chargeEverySec it charges chargePx along the road over chargeSec (a burst of
     // speed that swells and fades; the next chargeEverySec starts after it), trembling for
-    // windupSec before, so the player can get ready), then its armor is down for armorDownSec (its seams glow): snips
-    // then do armorDownMult x normal damage. Ice and SHRED don't slow it. The taunt tells the player the rule.
-    bruteKing:  { name: 'The Brute King', taunt: 'My armor only drops after I charge!', roar: 'roarKing',
+    // windupSec before, so the player can get ready), then the helmet flies off and it stands dazed for armorDownSec
+    // (its seams glow; it picks the helmet back up at the end, helmPickupSec, and walks on): snips
+    // then do armorDownMult x normal damage. Ice and SHRED don't slow it. The bossHints line tells the player the rule.
+    bruteKing:  { name: 'The Brute King', taunt: 'Every scrap you ever cut, stuffed into me!', taunt2: 'Mind the helmet! Thimbles don’t grow on trees!', roar: 'roarKing',
                   chargeEverySec: 7, chargePx: 200, chargeSec: 1.4, windupSec: 1.2, armorDownSec: 2.6, armorDownMult: 3 },
     // three phases, switching at phaseAt (hp fractions). 1: its escort Scraps (swarmSize of them, swarmGapPx apart along
     // the road, half ahead and half behind) hold up a shield that blocks every hit. Cutting the last one drops it for
     // shieldDownSec (snips do shieldDownMult x graded damage); it comes back with a fresh swarm. While the shield is up,
     // every swarmEverySec it refills any empty escort places. 2: armored and charging like the Brute King.
     // 3: an opening seam like the Seam Ripper, faster.
-    unstitcher: { name: 'The Unstitcher', taunt: 'Your whole quilt comes undone!', roar: 'roarUnstitcher',
+    unstitcher: { name: 'The Unstitcher', taunt: 'Past the back seam, nothing stays sewn!', taunt2: 'I was the loose thread you never pulled!', roar: 'roarUnstitcher',
                   phaseAt: [0.66, 0.33], swarmEverySec: 5, swarmSize: 4, swarmGapPx: 42, shieldDownSec: 3, shieldDownMult: 2,
                   chargeEverySec: 5, chargePx: 180, chargeSec: 1.2, windupSec: 1, armorDownSec: 1.8, armorDownMult: 3,
                   seamEverySec: 2, seamOpenSec: 0.8, seamWarnSec: 0.3, openDmg: 5, closedDmg: 1, expertOffSeamDmg: 2 },
@@ -178,7 +215,7 @@ export const CONFIG = {
     shieldDown: 'Shield down: SNIP NOW!',
     armor: 'Armored: wait for its charge',
     windup: 'It’s about to charge!',
-    armorDown: 'Armor down: SNIP NOW!',
+    armorDown: 'Helmet off: SNIP NOW!',
     seam: 'Snip when its seam opens',
     seamOpen: 'Seam open: SNIP NOW!',
   },
@@ -248,16 +285,153 @@ export const CONFIG = {
     heartShift: 130,         // "heart left/right": how far the heart pad moves off the middle
     spiralRx: 330, spiralRy: 520, // "spiral": the outer ring's half-width and half-height (the heart pad sits in the middle of the plate)
     spiralTurns: 1.25,       // "spiral": turns round the heart (fewer if the road would touch itself)
-    props: 34,               // kit props tried per plate (src/kit.js: each zone's mix); fewer land if there's no room
-    patches: 7,              // fabric patches sewn under the road
+    // plate painting (src/levelArt.js; which props each zone uses is in src/kit.js). Counts are for a size 1 plate; a
+    // bigger level (shown zoomed out) gets more in proportion to its size, and bigger clusters
+    heroes: [1, 3],          // big focal props per plate (a zone's kit heroes), out in the margins beside the road
+    heroFramedShare: 0.6,    // ...times this on a plate with a frame (its tray heroes sit in the compartments; these stay inside the walls)
+    heroTries: 70,           // positions tried per hero (the clearest wins; one that fits nowhere shrinks, then is dropped)
+    heroVisible: 0.5,        // a hero may hang off the plate's edge, but at least this share of it (its bounding square) shows
+    heroInset: 0.3,          // it sits best with its centre this share of its radius in from the side edge
+    heroOpenCost: 160,       // a hero may also stand in a big open stretch away from the margins, scored as if this far (plate units) from its best spot
+    heroShrink: 0.85,        // a hero that fits nowhere tries again this much smaller (three times at most)
+    clusters: 13,            // prop beds and heaps per plate (flower beds, bush groups, button spills, pin nests...)
+    clusterTries: 14,        // clear centres drawn per cluster; the one farthest from the other clusters and heroes wins
+    clusterAttempts: 5,      // ...and if that one can't hold enough of its pieces, the next farthest, this many in all
+    clusterFill: 0.6,        // a cluster needs at least this share of its pieces (and two) to land, or it moves on
+    clusterPack: 0.6,        // members of one cluster may overlap: they keep only this share of their radii apart
+    clusterShade: 0.26,      // darkness of the soft shadow pooled under a cluster
+    singles: 5,              // lone mid-size props per plate
+    propGap: 8,              // clear ground (plate units) between a prop and the road, a pad, or another cluster's props
+    patches: { meadow: 3, denim: 8, lair: 5 }, // fabric patches on the ground per zone: at the plate's corners and edges, some overlapping, never centred on the road
+    patchW: [200, 330],      // a patch's width range (plate units)...
+    patchH: [160, 270],      // ...and height range
+    patchOverlap: 0.4,       // share of the patches laid half over an earlier one instead of on a corner or edge of their own
+    groundLayers: 1,         // the ground texture is laid again this many times, shifted and mirrored or turned, through soft blotchy masks, to hide the tile's repeat
+    groundCell: 230,         // size of those blotches (plate units)
+    toneCell: 330,           // size of the low-frequency light and dark washes over the ground (the zone's tint and shade)
+    toneAlpha: 0.3,          // their strength
+    quiltCol: [170, 330],    // denim quilt: column widths (plate units)...
+    quiltRow: [140, 340],    // ...and square heights within a column (rows don't line up across columns)
+    quiltJitter: 6,          // how far a quilt seam wanders off straight
+    roadAO: 0.5,             // darkness of the wide soft shadow the road casts on the ground around it
+    roadAOBlur: 34,          // its blur (plate units)
+    grade: 0.45,             // colour grade over the whole plate: a soft-light wash from the zone's tint (top left) to its shade (bottom right)
+    vignette: 0.5,           // darkness of the plate's edges
   },
-  traverseRefLen: 2000,      // enemies walk at a steady speed: a road this long (plate units) takes an enemy its type's traverseSec, a longer one proportionally longer
+  // road dressing on generated plates (src/roadKit.js; which pieces each zone uses is ZONES[zone].roadKit in src/kit.js).
+  // Plate units; sprite scales are x the size the piece was drawn for on the plate (the files are 2x that)
+  roadKit: {
+    sharedTol: 16,           // a route's point this close to an earlier route's is on the same road (dressed once, by that route)
+    entryClear: 150,         // nothing lines the road for this far from where a route comes onto the plate (the entrance gap)
+    edgeClear: 24,           // ...nor this close to the plate's edge
+    foldTol: 4,              // a side-line point closer than its offset (less this) to any road centreline is dropped: the inside of a tight bend, or another road
+    // meadow fences
+    fenceOffset: 18,         // post centres this far out from the road's outer edge
+    postEvery: 52,           // post spacing, measured along the fence line
+    postMinGap: 0.6,         // a post closer than this share of postEvery to another is skipped (and the chain breaks there)
+    postScale: 1,            // post size
+    linkScale: 1.15,         // rope link / rail thickness (its length is stretched post to post)
+    linkOverlap: 6,          // a link runs this far past each post's centre, under the post
+    railChance: 0.5,         // share of meadow plates fenced with rails instead of rope
+    fenceRun: [4, 9],        // posts in a run of fence...
+    fenceGap: [90, 280],     // ...then this much open road side before the next
+    fenceMin: 2,             // a run cut shorter than this many posts is dropped
+    fenceClear: 16,          // posts keep this far from a pad, the heart pad and a fork button
+    fenceShadow: [0.5, 5, 2, 4], // fence shadow: alpha, blur, x, y offset
+    // denim / lair edge strips
+    stripOffset: -3,         // the strip's road-side edge this far out from the road's outer edge (negative tucks it under the brown edge)
+    stripScale: 1,           // strip size
+    sliceLen: 8,             // the strip is laid in pieces this long, each turned to the road
+    sliceOverlap: 1.5,       // each piece drawn this much longer, so no slits open round bends
+    stripFade: 22,           // a strip fades in and out over this length where it starts and stops
+    stripClear: 6,           // strips keep this far from a pad, the heart pad and a fork button
+    stripAlpha: 0.92,        // strip opacity (a touch see-through so they sit in the ground)
+    stripSwitch: 0.2,        // share of routes that take another strip variant than the plate's main one
+    stripShadow: [0.35, 3, 1, 2], // strip shadow: alpha, blur, x, y offset
+    // decals on the felt
+    decals: 4,               // darns, boot-print walks and dropped pins per size-1 plate (times the level's size)
+    decalMix: { darn: 1, boots: 1, pin: 1.2 }, // their relative odds
+    decalTries: 20,          // spots tried per decal before it's dropped
+    decalClear: 10,          // decals keep this far from a pad and a fork button
+    heartClear: 60,          // ...and this far from the heart pad
+    decalAlpha: { darn: 0.4, boots: 0.35, pin: 0.6, arrow: 0.45 }, // opacity per kind (low contrast on the felt)
+    decalBlend: { darn: 'source-over', boots: 'multiply', pin: 'source-over', arrow: 'source-over' }, // blend per kind
+    darnScale: [0.95, 1.2],  // darned patch size (turned to the road, so it spans most of the felt)
+    bootScale: 0.8,          // boot print size
+    bootStride: 40,          // boot prints this far apart along the road
+    bootSide: 12,            // ...this far either side of the centreline
+    bootToe: 0.08,           // ...toes turned out this much (radians)
+    bootSteps: [4, 8],       // prints per walk
+    pinScale: 0.75,          // dropped pin size
+    pinInset: 22,            // pins stay this far inside the felt's edge
+    arrowScale: 0.85,        // chalk arrow size
+    arrowAt: 110,            // the arrow sits this far along its route from where it comes onto the plate
+  },
+  // the sewing-tray frame round a generated level's plate (src/levelFrame.js). Plate units for a size 1 plate; a bigger
+  // level's frame is laid out the same on screen (everything times its size; the heroes times its square root)
+  levelFrame: {
+    inset: 85,               // the side walls' centreline sits this far in from the plate's left and right edges
+    top: 70,                 // the top wall's centreline this far down from the top edge
+    bottom: 42,              // the bottom wall's centreline this far up from the bottom edge (below the heart pad)
+    rimScale: 0.5,           // wall, divider, cap and corner art px -> plate units (the kit delivers them at 2x)
+    roadClear: 0.5,          // the wall stops where a road's edge would cover more than this share of its half thickness...
+    padClear: 4,             // ...or a pad, the heart or a fork button would come within this of it...
+    gapMargin: 14,           // ...with this much more gap either side (then an end cap each side)
+    minPiece: 70,            // a stretch of wall shorter than this between two gaps is left out
+    cornerKeep: 90,          // a gap this close to a corner runs out to it, and that corner goes
+    // the wall steps in round a bigger compartment at a corner or partway down a side, where the space it takes from the
+    // play area is clear of the road, pads and heart (the heroes sit best there)
+    cornerChance: 0.85,      // chance each corner tries for a stepped-in compartment...
+    cornerW: [110, 250],     // ...this wide (in from the side wall)...
+    cornerH: [150, 380],     // ...and this deep (down from the top wall)...
+    cornerHBottom: [120, 260], // ...or up from the bottom wall; the largest of notchTries sizes that fits wins
+    sideNotches: 1,          // stepped-in compartments tried per side, between the corners...
+    sideLen: [220, 420],     // ...this long...
+    sideDepth: [70, 150],    // ...and this deep
+    notchTries: 14,          // sizes / places tried per compartment
+    notchClear: 26,          // a compartment keeps this much clear of the road's edge and the pads, past the wall
+    shadeW: 22,              // the soft dark line the wall casts on the ground along its inside: its width...
+    shadeAlpha: 0.4,         // ...and darkness
+    shadow: 1,               // the walls' drop shadow size (1 = a kit prop's)
+    floorScale: 0.5,         // the compartment floor texture's scale
+    floorTint: 'rgba(40,20,5,0.12)', // a wash over the floor, so it sits a touch below the play area
+    floorShadeW: 34,         // the floor darkens toward the wall over this width...
+    floorShade: 0.35,        // ...by this much
+    cell: [420, 680],        // a compartment's length along its band (dividers between; none in a gap, under a hero or at a corner)
+    bottomCells: false,      // dividers in the bottom band too (it's mostly under the action bar)
+    tee: false,              // a T-joint where a divider meets the wall, stem outward (off: the divider just runs under the wall)
+    cornerArt: true,         // corners get the kit's L piece that suits their turn (by its colours); off, or where none suits: a butt joint...
+    jointCap: true,          // ...with an end cap standing on it as a post
+    heroes: [2, 4],          // big hero props per plate, in the compartments (the zone's frameHeroes in src/kit.js)
+    heroScale: 1,            // times the kit entry's scale (0.5 = the art's intended plate size)
+    heroTop: 0.3,            // chance a hero goes in the top band instead of a side (the third always does)
+    heroTopBand: 260,        // ...where its centre is above this far below the top wall
+    heroOverlap: 0.55,       // a hero may lean in over the wall by this share of its radius, past the wall's outer face
+    heroVisible: 0.3,        // at least this share of a hero shows on the plate (else it's shrunk, then dropped)
+    heroVisBonus: 300,       // a spot where more of it shows scores as if this much (plate units, per whole hero) farther from the other heroes
+    heroLongTurn: 0.5,       // a long hero (a spool on its side, a bolt) lies along the nearest plate edge, turned at most this share of its kit turn
+    heroGap: 30,             // clear space between two heroes...
+    heroRoadGap: 8,          // ...and between a hero and the road's edge
+    heroBottom: 120,         // a hero's centre stays above this far from the plate bottom (the action bar covers it)
+    heroTries: 60,           // positions tried per hero (the one farthest from the others, and most on the plate, wins)
+    heroShrink: 0.85,        // a hero that fits nowhere tries again this much smaller...
+    heroShrinks: 5,          // ...this many times at most, then it's left out
+    heroShadow: 2.2,         // a hero's shadow size (as the painter's heroes)
+  },
+  traverseRefLen: 2000,     // enemies walk at a steady speed: a road this long (plate units) takes an enemy its type's traverseSec, a longer one proportionally longer
   entryWarnSec: 1.4,         // an entrance's arrow flashes this long before something comes in (levels with more than one entrance)
   entryMarkInsetPx: 26,      // an entrance's arrow sits where its road first comes this far inside the screen edge
   pathSmoothSteps: 16,     // Catmull-Rom samples per path segment (road smoothness)
   workshopHp: 10,            // workshop hit points; an enemy that arrives deals its size tier
   workshopHitMs: 400,        // red flash on the workshop when it takes damage
-  hudLowHp: 3,               // the HUD's heart counter turns red at or below this many hearts
+  heartLowHp: 3,             // the HP number on the heart pad turns gold and throbs at or below this
+  heartStageAt: [0.9, 0.7, 0.5, 0.3],   // the heart pad shows damage stage n+1 once HP / workshopHp is at or below entry n
+  heartNumFrac: 0.5,         // the HP number's height on the heart pad, as a fraction of the pad's radius...
+  heartNumMinPx: 20,         // ...but never smaller than this on screen (zoomed-out levels)
+  heartBurstN: 9,            // loose bits (stuffing, thread ends, popped stitches) that fly off the heart pad per hit
+  heartBurstMs: 900,         // how long they fly and fade
+  heartBurstPx: 150,         // how far they fly, in plate units (times a random 0.5..1)
+  heartBurstScale: 0.5,      // their size against the sprite file (0.5 = the size they were drawn for)
 
   // --- waves & scoring ---
   // One array per wave; each entry is [type, count, atSec]: `count` enemies of `type` starting `atSec` seconds into
@@ -274,6 +448,10 @@ export const CONFIG = {
   emptyWaveWaitSec: 1,       // if every enemy is dead mid-wave, the next spawn comes within this long (the wave clock skips ahead)
   waveClearMs: 2000,        // WAVE_CLEAR pause between waves
   waveBannerMs: 1600,        // "WAVE N" banner at the start of each wave
+  starGoalsMs: 4500,         // the star goals card (under the wave 1 banner) shows this long as a level starts
+  // each star's goal as the star goals card and the pause card word it (a level's starRules pick which; 'clear' is the first star)
+  starGoals: { clear: 'Clear the level', noDamage: 'Nothing reaches the heart', noSpecial: 'Win without using SHRED',
+    pin: 'Build a Pin', critters: 'Squish every silverfish' },
   multiSnipMin: 2,           // enemies inside the cut zone for a snip to count as a multi-snip
   multiSnipMult: 1.5,        // score multiplier for kills made by a multi-snip
   scorePopupMs: 900,         // floating "+score" lifetime
@@ -307,7 +485,9 @@ export const CONFIG = {
       skitterPx: 70,         // blades opening within this many px of it make it skitter (once per crossing)...
       skitterOpen: 0.15,     // ...once they are at least this far open (0..1)...
       skitterOpenRate: 0.5,  // ...and still opening at least this fast (opening per second): blades held open and still don't spook it
-      skitterSec: 0.3,       // skitter: turns 90 degrees away from the blades and bursts for this long...
+      skitterMinDeg: 35, skitterMaxDeg: 145, // skitter: turns a random angle in this range off its line (seeded; past 90 it doubles back)...
+      skitterInward: 0.8,    // ...toward the middle of the screen this share of the time (the other way only if the burst stays on screen)...
+      skitterSec: 0.3,       // ...and bursts for this long...
       skitterMult: 2.2,      // ...at this multiple of its crawl speed, then crawls on in its old direction
       turnRate: 18,          // how fast the drawn body swings to its heading (per second, exponential)
       maxLifeSec: 6,         // safety: removed after this long even if it never left the screen
@@ -319,25 +499,33 @@ export const CONFIG = {
   },
 
   // --- towers ("Pins"): Ice and Magnet set up snips; Fire and Needle deal damage on their own. ---
-  // Built only on the level's spots (tap the + on one). radius is in level units. ice: enemies inside it are slowed
-  // (slowSpeedMult) and flagged slowed (lets a snip through Brute armor). fire: enemies inside it catch fire and keep
-  // burning burnSec after leaving it, taking burnDps HP per second in burnTickMs ticks (armor doesn't stop it; burn
-  // kills don't charge SHRED). magnet: every periodSec, pulls every enemy within radius along the road toward the
-  // nearest road point to the Pin over pullMs (the ones ahead back, the ones behind forward): a clump that keeps
-  // walking together, set up for a multi-snip. The pull fades out toward the ring's edge: on the stretch of road
-  // nearest the Pin an enemy keeps pullKeep of its gap (0 = all onto one spot), at the edge it isn't moved;
-  // pullFalloff shapes the fade (1 = even, 2 = strong only close in, 0.5 = strong most of the way out). needle (the archer): when an enemy is inside radius, fires one
-  // sewing needle at the one furthest along the road (damage, flying needleSpeed level units per second and homing on
-  // it), then reloads for cooldownSec. Armor stops a needle like a snip (the Brute's first hit clangs unless slowed, and
-  // the armor is spent); needle kills don't charge SHRED.
+  // Built only on the level's spots (tap the + on one). radius is in level units. ice: enemies inside it move at
+  // slowMult of their speed and are flagged slowed (lets a snip through Brute armor). fire: enemies inside it catch fire
+  // and keep burning burnSec after leaving it, taking burnDps HP per second in burnTickMs ticks (armor doesn't stop it;
+  // burn kills don't charge SHRED). magnet: every periodSec, pulls every enemy within radius back along the road toward
+  // the anchor, pullBack ring radii upstream of the road point nearest the Pin, over pullMs: everyone loses ground, the
+  // ones ahead most, and lands in a clump that stands still for holdSec, set up for a multi-snip. The pull fades out
+  // toward the ring's edge: on the stretch of road nearest the Pin an enemy keeps pullKeep of its gap to the anchor
+  // (0 = all onto one spot), at the edge it isn't moved; pullFalloff shapes the fade (1 = even, 2 = strong only close
+  // in, 0.5 = strong most of the way out). needle (the archer): when an enemy is inside radius, fires one sewing needle
+  // at the one furthest along the road (damage, flying needleSpeed level units per second and homing on it), then
+  // reloads for cooldownSec. Armor stops a needle like a snip (the Brute's first hit clangs unless slowed, and the armor
+  // is spent); needle kills don't charge SHRED.
+  // These are rank 1 at tier 0: pinRanks (in-level ranks, Thread) and meta.pinTierCosts.. (permanent tiers, Buttons)
+  // scale them (src/pins.js pinDef). The four cost the same, so the choice is about role, not price.
+  // blurb = the picker's short line, intro = its line on the "new Pin" explainer (the first time a level offers it).
   // color = glow / aura, felt = cushion colour, head = pin-head colour.
   towers: {
-    needle: { name: 'Needle Pin', blurb: 'shoots one enemy, reloads', cost: 90, radius: 380, damage: 1, cooldownSec: 1.4, needleSpeed: 1400, color: '#e6eef5', felt: '#3e8f5a', head: '#f2c230' },
-    ice:    { name: 'Ice Pin',    blurb: 'slows, beats armor', cost: 100, radius: 290, color: '#8fe8ff', felt: '#2f63c9', head: '#3d7dff' },
-    fire:   { name: 'Fire Pin',   blurb: 'burns what walks by', cost: 110, radius: 290, burnDps: 0.25, burnSec: 1.5, burnTickMs: 500, color: '#ffa04a', felt: '#c8352b', head: '#e0312b' },
-    magnet: { name: 'Magnet Pin', blurb: 'pulls into a clump', cost: 120, radius: 330, periodSec: 3, pullMs: 500, pullKeep: 0.25, pullFalloff: 1, color: '#c79bff', felt: '#7b3fc4', head: '#9a4fe0' },
+    needle: { name: 'Needle Pin', blurb: 'shoots one enemy, reloads', intro: 'a darning needle on a spool. Shoots the enemy furthest down the road, then reloads.', cost: 100, radius: 340, damage: 1, cooldownSec: 1.4, needleSpeed: 1400, color: '#e6eef5', felt: '#3e8f5a', head: '#f2c230' },
+    ice:    { name: 'Ice Pin',    blurb: 'slows, beats armor', intro: "a frost crystal off the freezer tray. Slows everything in its ring, and a slowed Brute's armor won't stop your snip.", cost: 100, radius: 300, slowMult: 0.4, color: '#8fe8ff', felt: '#2f63c9', head: '#3d7dff' },
+    fire:   { name: 'Fire Pin',   blurb: 'burns what walks by', intro: 'a stray match head. Sets enemies in its ring on fire; they keep burning after they leave it, armor or not.', cost: 100, radius: 300, burnDps: 0.6, burnSec: 2.5, burnTickMs: 1000, color: '#ffa04a', felt: '#c8352b', head: '#e0312b' },
+    magnet: { name: 'Magnet Pin', blurb: 'drags back into a clump', intro: 'the fridge magnet nobody missed. Every few seconds it drags everything in its ring back up the road into a clump that stands still a moment: one wide snip takes the lot.', cost: 100, radius: 330, periodSec: 2.5, pullMs: 500, pullKeep: 0.25, pullFalloff: 1, pullBack: 0.7, holdSec: 0.5, color: '#c79bff', felt: '#7b3fc4', head: '#9a4fe0' },
   },
-  slowSpeedMult: 0.4,        // slowed enemies move at this fraction of their speed
+  // In-level ranks (Thread; tap a built Pin's arrow): rank 1 is the build; rank n costs costMult[n-1] x the Pin's build
+  // cost, widens the ring by radiusMult and multiplies its power (needle damage and fire rate, fire burn, magnet pull-back
+  // and hold) by powerMult; an Ice Pin's slow goes by iceSlow. Gone when the level ends.
+  pinRanks: { costMult: [0, 0.75, 1], radiusMult: [1, 1.15, 1.3], powerMult: [1, 1.4, 1.8], iceSlow: [0.4, 0.3, 0.22], names: ['', 'II', 'III'] },
+  slowSpeedMult: 0.4,        // enemies slowed by the Helicopter (slowT) move at this fraction of their speed (Ice Pins use their slowMult)
   needleLostSec: 0.4,        // a needle whose target died first flies straight on this long, then vanishes
   needleMuzzle: 1.0,         // needles leave the Needle Pin this many pad radii above the pad's centre (its loaded needle)
   spotBtnPx: 42,             // size of the + button on an empty Pin spot
@@ -358,7 +546,7 @@ export const CONFIG = {
   shredFrom: 'hem',          // L3: the first four-wave level (L1-L2 are too short to charge it)
 
   // --- special: Helicopter ---
-  // SHRED is a skill bought up with Buttons in Your Scissors (CONFIG.meta.shredCosts): each tier is the whole move at
+  // SHRED is a skill bought up with Buttons in the Shop's Moves tab (CONFIG.meta.shredCosts): each tier is the whole move at
   // that level (turns = full spins before the final snip, charge = snip kills to fill the meter); tier 0 is where
   // everyone starts: one modest spin and a snip.
   shredTiers: [
@@ -369,7 +557,7 @@ export const CONFIG = {
   ],
   heliOpenMs: 120,           // snap fully open
   // Skills to come (placeholders, not in play yet): the plan is two move slots, SHRED plus one of these picked on the
-  // weapon screen before a level, each on its own charge and bought up in tiers like SHRED. Your Scissors lists them
+  // weapon screen before a level, each on its own charge and bought up in tiers like SHRED. The Shop's Moves tab lists them
   // as "coming soon" (the level each would arrive on, what it would do) so playtesters can say which they'd want.
   // enabled: false keeps a skill out of the game entirely; nothing reads these but armory.js yet.
   skillIdeas: [
@@ -414,14 +602,22 @@ export const CONFIG = {
   trailFadeMs: 140,          // how long each trail ghost takes to fade
   pickupFlyMs: 650,          // "+8" thread pickup flight time to the HUD counter
 
-  // --- meta economy: Buttons (src/meta.js). Earned only from performance and achievements; nothing waits on a clock and
-  // no reward is random. Thread (in-level) and Buttons (meta) are never converted. Scissors, Pins and stars are never sold.
+  // --- meta economy: Buttons (src/meta.js). Earned only from playing: never from a clock, a streak, a purchase or a
+  // chance roll. Thread (in-level) and Buttons (meta) are never converted. Stars are never sold; Pins are unlocked by
+  // progression and never sold (their permanent tiers are bought); scissors are a level's reward or a Shop pair.
   meta: {
     starButtons: [10, 15, 25], // Buttons for star 1 / 2 / 3 of a level, the first time each is earned (re-earning pays 0)
-    scorePerButton: 100,     // score bonus: floor(score / this) Buttons...
-    scoreBonusCap: 10,       // ...capped at this per level: a run pays only what beats the level's best bonus so far
+    scorePerButton: 100,     // score bonus (the wage): floor(score / this) Buttons on every win, replays included...
+    scoreCapBase: 6,         // ...capped at scoreCapBase + scoreCapPerLevel x the map level number (L1 = 8, L13 = 32;
+    scoreCapPerLevel: 2,     // Random Quilt counts as hpOffMapLevel), so later levels are worth replaying
     upgradeCosts: [150, 300, 600], // scissors upgrade tiers 1 / 2 / 3 (per weapon, bought in order)
     shredCosts: [120, 240, 400],   // SHRED tiers 1 / 2 / 3 (CONFIG.shredTiers), bought in order once SHRED's level is cleared
+    pinTierCosts: [120, 240, 450], // a Pin type's permanent tiers 1 / 2 / 3 (Sewing Box, once the Pin is unlocked on the map)
+    pinCostDown: 0.15,       // Pin tier 1: its Thread build cost -15%
+    pinRadiusUp: 0.15,       // Pin tier 2: ring +15%
+    // Pin tier 3, each type's signature: needle shoots `volley` needles a shot (the furthest targets), ice stops an
+    // enemy for freezeSec as it first enters the ring, fire burns burnSecUp longer after leaving, magnet pulls periodDown sooner
+    pinSignature: { needle: { volley: 2 }, ice: { freezeSec: 0.6 }, fire: { burnSecUp: 0.6 }, magnet: { periodDown: 0.3 } },
     reachUp: 0.15,           // tier 1: reach +15%
     speedUp: 0.2,            // tier 2: close speed +20% (the blades open in openMs / 1.2)
     signatureUp: 0.3,        // tier 3: the weapon's signature stat +30%

@@ -1,0 +1,181 @@
+<!doctype html>
+<!--
+  Kit import (dev tool, not deployed). Turns staged art PNGs into the WebP files and kit.js entries the game uses.
+  Run it from the dev server started with --write (e.g. `node tools/serve.js 8087 --write`, launch config
+  "battle-scissors-import"), open /tools/kit-import.html and press Run. It reads assets/kit/incoming/manifest.json
+  ({ assets: [{ name, file, width, height, kind, section }] }; `size: [w, h]` may stand in for width / height, and a missing
+  kind means sprite) and for each asset whose PNG is present:
+    - loads it; for kind sprite / strip / reused measures the visible centre (centre of the bounding box of pixels with
+      alpha >= 8) and the visible radius (greatest distance from that centre to a pixel with alpha >= 128); textures
+      aren't measured;
+    - encodes WebP with canvas.toBlob (quality 0.9; kind strip at 1.0, which Chrome encodes lossless, so the seamless
+      ends survive) and PUTs it to /assets/kit/<section>/<name>.webp (the server writes it);
+    - logs progress, then prints ready-to-paste kit.js lines, SPRITES entries per section
+      (`key: ['<section>/<name>.webp', w, h, cx, cy, r],`) and a TEXTURES block (`key: '<section>/<name>.webp',`).
+  Keys come from KEYS below (file name -> kit.js key); a manifest entry with no file, or with no key, is skipped.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kit import</title>
+<style>
+  body { font: 13px/1.4 system-ui, sans-serif; margin: 16px; background: #1d1a22; color: #eee; }
+  button { font: inherit; padding: 6px 18px; }
+  pre { background: #111; padding: 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .warn { color: #ffb347; }
+</style>
+</head>
+<body>
+<h1>Kit import</h1>
+<p>Converts assets/kit/incoming/*.png to WebP under assets/kit/&lt;section&gt;/ and prints kit.js entries. Needs the server's --write flag.</p>
+<button id="run">Run</button> <span id="status"></span>
+<h2>Log</h2>
+<pre id="log"></pre>
+<h2>kit.js entries</h2>
+<pre id="out"></pre>
+<script>
+const ZONES = ['meadow', 'denim', 'lair'];
+const KEYS = {};
+for (const z of ZONES) Object.assign(KEYS, {
+  [z + '_frame_rim_01']: z + 'FrameRim1', [z + '_frame_rim_02']: z + 'FrameRim2', [z + '_frame_divider_01']: z + 'FrameDivider',
+  [z + '_frame_outer_corner_01']: z + 'FrameOuterCorner', [z + '_frame_inner_corner_01']: z + 'FrameInnerCorner',
+  [z + '_frame_end_cap_01']: z + 'FrameCap', [z + '_frame_t_joint_01']: z + 'FrameT', [z + '_frame_floor_01']: z + 'FrameFloor',
+  [z + '_ground_02']: z + '2', [z + '_ground_03']: z + '3',
+});
+Object.assign(KEYS, {
+  // 19_heroes
+  meadow_hero_spool_red_01: 'heroSpoolRed', meadow_hero_spool_blue_01: 'heroSpoolBlue', meadow_hero_spool_green_01: 'heroSpoolGreen',
+  meadow_hero_spool_yellow_01: 'heroSpoolYellow', meadow_hero_button_jar_01: 'heroButtonJar', meadow_hero_pincushion_01: 'heroPincushion',
+  meadow_hero_fabric_blue_01: 'heroFabricBlue', meadow_hero_fabric_gingham_01: 'heroFabricGingham', meadow_hero_yarn_needles_01: 'heroYarnNeedles',
+  denim_hero_tape_measure_01: 'heroTape', denim_hero_button_tin_01: 'heroButtonTin', denim_hero_denim_bolt_01: 'heroDenimBolt',
+  denim_hero_spool_box_01: 'heroSpoolBox', denim_hero_thimble_01: 'heroThimble', lair_hero_seam_ripper_01: 'heroSeamRipper',
+  lair_hero_pincushion_01: 'heroPincushionLair', lair_hero_darning_mushroom_01: 'heroDarningMushroom',
+  lair_hero_bobbin_tangle_01: 'heroBobbinTangle', lair_hero_torn_doily_01: 'heroDoily',
+  // 20_road
+  meadow_fence_post_01: 'fencePost1', meadow_fence_post_02: 'fencePost2', meadow_fence_post_03: 'fencePost3',
+  meadow_rope_link_01: 'ropeLink1', meadow_rope_link_02: 'ropeLink2', meadow_fence_rail_01: 'fenceRail1', meadow_fence_rail_02: 'fenceRail2',
+  sewing_road_darned_patch_01: 'roadDarn1', sewing_road_darned_patch_02: 'roadDarn2',
+  sewing_road_boot_print_left_01: 'bootL', sewing_road_boot_print_right_01: 'bootR',
+  sewing_road_pin_01: 'roadPin1', sewing_road_pin_02: 'roadPin2', sewing_road_chalk_arrow_01: 'chalkArrow',
+  denim_road_selvage_01: 'denimSelvage', denim_road_frayed_01: 'denimFrayed', lair_road_pinned_01: 'lairPinned1', lair_road_pinned_02: 'lairPinned2',
+  sewing_road_felt_02: 'roadFelt2', sewing_road_felt_03: 'roadFelt3',
+  // 21_ground
+  meadow_flower_bed_01: 'flowerBed1', meadow_flower_bed_02: 'flowerBed2', meadow_flower_bed_03: 'flowerBed3',
+  meadow_grass_tuft_01: 'grassTuft1', meadow_grass_tuft_02: 'grassTuft2', meadow_grass_tuft_03: 'grassTuft3',
+  meadow_moss_patch_01: 'mossMeadow', lair_moss_patch_01: 'mossLair', sewing_button_spill_01: 'buttonSpill', sewing_pin_scatter_01: 'pinScatter',
+  // 22_denim
+  denim_belt_loop_01: 'beltLoop1', denim_belt_loop_02: 'beltLoop2', denim_cuff_01: 'cuff', denim_frayed_hole_01: 'frayedHole1',
+  denim_frayed_hole_02: 'frayedHole2', denim_pocket_01: 'pocket1', denim_pocket_02: 'pocket2', denim_rivet_01: 'rivet1',
+  denim_rivet_02: 'rivet2', denim_rivet_03: 'rivet3', denim_tack_button_brass_01: 'tackBrass', denim_tack_button_silver_01: 'tackSilver',
+  denim_zipper_01: 'zipper',
+  // 24_heart_damage (per zone, stage 1..4) and 24_hit_burst
+  ...Object.fromEntries(ZONES.flatMap(z => [1, 2, 3, 4].map(n => [z + '_heart_pad_dmg' + n, z + 'HeartPadDmg' + n]))),
+  sewing_stuffing_puff_01: 'puff1', sewing_stuffing_puff_02: 'puff2', sewing_stuffing_puff_03: 'puff3',
+  sewing_thread_end_01: 'threadEnd1', sewing_thread_end_02: 'threadEnd2', sewing_thread_end_03: 'threadEnd3',
+  sewing_stitch_bit_01: 'stitchBit1', sewing_stitch_bit_02: 'stitchBit2',
+  // 25_drawer_heroes
+  sewing_hero_battery_01: 'heroBattery', sewing_hero_pen_01: 'heroPen', sewing_hero_rubber_band_tan_01: 'heroBandTan',
+  sewing_hero_rubber_band_red_01: 'heroBandRed', sewing_hero_takeout_menu_01: 'heroMenu', sewing_hero_house_key_01: 'heroKey',
+  sewing_hero_bag_clip_01: 'heroBagClip', sewing_hero_birthday_candle_01: 'heroCandle1', sewing_hero_birthday_candle_02: 'heroCandle2',
+  sewing_hero_gift_card_01: 'heroGiftCard',
+  // 26_drawer_small
+  sewing_paperclip_01: 'paperclip1', sewing_paperclip_02: 'paperclip2', sewing_bread_clip_01: 'breadClip1', sewing_bread_clip_02: 'breadClip2',
+  sewing_bottle_cap_01: 'bottleCap1', sewing_bottle_cap_02: 'bottleCap2', sewing_twist_tie_01: 'twistTie1', sewing_twist_tie_02: 'twistTie2',
+  sewing_screw_01: 'screw1', sewing_screw_02: 'screw2', sewing_screw_03: 'screw3', sewing_coin_01: 'coin1', sewing_coin_02: 'coin2',
+  sewing_hair_tie_01: 'hairTie1', sewing_hair_tie_02: 'hairTie2', sewing_band_tie_tangle_01: 'bandTangle', sewing_coin_screw_spill_01: 'coinSpill',
+  // 27_story (UI: front view)
+  ui_tomato_calm_01: 'tomatoCalm', ui_tomato_amused_01: 'tomatoAmused', ui_note_sticky_01: 'noteSticky', ui_note_lined_01: 'noteLined',
+  ui_note_shopping_01: 'noteShopping', ui_fridge_magnet_01: 'magnet',
+});
+
+const logEl = document.getElementById('log'), outEl = document.getElementById('out'), statusEl = document.getElementById('status');
+const log = (msg, warn) => { const s = document.createElement('span'); if (warn) s.className = 'warn'; s.textContent = msg + '\n'; logEl.append(s); };
+const num = v => String(+v.toFixed(1));
+const kb = n => (n / 1024).toFixed(1) + ' KB';
+
+function loadImage(url) {
+  return new Promise((ok, fail) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => fail(new Error('load failed: ' + url)); i.src = url; });
+}
+
+// Visible centre (bbox of alpha >= 8) and radius (farthest alpha >= 128 pixel from it), in the file's pixels.
+function measure(data, w, h) {
+  let x0 = w, y0 = h, x1 = -1, y1 = -1;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (data[(y * w + x) * 4 + 3] >= 8) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  }
+  if (x1 < 0) return null;
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  let r2 = 0;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (data[(y * w + x) * 4 + 3] >= 128) { const d = (x - cx) ** 2 + (y - cy) ** 2; if (d > r2) r2 = d; }
+  }
+  return { cx, cy, r: Math.sqrt(r2), bbox: [x0, y0, x1, y1] };
+}
+
+async function run() {
+  document.getElementById('run').disabled = true;
+  logEl.textContent = ''; outEl.textContent = '';
+  const manifest = await (await fetch('../assets/kit/incoming/manifest.json', { cache: 'no-store' })).json();
+  const assets = manifest.assets;
+  const sprites = {}, textures = [], sizes = {}, oddities = [], skipped = [];
+  let done = 0;
+  for (const a of assets) {
+    if (a.size && a.width == null) [a.width, a.height] = a.size;
+    a.kind = a.kind || 'sprite';
+    statusEl.textContent = `${done}/${assets.length}`;
+    const pngUrl = '../' + a.file;
+    const head = await fetch(pngUrl, { cache: 'no-store' });
+    if (!head.ok) { skipped.push(a.name + ' (no file)'); log(`skip ${a.name}: file missing`, true); done++; continue; }
+    const key = KEYS[a.name];
+    if (!key) { skipped.push(a.name + ' (no key)'); log(`skip ${a.name}: no key`, true); done++; continue; }
+    const pngBytes = (await head.blob()).size;
+    const img = await loadImage(pngUrl + '?t=' + Date.now());
+    const w = img.naturalWidth, h = img.naturalHeight;
+    if (w !== a.width || h !== a.height) oddities.push(`${a.name}: file is ${w}x${h}, manifest says ${a.width}x${a.height}`);
+    const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    const cx2 = cv.getContext('2d', { willReadFrequently: true });
+    cx2.drawImage(img, 0, 0);
+    let m = null;
+    if (a.kind !== 'texture') {
+      m = measure(cx2.getImageData(0, 0, w, h).data, w, h);
+      if (!m) { oddities.push(`${a.name}: fully transparent`); m = { cx: w / 2, cy: h / 2, r: 0, bbox: [0, 0, w - 1, h - 1] }; }
+      const [bx0, by0, bx1, by1] = m.bbox;
+      if (a.kind === 'strip' && (bx0 > 0 || bx1 < w - 1)) oddities.push(`${a.name}: strip bbox x ${bx0}..${bx1} of 0..${w - 1} (not full width)`);
+    }
+    const quality = a.kind === 'strip' ? 1.0 : 0.9;
+    const blob = await new Promise(ok => cv.toBlob(ok, 'image/webp', quality));
+    if (!blob || blob.type !== 'image/webp') throw new Error('WebP encode failed for ' + a.name);
+    const rel = `${a.section}/${a.name}.webp`;
+    const put = await fetch('/assets/kit/' + rel, { method: 'PUT', body: blob });
+    if (put.status !== 204) throw new Error(`PUT ${rel} -> ${put.status}`);
+    const s = sizes[a.section] || (sizes[a.section] = { png: 0, webp: 0, n: 0 });
+    s.png += pngBytes; s.webp += blob.size; s.n++;
+    if (a.kind === 'texture') textures.push({ key, rel, section: a.section });
+    else (sprites[a.section] || (sprites[a.section] = [])).push({ key, rel, w, h, ...m });
+    done++;
+    log(`${done}/${assets.length} ${rel}  ${a.kind}  ${w}x${h}  ${kb(pngBytes)} -> ${kb(blob.size)}` +
+      (m ? `  c(${num(m.cx)}, ${num(m.cy)}) r ${num(m.r)}  bbox ${m.bbox.join(',')}` : ''));
+  }
+  statusEl.textContent = `done: ${done}/${assets.length}`;
+
+  let out = '';
+  for (const [section, list] of Object.entries(sprites)) {
+    const pad = Math.max(...list.map(e => e.key.length)) + 2;
+    out += `  // ${section}\n`;
+    for (const e of list) out += `  ${(e.key + ':').padEnd(pad)}['${e.rel}', ${e.w}, ${e.h}, ${num(e.cx)}, ${num(e.cy)}, ${num(e.r)}],\n`;
+  }
+  out += '\n// TEXTURES\n';
+  for (const t of textures) out += `  ${t.key}: '${t.rel}',\n`;
+  out += '\n// sizes per section (PNG -> WebP)\n';
+  for (const [section, s] of Object.entries(sizes)) out += `// ${section}: ${s.n} files, ${kb(s.png)} -> ${kb(s.webp)}\n`;
+  if (oddities.length) out += '\n// oddities\n' + oddities.map(o => '// ' + o + '\n').join('');
+  if (skipped.length) out += '\n// skipped\n' + skipped.map(o => '// ' + o + '\n').join('');
+  outEl.textContent = out;
+  log('DONE');
+}
+
+document.getElementById('run').onclick = () => run().catch(e => { log('ERROR ' + e.message, true); statusEl.textContent = 'failed'; console.error(e); });
+</script>
+</body>
+</html>

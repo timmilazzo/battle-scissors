@@ -13,10 +13,12 @@ import { sfx, sfxSnip, sfxSequence } from './audio.js';
 import { saveRun } from './runlog.js';
 import { UI_ART, uiUrl } from './kit.js';
 import { loadLevel, hasLevel, levelInfo } from './levels/index.js';
-import { recordLevelResult } from './levelSelect.js';
+import { recordLevelResult, onMap } from './levelSelect.js';
 import { Save, persist } from './save.js';
+import { STORY } from './story.js';
 import { KNOB_KEYS } from './debug.js';
-import { levelBefore, settleRun, wearBlade } from './meta.js';
+import { levelBefore, settleRun, wearBlade, mapLevelNum as levelNumOf } from './meta.js';
+import { pinDef, pinCost, towerDef, towerReachOf, rankUpCost } from './pins.js';
 import { critters, splats, plan as critterPlan, planCritters, critterWave, critterWaveEnd, updateCritters, snipCritters, clearCritters, introActive } from './critters.js';
 
 // ======================= state =======================
@@ -25,7 +27,7 @@ import { critters, splats, plan as critterPlan, planCritters, critterWave, critt
 // with an `on` flag. events = a small ring of one-off happenings for the renderer (thread pickups, placements).
 export const state = {
   mode: 'TITLE', modeT: 0, wave: 0, hp: 0, score: 0, won: false, seed: 0, thread: 0, paused: false, pauseCard: 'menu',
-  bannerT: 0, workshopHitT: 0, clock: 0, bossCardT: 0,
+  bannerT: 0, workshopHitT: 0, clock: 0, bossCardT: 0, goalsT: 0,
   stats: { snips: 0, kills: 0 },
   // flash = snip flash on the blades, tooSlow = "too slow" wobble, cut = cut-zone ghost, kick = snip world punch,
   // space = Space-key snap pulse, ring = pivot shock ring (at ringX/ringY), camShake = kill screen shake (px),
@@ -54,7 +56,7 @@ export const state = {
   // run = report counters: bestSnipKills = most kills by one snip, beetleExecutes = Button Beetles executed in the Cigar
   // Cutter's ring, prunerBite = a Ratchet Pruners armor-down bite ended a boss's armored phase (achievements.js)
   // critterKills = critters squished this run (src/critters.js)
-  run: { t0: 0, multiSnips: 0, towers: {}, specials: 0, leaks: 0, stars: 0, bestSnipKills: 0, beetleExecutes: 0, prunerBite: false, critterKills: 0 },
+  run: { t0: 0, multiSnips: 0, towers: {}, rankUps: 0, specials: 0, leaks: 0, stars: 0, bestSnipKills: 0, beetleExecutes: 0, prunerBite: false, critterKills: 0 },
   sharpMult: 1,              // snip damage multiplier from the weapon's edge at the run's start (sharpMult in scissors.js; x1 in level 0)
   sharpAtStart: 0,           // that edge, 0 (dull) .. 1 (sharp), for the run report
   tally: null,               // the finished run's Buttons (meta.js settleRun), for the results card
@@ -91,7 +93,8 @@ const els = {
   reset: document.getElementById('reset'), tray: document.getElementById('tray'), tutSkip: document.getElementById('tut-skip'),
   bossCard: document.getElementById('boss-card'), bossName: document.getElementById('boss-name'), bossPortrait: document.getElementById('boss-portrait'), bossTaunt: document.getElementById('boss-taunt'), mute: document.getElementById('mute'), pauseBtn: document.getElementById('pause'),
   pause: document.getElementById('pause-screen'), pinsIntro: document.getElementById('pins-intro'), pauseWave: document.getElementById('pause-wave'), pauseScore: document.getElementById('pause-score'),
-  pauseAcc: document.getElementById('pause-acc'), pauseSeed: document.getElementById('pause-seed'),
+  pauseAcc: document.getElementById('pause-acc'), pauseSeed: document.getElementById('pause-seed'), pauseGoals: document.getElementById('pause-goals'),
+  goals: document.getElementById('goals'), goalsList: document.getElementById('goals-list'), goalsDispatch: document.getElementById('goals-dispatch'),
   overTitle: document.getElementById('over-title'), overScore: document.getElementById('over-score'), overLevel: document.getElementById('over-level'),
   overSelect: document.getElementById('over-select'), overPrimary: document.getElementById('over-primary'), overMap: document.getElementById('over-map'), again: document.getElementById('again'),
   overWaves: document.getElementById('over-waves'), overAcc: document.getElementById('over-acc'), overSeed: document.getElementById('over-seed'),
@@ -111,6 +114,9 @@ function showScreens() {
   els.tray.hidden = (state.paused && state.pauseCard !== 'build') || (m !== 'PLAYING' && m !== 'WAVE_CLEAR');   // the Pin picker's pause keeps the board
   els.tutSkip.hidden = state.paused || m !== 'TUTORIAL';
   els.bossCard.hidden = state.paused || state.bossCardT <= 0 || !live();
+  const goalsOn = !state.paused && state.goalsT > 0 && live();
+  if (goalsOn && els.goals.hidden) els.goals.style.setProperty('--dur', Math.round(state.goalsT * 1000) + 'ms');   // (re)shown: its fade spans the time left
+  els.goals.hidden = !goalsOn;
 }
 
 // ======================= layout (weapon scale + level) =======================
@@ -135,7 +141,7 @@ export function setLevel(id, seed = Date.now()) {
   view.levelId = id; view.levelDef = loadLevel(id, seed);
   towers.length = 0;
   for (let i = 0; i < level().spots.length; i++) {
-    towers.push({ on: false, type: '', x: 0, y: 0, fx: 0, fy: 0, fu: [], timer: 0, pulse: 0, aim: -Math.PI / 2, kick: 0 });
+    towers.push({ on: false, type: '', rank: 1, def: null, x: 0, y: 0, fx: 0, fy: 0, fu: [], timer: 0, pulse: 0, aim: -Math.PI / 2, kick: 0 });
   }
 }
 
@@ -218,7 +224,7 @@ function clearWorld() {
   last.ms = -1; last.kind = ''; last.ver++;
   fx.cut = fx.flash = fx.tooSlow = fx.kick = fx.ring = fx.space = fx.hitStop = fx.camShake = 0; state.bannerT = state.workshopHitT = 0;
   heli.active = false; heli.phase = ''; heli.spread = heli.rot = 0; heli.bannerT = 0; heli.armed = heli.go = false;
-  state.paused = false; state.bossCardT = 0;
+  state.paused = false; state.bossCardT = 0; state.goalsT = 0;
   tut.step = 0; tut.winT = 0; tut.ghost.cutT = 0; tut.vis = 0;
   clearCritters();
   setEasyOnly(false);                                           // level 0 forces Hold controls only while it runs
@@ -248,13 +254,14 @@ export function startGame() {
     setEasyOnly(true); tutEnter(1); showScreens(); return;
   }
   beginWave(1);
+  showGoals();
   showScreens();
 }
 function resetRun() {
   state.score = 0; state.hp = C.workshopHp; state.won = false; state.stats.snips = 0; state.stats.kills = 0; state.thread = level().startThread ?? C.startThread;
   heli.charge = 0; state.shredOn = shredAllowed();
   const r = state.run; r.t0 = Date.now(); r.multiSnips = 0; r.specials = 0; r.leaks = 0; r.stars = 0;
-  r.bestSnipKills = 0; r.beetleExecutes = 0; r.prunerBite = false; r.critterKills = 0;
+  r.bestSnipKills = 0; r.beetleExecutes = 0; r.prunerBite = false; r.critterKills = 0; r.rankUps = 0;
   if (!isTutorial()) planCritters(level(), levelWaves(), rng.critter, n => !!(C.enemyTypes[n] && C.enemyTypes[n].boss));
   state.sharpAtStart = sharpness(weapon.id); state.sharpMult = isTutorial() ? 1 : sharpMult(state.sharpAtStart); state.tally = null;
   for (const k in C.towers) r.towers[k] = 0;
@@ -310,6 +317,46 @@ function starsEarned() {
     (rules.pin && Object.values(r.towers).some(n => n > 0) ? 1 : 0) +
     (rules.critters && critterPlan.spawned > 0 && critterPlan.killed >= critterPlan.spawned ? 1 : 0);
 }
+// The level's star goals in star order (clearing, then its starRules; words in CONFIG.starGoals), each with how it
+// stands this run: 'on' = still to play for, 'met' = done already, 'lost' = gone for this run.
+export function starGoals() {
+  const rules = level().starRules || {}, r = state.run, G = C.starGoals;
+  const out = [{ key: 'clear', text: G.clear, status: 'on' }];
+  for (const k of ['noDamage', 'noSpecial', 'pin', 'critters']) {
+    if (!rules[k]) continue;
+    let status = 'on';
+    if (k === 'noDamage' && r.leaks) status = 'lost';
+    if (k === 'noSpecial' && r.specials) status = 'lost';
+    if (k === 'pin' && Object.values(r.towers).some(n => n > 0)) status = 'met';
+    if (k === 'critters') {                                       // one crawled off unsquished
+      let crawling = 0; for (const c of critters) if (c.on) crawling++;
+      if (critterPlan.spawned - critterPlan.killed - crawling > 0) status = 'lost';
+    }
+    out.push({ key: k, text: G[k] || k, status });
+  }
+  return out;
+}
+// A goal list (the star goals card, the pause card): a star and the words per goal; the third star's goal (the
+// level's feat) is marked out.
+function fillGoals(ul) {
+  ul.textContent = '';
+  starGoals().forEach((g, i) => {
+    const li = document.createElement('li');
+    li.className = g.status + (i >= 2 ? ' feat' : '');
+    li.innerHTML = '<i></i><span></span>'; li.lastChild.textContent = g.text;
+    ul.appendChild(li);
+  });
+}
+// A level's first wave: its star goals show under the banner for CONFIG.starGoalsMs, with Tomato's dispatch line
+// for the level above them (story.js; none on level 0 or off the map).
+function showGoals() {
+  const line = STORY.dispatch[view.levelId] || '';
+  els.goalsDispatch.hidden = !line;
+  els.goalsDispatch.firstChild.textContent = STORY.narrator.toUpperCase() + ' SAYS';
+  els.goalsDispatch.lastChild.textContent = line;
+  fillGoals(els.goalsList);
+  state.goalsT = C.starGoalsMs / 1000;
+}
 
 export let lastReport = null;
 function endGame(won) {
@@ -322,11 +369,14 @@ function endGame(won) {
   state.run.stars = won ? starsEarned() : 0;
   const before = levelBefore(view.levelId);
   recordLevelResult(view.levelId, won, state.score, state.run.stars, level().unlockOnClear);
-  const next = nextLevelId();
-  // the big button: the next level after a win (CONTINUE to the map when there's none), TRY AGAIN after a loss
-  const primary = !won ? 'again' : next ? 'next' : 'map';
+  const mapped = onMap(view.levelId);
+  // the big button: back to the map after a win (the map plays the rewards and shows what's next: the next patch, a
+  // new pair, Pin tiers, Shop stock), TRY AGAIN after a loss; off the map (Random Quilt, Custom Road) a win offers
+  // another go (a new quilt) and the small button goes to the title
+  const primary = !won ? 'again' : mapped ? 'map' : 'again';
   els.overSelect.dataset.act = primary;
-  els.overPrimary.textContent = primary === 'again' ? 'TRY AGAIN' : primary === 'next' ? 'NEXT LEVEL' : 'CONTINUE';
+  els.overPrimary.textContent = primary === 'map' ? 'TO THE MAP' : !won ? 'TRY AGAIN' : levelInfo(view.levelId).random ? 'NEW QUILT' : 'PLAY AGAIN';
+  els.overMap.textContent = mapped ? 'Map' : 'Title';
   els.overMap.hidden = primary === 'map'; els.again.hidden = primary === 'again';
   els.overScore.textContent = String(state.score);
   els.overWaves.textContent = (won ? levelWaves().length : state.wave - 1) + ' / ' + levelWaves().length;
@@ -352,7 +402,7 @@ function buildReport(inProgress = false) {
     snips: s.snips, kills: s.kills, accuracy: s.snips ? +(s.kills / s.snips).toFixed(3) : 0, multiSnips: r.multiSnips,
     towers: { ...r.towers }, specialUses: r.specials, deathsAtWorkshop: r.leaks, stars: r.stars,
     boss: levelWaves().some(w => w.some(([n]) => C.enemyTypes[n] && C.enemyTypes[n].boss)), bestSnipKills: r.bestSnipKills,
-    beetleExecutes: r.beetleExecutes, prunerBite: r.prunerBite, critterKills: r.critterKills, critterSpawns: critterPlan.spawned, upgradeTier: weapon.def.tier | 0, sharpness: +state.sharpAtStart.toFixed(3),
+    beetleExecutes: r.beetleExecutes, prunerBite: r.prunerBite, critterKills: r.critterKills, critterSpawns: critterPlan.spawned, rankUps: r.rankUps, upgradeTier: weapon.def.tier | 0, sharpness: +state.sharpAtStart.toFixed(3),
     durationSec: Math.round((Date.now() - r.t0) / 1000), device: navigator.userAgent, config: cfg,
     replay: location.origin + location.pathname + '?seed=' + state.seed + '&level=' + view.levelId +
       (view.levelId === 'custom' ? '&recipe=' + encodeURIComponent(level().recipe) : ''), endedAt: new Date().toISOString(),
@@ -363,7 +413,7 @@ function buildReport(inProgress = false) {
 // ======================= pause =======================
 // Freezes the whole game (update() returns before input, timers and tweens). Paused time doesn't count toward the run
 // duration. Resuming re-arms snip detection so finger movement during the pause can't fire a snip.
-// card = which card the pause shows: 'menu' (RESUME + run report), 'pins' (the one-time Pin placement explainer) or
+// card = which card the pause shows: 'menu' (RESUME + run report), 'pins' (the new-Pin explainer, once per Pin type) or
 // 'build' (none: the Pin picker is open over the board, actionBar.js).
 let pausedAt = 0;
 export function setPaused(p, card = 'menu') {
@@ -376,6 +426,8 @@ export function setPaused(p, card = 'menu') {
     els.pauseScore.textContent = String(state.score);
     els.pauseAcc.textContent = accuracyText();
     els.pauseSeed.textContent = String(state.seed);
+    els.pauseGoals.hidden = state.mode === 'TUTORIAL';
+    if (state.mode !== 'TUTORIAL') fillGoals(els.pauseGoals);
   } else {
     state.run.t0 += Date.now() - pausedAt;
     resetSnipBuffer();
@@ -806,7 +858,7 @@ function awardKill(e, bySnip = true) {
   state.stats.kills++;
   if (bySnip) snipKills++;
   if (state.mode === 'TUTORIAL' && !e.pinned) tut.cuts++;
-  const pts = Math.round(t.score * (snipMulti ? C.multiSnipMult : 1));
+  const pts = Math.round(t.score * C.enemyRanks.scoreMult[e.rank - 1] * (snipMulti ? C.multiSnipMult : 1));
   state.score += pts;
   if (!isTutorial()) spawnPopup(e.x, e.y, pts, snipMulti);
   if (state.mode !== 'TUTORIAL') {
@@ -843,7 +895,8 @@ function clang(e, buzz = true, label = LABEL_CLANG) {
 //           seam splits open for seamOpenSec: a snip then does openDmg, otherwise closedDmg. Expert (Pinch) controls
 //           must also close the blades across the seam for openDmg (expertOffSeamDmg if not).
 //   'armor' (Brute King; Unstitcher phase 2): timing + patience. Walks forward; every chargeEverySec it trembles for
-//           windupSec, then charges chargePx along the road over chargeSec, then its armor is down for armorDownSec (seams glow): snips do armorDownMult x graded
+//           windupSec, then charges chargePx along the road over chargeSec; the lunge knocks its thimble helmet off and it stands
+//           dazed for armorDownSec (seams glow; picking the helmet back up at the end) while snips do armorDownMult x graded
 //           damage; with the armor on they clang for 0 (needles too).
 //   'swarm' (Unstitcher phase 1): its escort Scraps hold up a shield that blocks every hit; cutting the last one
 //           drops it for shieldDownSec (graded x shieldDownMult), then it returns with a fresh swarm.
@@ -897,14 +950,25 @@ function bossMove(e, dt, step) {
     const f = e.hp / e.maxHp, ph = f <= def.phaseAt[1] ? 2 : f <= def.phaseAt[0] ? 1 : 0;
     if (ph !== e.bossPhase) {                                     // next phase: roar, reset its clocks, armor on for phase 2
       e.bossPhase = ph; e.seamT = e.chargeT = e.swarmT = e.armorDownT = e.shieldDownT = 0; e.seamOpen = e.seamWarn = false;
-      e.armored = ph === 1; tweens.cancel(e); e.charging = e.windup = false;
+      e.armored = ph === 1; tweens.cancel(e); e.charging = e.windup = false; e.helmPh = 0;
       sfx(def.roar, 0); addShake(10, 12); sparks(e.x, e.y, 24, 3);
     }
   }
   const mode = bossMode(e);
   if (mode === 'armor') {
-    if (e.armorDownT > 0) e.armorDownT = Math.max(0, e.armorDownT - dt);
-    e.armored = e.armorDownT <= 0;
+    if (e.armorDownT > 0) {
+      // helmet off: it stands dazed while the helmet tumbles off (helmFlySec), lies beside it, and is picked back up
+      // (the last helmPickupSec); the charge clock keeps counting
+      e.armorDownT = Math.max(0, e.armorDownT - dt); e.helmT += dt; e.chargeT += dt;
+      if (e.helmPh === 1 && e.helmT >= C.helmFlySec) {
+        e.helmPh = 2; e.helmT = 0; sfx('helmetLand', 0);
+        sparks(e.x + e.helmSide * C.helmLand[0] * e.r, e.y + C.helmLand[1] * e.r, 6, 3);
+      }
+      if (e.helmPh === 2 && e.armorDownT <= C.helmPickupSec) { e.helmPh = 3; e.helmT = 0; }
+      if (e.armorDownT <= 0) { e.helmPh = 0; e.helmT = 0; e.armored = true; sfx('helmetOn', 0); }
+      return;
+    }
+    e.armored = true;
     if (e.charging) {
       // the lunge: a burst of speed that swells and fades (sine-shaped) so it covers chargePx in chargeSec. chargeT
       // counts the lunge's own time here.
@@ -967,15 +1031,16 @@ function escortDied(s) {
   b.shieldDownT = C.bosses[b.name].shieldDownSec; b.swarmT = 0;
   sfx('armorOff', 0); sparks(b.x, b.y, 20, 3); addShake(5, 8);
 }
-// The lunge is over: the armor drops for armorDownSec.
+// The lunge is over: it knocks its thimble helmet off (to alternating sides) and the armor is down for armorDownSec.
 function chargeDone(e) {
   e.charging = false; e.armorDownT = C.bosses[e.name].armorDownSec; e.armored = false;
+  e.helmPh = 1; e.helmT = 0; e.helmSide = e.helmSide > 0 ? -1 : 1;
   sfx('armorOff', 0); sparks(e.x, e.y - e.r * 0.8, 12, 3);
 }
 
 // ======================= special: Helicopter =======================
 // Charged by snip kills (shredDef().charge). Snap fully open (outBack), spin shredDef().turns full turns (inOutSine; 1 at
-// tier 0, more as SHRED is bought up in Your Scissors) hitting everything within blade reach every
+// tier 0, more as SHRED is bought up in the Shop's Moves tab) hitting everything within blade reach every
 // heliTickMs, then snap shut into a normal full-open snip. The pivot still follows the hand; spread and aim don't.
 const HELI_OPEN = { spread: 1 }, HELI_SHUT = { spread: 0 };
 const shredReady = () => live() && state.shredOn && !heli.active && heli.charge >= shredDef().charge;
@@ -1030,12 +1095,13 @@ function heliTick() {
 
 // ======================= towers =======================
 // One tower per spot of the current level (towers[i] stands on level().spots[i]; setLevel rebuilds the list). Plain
-// data: { on, type, x, y (the spot, px), fx, fy (nearest road point), fu[route] (nearest point's progress per route),
-// timer (magnet: period clock; needle: reload seconds left), pulse (1 -> 0 visual after a magnet pull),
-// aim (needle: angle it points), kick (needle: 1 -> 0 recoil visual after a shot) }.
+// data: { on, type, rank (1..3, in-level, Thread), def (pins.js pinDef at that rank and the type's tier: every number
+// the Pin plays by; cached here so the hot loop never allocates), x, y (the spot, px), fx, fy (nearest road point),
+// fu[route] (nearest point's progress per route), timer (magnet: period clock; needle: reload seconds left),
+// pulse (1 -> 0 visual after a magnet pull), aim (needle: angle it points), kick (needle: 1 -> 0 recoil visual after a shot) }.
 const towers = state.towers;
 setLevel(view.levelId);
-export const canAfford = type => state.thread >= C.towers[type].cost;
+export const canAfford = type => state.thread >= pinCost(type);
 // Progression (CONFIG.pinFrom / shredFrom): a tool introduced at map level id is here on every map level from it on;
 // off the map (Random Quilt, Custom Road) once that level has been cleared. An unknown id never holds anything back.
 const mapIndex = id => C.map.nodes.findIndex(n => n[0] === id);
@@ -1053,8 +1119,6 @@ export const pinIsNew = type => C.pinFrom[type] === view.levelId;
 export const shredIsNew = () => C.shredFrom === view.levelId;
 // Whether SHRED is in this level at all (its meter, charge and triggers; never in level 0).
 export const shredAllowed = () => !isTutorial() && introduced(C.shredFrom);
-export const towerReach = type => C.towers[type].radius * view.L;   // a Pin's radius in px
-
 // Build a `type` Pin on spot i (the action bar's spot picker). Returns '' on success, else why not.
 export function buildTower(i, type) {
   const t = towers[i];
@@ -1062,20 +1126,31 @@ export function buildTower(i, type) {
   if (!t || t.on) return 'taken';
   if (!pinAllowed(type)) return 'not here';
   if (!canAfford(type)) return 'cost';
-  t.on = true; t.type = type; t.timer = 0; t.pulse = 0;
-  state.thread -= C.towers[type].cost; state.run.towers[type]++;
+  t.on = true; t.type = type; t.rank = 1; t.def = pinDef(type); t.timer = 0; t.pulse = 0;
+  state.thread -= t.def.cost; state.run.towers[type]++;
   sfx('pinPop', 0); emit('place', t.x, t.y, 0);
   return '';
 }
-// Magnet pull: moves each enemy's place in the line (its road progress u) toward the Pin's road point (inOutSine),
-// keeping pullKeep of the gap on the stretch of road nearest the Pin and progressively more out toward the ring's
-// edge (pullFalloff), so the ones ahead are dragged back and the ones behind hauled forward: a real clump that keeps
+// Raise the Pin on spot i to its next rank with Thread (the action bar's rank card). Returns '' on success, else why not.
+export function rankUp(i) {
+  const t = towers[i], cost = rankUpCost(t);
+  if (state.mode !== 'PLAYING' && state.mode !== 'WAVE_CLEAR') return 'mode';
+  if (!t || !t.on || !cost) return 'max';
+  if (state.thread < cost) return 'cost';
+  state.thread -= cost; t.rank++; t.def = towerDef(t); state.run.rankUps++;
+  sfx('pinPop', 0); emit('place', t.x, t.y, 0);
+  return '';
+}
+// Magnet pull: moves each enemy's place in the line (its road progress u) back toward the anchor, pullBack ring radii
+// up the road from the Pin's road point (inOutSine), keeping pullKeep of the gap on the stretch of road nearest the
+// Pin and progressively more out toward the ring's edge (pullFalloff), so everyone loses ground, the ones ahead most,
+// and lands in a clump that stands still for holdSec (e.holdT, as the Ratchet Pruners' jaw): a real clump that keeps
 // walking together afterwards. Sideways shove offsets shrink by the same factor. The enemy doesn't walk while pulled.
 // Tagged by the enemy so a kill cancels it.
-function pullDone(e) { e.pulling = false; }
+function pullDone(e) { e.pulling = false; e.holdT = Math.max(e.holdT, e.pullHold); }
 function magnetPull(t) {
   // full strength from the Pin out to its nearest road point (the pad sits beside the road), fading to none at the edge
-  const def = C.towers.magnet, reach = towerReach('magnet'), near = Math.min(Math.hypot(t.fx - t.x, t.fy - t.y), reach * 0.9);
+  const def = t.def, reach = towerReachOf(t), near = Math.min(Math.hypot(t.fx - t.x, t.fy - t.y), reach * 0.9);
   t.pulse = 1; sfx('magnetHum', 0);
   for (const e of enemies) {
     const d = Math.hypot(e.x - t.x, e.y - t.y);
@@ -1083,32 +1158,39 @@ function magnetPull(t) {
     const k = 1 - (1 - def.pullKeep) * Math.pow(1 - clamp((d - near) / (reach - near), 0, 1), def.pullFalloff);   // share of the gap kept
     if (k > 0.98) continue;                                      // at the very edge: too weak to bother
     tweens.cancel(e);
-    e.pulling = true; e.pvx = e.pvy = 0;
-    const fu = t.fu[e.route];
-    tween(e, { u: fu + (e.u - fu) * k, ox: e.ox * k, oy: e.oy * k }, def.pullMs, easing.inOutSine, pullDone, e);
+    e.pulling = true; e.pvx = e.pvy = 0; e.pullHold = def.holdSec;
+    const au = Math.max(0, t.fu[e.route] - def.pullBack * def.radius / state.paths[e.route].lenU);   // the anchor, up the road
+    if (e.u <= au) continue;                                     // already behind the anchor: nothing to drag back
+    tween(e, { u: au + (e.u - au) * k, ox: e.ox * k, oy: e.oy * k }, def.pullMs, easing.inOutSine, pullDone, e);
   }
 }
 
-// Needle Pin (the archer): when reloaded, fires at the enemy in range that is furthest along the road, then reloads for
-// cooldownSec. It keeps turning toward its current pick between shots (t.aim, for the renderer).
+// Needle Pin (the archer): when reloaded, fires at the enemy in range that is furthest along the road (tier 3: a volley,
+// one needle each at the furthest few), then reloads for cooldownSec. It keeps turning toward its current pick between
+// shots (t.aim, for the renderer).
 function needleTower(t, dt) {
-  const def = C.towers.needle, reach = towerReach('needle'), mx = t.x, my = t.y - C.needleMuzzle * level().spotR * view.L;
+  const def = t.def, reach = towerReachOf(t), mx = t.x, my = t.y - C.needleMuzzle * level().spotR * view.L;
   if (t.kick > 0) t.kick = Math.max(0, t.kick - dt * 4);
   if (t.timer > 0) t.timer = Math.max(0, t.timer - dt);
-  let best = null;
+  let best = null, second = null;
   for (let i = 0; i < enemies.length; i++) {
     const e = enemies[i];
     if (!e.on || e.pinned || Math.hypot(e.x - t.x, e.y - t.y) > reach + e.r) continue;
-    if (!best || e.u > best.u) best = e;
+    if (!best || e.u > best.u) { second = best; best = e; } else if (!second || e.u > second.u) second = e;
   }
   if (!best) return;
   t.aim = Math.atan2(best.y - my, best.x - mx);
   if (t.timer > 0) return;
-  let n = null;
-  for (let i = 0; i < needles.length; i++) if (!needles[i].on) { n = needles[i]; break; }
-  if (!n) return;
-  n.on = true; n.x = mx; n.y = my; n.target = best; n.gen = best.gen; n.dmg = def.damage; n.life = C.needleLostSec;
-  n.ang = t.aim; n.vx = Math.cos(t.aim); n.vy = Math.sin(t.aim);
+  const shots = def.volley > 1 ? def.volley : 1;
+  for (let s = 0; s < shots; s++) {
+    const target = s === 0 || !second ? best : second;
+    let n = null;
+    for (let i = 0; i < needles.length; i++) if (!needles[i].on) { n = needles[i]; break; }
+    if (!n) break;
+    const ang = Math.atan2(target.y - my, target.x - mx);
+    n.on = true; n.x = mx; n.y = my; n.target = target; n.gen = target.gen; n.dmg = def.damage; n.life = C.needleLostSec;
+    n.ang = ang; n.vx = Math.cos(ang); n.vy = Math.sin(ang);
+  }
   t.timer = def.cooldownSec; t.kick = 1;
   sfx('needle', 0);
 }
@@ -1143,7 +1225,7 @@ function needleHit(e, dmg) {
 
 // ======================= entity pools (plain data) =======================
 const enemies = state.enemies;
-// type = CONFIG.enemyTypes entry, name = its key. slowed = in an Ice Pin aura or recently hit by the Helicopter
+// type = CONFIG.enemyTypes entry, name = its key, rank = 1..3 (CONFIG.enemyRanks: tougher, recoloured). slowed = in an Ice Pin aura or recently hit by the Helicopter
 // (slowT seconds left); lets the first snip through a Brute's armor. burning = on fire from a Fire Pin (burnLeft =
 // seconds of burning left once out of its ring, burnT = seconds toward the next burn tick).
 // leg = boss turn index, seamA = boss seam angle, age = seconds alive, pulling = a Magnet Pin is moving it (a tween owns u),
@@ -1151,20 +1233,37 @@ const enemies = state.enemies;
 // route = which of the level's paths it walks. gen = bumped on every spawn, so a needle aimed at an earlier occupant of
 // this pool slot knows its target is gone. Bosses: bossPhase (Unstitcher 0..2), seamT / seamOpen / seamWarn (the opening
 // seam), chargeT / windup / charging / armorDownT (the tremble before a lunge, the lunge, and the armor-down window
-// after it), swarmT (Scrap swarm clock), shieldDownT (the Unstitcher's swarm shield is down while > 0).
+// after it), helmPh / helmT / helmSide (its helmet then: 0 on, 1 knocked off and flying, 2 on the ground, 3 being picked
+// up; time in that stage; which side it lands), swarmT (Scrap swarm clock), shieldDownT (the Unstitcher's swarm shield is down while > 0).
 // escortOf (+ escortGen, escortOff) = the Unstitcher a swarm Scrap keeps its place around (road progress offset).
 for (let i = 0; i < C.maxEnemies; i++) enemies.push({ on: false, type: null, name: '', x: 0, y: 0, px: 0, py: 0, ox: 0, oy: 0,
-  u: 0, seg: 0, route: 0, gen: 0, speed: 0, r: 0, hp: 0, maxHp: 0, armored: false, slowed: false, slowT: 0, burning: false, burnLeft: 0, burnT: 0, leg: 0, seamA: 0, age: 0,
+  u: 0, seg: 0, route: 0, gen: 0, speed: 0, r: 0, rank: 1, hp: 0, maxHp: 0, armored: false, slowed: false, slowT: 0, slowMult: 1, iced: false, burning: false, burnLeft: 0, burnT: 0, burnDps: 0, pullHold: 0, leg: 0, seamA: 0, age: 0,
   pvx: 0, pvy: 0, phase: 0, hitT: 0, pulling: false, pinned: false, walking: false, tutK: 0, escortOf: null, escortGen: 0, escortOff: 0, escortSlot: -1,
-  holdT: 0, bossPhase: 0, seamT: 0, seamOpen: false, seamWarn: false, chargeT: 0, charging: false, windup: false, armorDownT: 0, swarmT: 0, shieldDownT: 0 });
+  holdT: 0, bossPhase: 0, seamT: 0, seamOpen: false, seamWarn: false, chargeT: 0, charging: false, windup: false, armorDownT: 0, swarmT: 0, shieldDownT: 0,
+  helmPh: 0, helmT: 0, helmSide: 0 });
 
 // A non-boss's hp multiplier: + hpPerWave per wave after the first, + hpPerLevel x its levelHp per map level from
 // hpLevelFrom on (Runners have levelHp 0). The tutorial's wave 0 stays at base.
 function hpScale(t) {
-  const i = C.map.nodes.findIndex(n => n[0] === view.levelId), lv = i >= 0 ? i : C.hpOffMapLevel;
-  const steps = isTutorial() ? 0 : Math.max(0, lv - C.hpLevelFrom + 1);
+  const steps = isTutorial() ? 0 : Math.max(0, mapLevelNum() - C.hpLevelFrom + 1);
   return 1 + C.hpPerWave * Math.max(0, state.wave - 1) + C.hpPerLevel * (t.levelHp || 0) * steps;
 }
+// The current level's number on the map (Random Quilt / Custom Road: CONFIG.hpOffMapLevel).
+function mapLevelNum() { return levelNumOf(view.levelId); }   // meta.js: the map index, or hpOffMapLevel off the map
+// Enemy ranks (CONFIG.enemyRanks): the rank mix for this level and wave (0 = rank 1s only), and a wave spawn's rank
+// drawn from it (rng.spawn, drawn only where the mix is above 0, so earlier levels' seeded runs replay as before).
+function rankMix() {
+  const R = C.enemyRanks, lv = mapLevelNum();
+  if (isTutorial() || lv < R.fromLevel) return 0;
+  return R.start + R.perLevel * (lv - R.fromLevel) + R.perWave * Math.max(0, state.wave - 1);
+}
+function drawRank() {
+  const m = rankMix(); if (m <= 0) return 1;
+  const r = rng.spawn();
+  return m <= 1 ? (r < m ? 2 : 1) : (r < Math.min(1, m - 1) ? 3 : 2);
+}
+// An enemy's colours: its rank's (CONFIG.enemyRanks.colors), else its type's.
+const enemyColors = e => (e.rank > 1 && C.enemyRanks.colors[e.name] && C.enemyRanks.colors[e.name][e.rank - 2]) || e.type;
 // Which route an enemy takes: among the routes of its entrance, at random (weighted where the level says so, e.g. a fork's short
 // arm); single-route levels draw nothing, so their seeded runs replay as before.
 // The longest route of the level (bosses always take it: more road to fight them on).
@@ -1187,20 +1286,24 @@ function pickRoute(entry) {
   return last;
 }
 // Returns the enemy, or null if the pool is full (the schedule retries next frame).
-function spawnEnemy(name, entry = 0) {
+// ranked = a wave spawn, which may come as rank 2 or 3 (drawRank); bosses, their escorts and level 0's Scraps are rank 1.
+function spawnEnemy(name, entry = 0, ranked = false) {
   let e = null;
   for (let i = 0; i < enemies.length; i++) if (!enemies[i].on) { e = enemies[i]; break; }
   if (!e) return null;
   const t = C.enemyTypes[name];
-  e.on = true; e.type = t; e.name = name; e.r = t.r; e.hp = e.maxHp = t.boss ? t.hp : t.hp * hpScale(t);
-  e.armored = !!t.armor; e.slowed = false; e.slowT = 0; e.burning = false; e.burnLeft = 0; e.burnT = 0; e.leg = 0; e.seamA = rng.spawn() * TAU; e.age = 0;
+  e.rank = ranked && !t.boss ? drawRank() : 1;
+  e.on = true; e.type = t; e.name = name; e.r = t.r; e.hp = e.maxHp = t.boss ? t.hp : t.hp * hpScale(t) * C.enemyRanks.hpMult[e.rank - 1];
+  e.armored = !!t.armor; e.slowed = false; e.slowT = 0; e.slowMult = 1; e.iced = false; e.burning = false; e.burnLeft = 0; e.burnT = 0; e.burnDps = 0; e.pullHold = 0; e.leg = 0; e.seamA = rng.spawn() * TAU; e.age = 0;
   e.speed = 1 / t.traverseSec; e.u = 0; e.seg = 0; e.ox = 0; e.oy = 0; e.pvx = 0; e.pvy = 0; e.hitT = 0;
   e.pulling = false; e.pinned = false; e.walking = false; e.escortOf = null; e.holdT = 0; e.gen++;
   e.bossPhase = 0; e.seamT = e.chargeT = e.armorDownT = e.swarmT = e.shieldDownT = 0; e.seamOpen = e.seamWarn = e.charging = e.windup = false;
+  e.helmPh = 0; e.helmT = 0; e.helmSide = 0;
   e.phase = rng.spawn() * TAU;
   e.route = t.boss ? longestRoute() : pickRoute(entry);
   // a steady walking speed: traverseSec is for a road traverseRefLen long, so a longer road takes longer (the tutorial keeps its fixed time)
   if (!isTutorial()) e.speed = C.traverseRefLen / (t.traverseSec * state.paths[e.route].lenU);
+  e.speed *= C.enemyRanks.speedMult[e.rank - 1];
   pathPoint(e); e.x = e.px; e.y = e.py;
   return e;
 }
@@ -1242,7 +1345,7 @@ function shatter(e) {
     const ang = (made / C.fragmentsPerKill) * TAU + rng.fx() * 0.6, sp = C.fragmentSpeed * (0.6 + rng.fx() * 0.6);
     f.on = true; f.x = e.x + Math.cos(ang) * e.r * 0.3; f.y = e.y + Math.sin(ang) * e.r * 0.3;
     f.vx = Math.cos(ang) * sp; f.vy = Math.sin(ang) * sp - 40;
-    f.rot = ang; f.vr = (rng.fx() - 0.5) * 14; f.sz = e.r * 0.55; f.life = 1; f.color = made & 1 ? e.type.patch : e.type.color;
+    f.rot = ang; f.vr = (rng.fx() - 0.5) * 14; f.sz = e.r * 0.55; f.life = 1; f.color = made & 1 ? enemyColors(e).patch : enemyColors(e).color;
     tween(f, FRAG_FADED, C.fragmentLifeMs, easing.linear, fragDone, 'frag');
     made++;
   }
@@ -1345,6 +1448,7 @@ export function update(now, dt) {
   state.workshopHitT = Math.max(0, state.workshopHitT - ms / C.workshopHitMs);
   heli.bannerT = Math.max(0, heli.bannerT - ms / C.heliBannerMs);
   if (state.bossCardT > 0 && (state.bossCardT -= dt) <= 0) showScreens();   // the boss intro card closes
+  if (state.goalsT > 0 && (state.goalsT -= dt) <= 0) showScreens();         // the star goals card closes
 
   // --- waves / onboarding ---
   if (state.mode === 'PLAYING') {
@@ -1352,7 +1456,7 @@ export function update(now, dt) {
     if (!hold) state.modeT += dt;
     // board cleared mid-wave: skip the wave clock ahead so the next spawn is at most emptyWaveWaitSec away
     if (!hold && spawnIdx < spawnList.length && !anyEnemyOn()) state.modeT = Math.max(state.modeT, spawnList[spawnIdx][0] - C.emptyWaveWaitSec);
-    while (spawnIdx < spawnList.length && spawnList[spawnIdx][0] <= state.modeT && spawnEnemy(spawnList[spawnIdx][1], spawnList[spawnIdx][2])) spawnIdx++;
+    while (spawnIdx < spawnList.length && spawnList[spawnIdx][0] <= state.modeT && spawnEnemy(spawnList[spawnIdx][1], spawnList[spawnIdx][2], true)) spawnIdx++;
     const marks = state.entryMarks;                                // entrance arrows: seconds to the next thing due at each
     if (marks.length) {
       for (const m of marks) m.next = 99;
@@ -1367,7 +1471,7 @@ export function update(now, dt) {
   for (const t of towers) {
     if (!t.on) continue;
     if (t.pulse > 0) t.pulse = Math.max(0, t.pulse - dt * 2);
-    if (t.type === 'magnet' && live()) { t.timer += dt; if (t.timer >= C.towers.magnet.periodSec) { t.timer -= C.towers.magnet.periodSec; magnetPull(t); } }
+    if (t.type === 'magnet' && live()) { t.timer += dt; if (t.timer >= t.def.periodSec) { t.timer -= t.def.periodSec; magnetPull(t); } }
     else if (t.type === 'needle' && live()) needleTower(t, dt);
   }
   updateNeedles(dt);
@@ -1386,25 +1490,31 @@ export function update(now, dt) {
       if (e.type.boss && (e.seamOpen || e.seamWarn) && bossMode(e) === 'seam') seam = true;
       if (e.hitT > 0) e.hitT = Math.max(0, e.hitT - dt * 5);
       if (e.pinned) { alive++; continue; }                        // level-0 practice Scraps: the tutorial moves them
-      // slowed: inside an Ice Pin aura, or recently hit by the Helicopter. burning: inside a Fire Pin aura, or left one
-      // less than burnSec ago.
-      let inIce = false, inFire = false;
+      // slowed: inside an Ice Pin aura (at the strongest one's slowMult; a tier-3 Ice Pin also stops it for freezeSec
+      // as it first steps in), or recently hit by the Helicopter (C.slowSpeedMult). burning: inside a Fire Pin aura
+      // (the strongest one's burnDps and burnSec), or left one less than burnSec ago.
+      let inIce = false, inFire = false, slowMult = 1, burnDps = 0, burnSec = 0, freeze = 0;
       for (const t of towers) {
-        if (!t.on || (t.type !== 'ice' && t.type !== 'fire') || Math.hypot(e.x - t.x, e.y - t.y) > towerReach(t.type)) continue;
-        if (t.type === 'ice') inIce = true; else inFire = true;
+        if (!t.on || (t.type !== 'ice' && t.type !== 'fire') || Math.hypot(e.x - t.x, e.y - t.y) > towerReachOf(t)) continue;
+        const d = t.def;
+        if (t.type === 'ice') { inIce = true; if (d.slowMult < slowMult) slowMult = d.slowMult; if (d.freezeSec > freeze) freeze = d.freezeSec; }
+        else { inFire = true; if (d.burnDps > burnDps) { burnDps = d.burnDps; burnSec = d.burnSec; } }
       }
       if (e.slowT > 0) e.slowT = Math.max(0, e.slowT - dt);
       e.slowed = !e.type.boss && (inIce || e.slowT > 0);          // bosses can't be slowed
+      e.slowMult = inIce ? slowMult : C.slowSpeedMult;
+      if (inIce && !e.iced && freeze > 0 && !e.type.boss) e.holdT = Math.max(e.holdT, freeze);
+      e.iced = inIce;
       if (e.type.fireImmune) inFire = false;                      // Button Beetle: Fire Pins can't light it
-      if (inFire) e.burnLeft = C.towers.fire.burnSec; else if (e.burnLeft > 0) e.burnLeft = Math.max(0, e.burnLeft - dt);
+      if (inFire) { e.burnLeft = burnSec; e.burnDps = burnDps; } else if (e.burnLeft > 0) e.burnLeft = Math.max(0, e.burnLeft - dt);
       e.burning = inFire || e.burnLeft > 0;
       if (e.burning) {                                           // burn in whole ticks, counted from catching fire
-        const def = C.towers.fire, tick = def.burnTickMs / 1000;
+        const tick = C.towers.fire.burnTickMs / 1000;
         e.burnT += dt;
-        if (e.burnT >= tick) { e.burnT -= tick; if (burn(e, def.burnDps * tick)) continue; }
+        if (e.burnT >= tick) { e.burnT -= tick; if (burn(e, e.burnDps * tick)) continue; }
       } else e.burnT = 0;
       if (e.holdT > 0) e.holdT = Math.max(0, e.holdT - dt);
-      const step = e.holdT > 0 ? 0 : e.speed * dt * (e.slowed ? C.slowSpeedMult : 1);   // held by the Ratchet Pruners' jaw
+      const step = e.holdT > 0 ? 0 : e.speed * dt * (e.slowed ? e.slowMult : 1);   // held by the Ratchet Pruners' jaw / a Magnet clump / a freeze
       if (e.type.boss) bossMove(e, dt, step);                    // its own walk (bosses section)
       else if (e.escortOf) {                                  // an Unstitcher's swarm: keeps its place round the boss
         const b = e.escortOf;

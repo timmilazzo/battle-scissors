@@ -1,13 +1,14 @@
 // Procedural plush ragdoll enemies, after the level mock: a felt egg of a body with stubby arms and mitten hands,
 // short legs, sewn-on patches with stitched borders, cross-stitched seams, glowing red button eyes and a stitched
 // mouth. Soft volume shading and a felt speckle; a soft brown rim keeps them readable on the tan road.
-// Each type is drawn once per resize into a small offscreen canvas, plus a ground shadow and a dust-puff sprite
+// Each type is drawn once per resize into a small offscreen canvas (and once more per higher rank, recoloured), plus a ground shadow and a dust-puff sprite
 // drawn under it while it walks. Live overlays on top: the Brute's thimble armor and the Seam Ripper's glowing seam.
 import { CONFIG as C } from './config.js';
 import { TAU, DEG } from './core.js';
 
 const THREAD = '#3a2414', LIGHT_THREAD = '#fff3d6', OUTLINE = '#2b1a10';
 const sprites = {}, grounds = {}, dusts = {};
+const rankSprites = [{}, {}];                                   // rank 2 and rank 3 sprites by type (CONFIG.enemyRanks.colors)
 
 // ---------- colour + shape helpers (only used while building sprites) ----------
 const rgb = hex => { const n = parseInt(hex.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; };
@@ -367,6 +368,10 @@ export function buildEnemySprites(dpr) {
     if (!art) { console.warn('no art for enemy type', name); continue; }
     const r = t.r;
     art.draw(canvasFor(sprites, name, Math.ceil(r * art.extent) + 4, dpr), r, t);
+    // its higher ranks: the same design in the rank's colours (CONFIG.enemyRanks.colors)
+    (C.enemyRanks.colors[name] || []).forEach((pal, k) => {
+      art.draw(canvasFor(rankSprites[k], name, Math.ceil(r * art.extent) + 4, dpr), r, Object.assign({}, t, pal));
+    });
     // contact shadow under the feet
     let g = canvasFor(grounds, name, Math.ceil(r * 1.3) + 2, dpr);
     let gr = g.createRadialGradient(0, r * 0.98, 0, 0, r * 0.98, r);
@@ -388,7 +393,10 @@ function blit(ctx, s, x, y, rot) {
   ctx.drawImage(s.canvas, -s.half, -s.half, s.half * 2, s.half * 2);
   ctx.restore();
 }
-export function drawEnemySprite(ctx, name, x, y, rot) { const s = sprites[name]; if (s) blit(ctx, s, x, y, rot); }
+// rank = 1..3 (CONFIG.enemyRanks): 2 and 3 use their recoloured sprites where the type has them.
+export function drawEnemySprite(ctx, name, x, y, rot, rank = 1) {
+  const s = (rank > 1 && rankSprites[rank - 2][name]) || sprites[name]; if (s) blit(ctx, s, x, y, rot);
+}
 // Shadow, plus dust puffs (dust = 0..1 opacity, 0 for enemies standing still).
 export function drawEnemyGround(ctx, name, x, y, dust) {
   const s = grounds[name]; if (s) ctx.drawImage(s.canvas, x - s.half, y - s.half, s.half * 2, s.half * 2);
@@ -398,8 +406,47 @@ export function drawEnemyGround(ctx, name, x, y, dust) {
 
 // Steel thimble cap over the Brute's head while its armor is intact.
 export function drawBruteArmor(ctx, e, rot) {
-  const r = e.r;
   ctx.save(); ctx.translate(e.x, e.y); if (rot) ctx.rotate(rot);
+  thimble(ctx, e.r);
+  ctx.restore();
+}
+// An armored boss's helmet off its head (e.helmPh, game.js bossMove): tumbling off in an arc (1), lying beside it with
+// a settling wobble (2), lifted back onto its head (3). While it is off, dizzy stars circle the boss's head.
+export function drawLooseHelmet(ctx, e, clock) {
+  const r = e.r, s = e.helmSide || 1, lx = s * C.helmLand[0] * r, ly = C.helmLand[1] * r, hy = -0.8 * r;   // hy = the cap's centre on its head
+  let x, y, rot, lift;
+  if (e.helmPh === 1) {
+    const p = Math.min(1, e.helmT / C.helmFlySec);
+    lift = Math.sin(Math.PI * p) * 1.2 * r;
+    x = lx * p; y = hy + (ly - hy) * p - lift; rot = s * p * (TAU + 0.5);
+  } else if (e.helmPh === 2) {
+    const t = e.helmT;
+    lift = 0; x = lx; y = ly; rot = s * (0.5 + 0.18 * Math.exp(-7 * t) * Math.sin(22 * t));
+  } else {
+    const q = Math.min(1, e.helmT / C.helmPickupSec), p = q * q * (3 - 2 * q);
+    lift = Math.sin(Math.PI * p) * 0.7 * r;
+    x = lx * (1 - p); y = ly + (hy - ly) * p - lift; rot = s * 0.5 * (1 - p);
+  }
+  if (e.helmPh !== 3 || x !== 0) {                                // its shadow on the ground beside the boss
+    ctx.globalAlpha = 0.3 * (1 - Math.min(1, lift / (1.4 * r)));
+    ctx.fillStyle = '#2a170a'; ctx.beginPath(); ctx.ellipse(e.x + x, e.y + ly + r * 0.32, r * 0.7, r * 0.2, 0, 0, TAU); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  ctx.save(); ctx.translate(e.x + x, e.y + y); ctx.rotate(rot); ctx.translate(0, 0.8 * r);
+  thimble(ctx, r);
+  ctx.restore();
+  if (e.helmPh < 3) {                                           // dazed: stars circling its bare head
+    ctx.fillStyle = '#ffd23f'; ctx.strokeStyle = OUTLINE; ctx.lineWidth = Math.max(1.2, r * 0.03);
+    for (let i = 0; i < 3; i++) {
+      const a = clock * 4 + i * TAU / 3, sx = e.x + Math.cos(a) * r * 0.62, sy = e.y - r * 1.12 + Math.sin(a) * r * 0.16;
+      ctx.beginPath();
+      for (let k = 0; k < 10; k++) { const b = -Math.PI / 2 + k * Math.PI / 5, d = (k & 1 ? 0.06 : 0.14) * r; ctx.lineTo(sx + Math.cos(b) * d, sy + Math.sin(b) * d); }
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+  }
+}
+// The thimble, drawn around the body's centre (the cap sits on the head, its centre 0.8r up).
+function thimble(ctx, r) {
   ctx.beginPath();
   ctx.moveTo(-r * 0.84, -r * 0.42); ctx.quadraticCurveTo(-r * 0.88, -r * 1.16, 0, -r * 1.18);
   ctx.quadraticCurveTo(r * 0.88, -r * 1.16, r * 0.84, -r * 0.42); ctx.closePath();
@@ -413,7 +460,6 @@ export function drawBruteArmor(ctx, e, rot) {
   ctx.fill();
   ctx.beginPath(); ctx.moveTo(-r * 0.52, -r * 0.92); ctx.quadraticCurveTo(0, -r * 1.08, r * 0.46, -r * 0.94);
   ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = Math.max(1.5, r * 0.06); ctx.lineCap = 'round'; ctx.stroke();
-  ctx.restore();
 }
 
 // A seam boss's weak spot on its rim, centred on e.seamA: split open and blazing while e.seamOpen (snip now), a dim

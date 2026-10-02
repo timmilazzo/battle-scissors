@@ -8,14 +8,15 @@ import { CONFIG as C } from './config.js';
 import { view, level, TAU, DEG } from './core.js';
 import { input, holdTouch } from './input.js';
 import { cut, weapon } from './scissors.js';
-import { live, visOpen, bladeTheta, towerReach, levelWaves, bossMode } from './game.js';
-import { buildEnemySprites, drawEnemySprite, drawEnemyGround, drawBruteArmor, drawSeam, drawArmorSeams, drawChargeWarn } from './enemyArt.js';
+import { live, visOpen, bladeTheta, levelWaves, bossMode } from './game.js';
+import { towerReachOf } from './pins.js';
+import { buildEnemySprites, drawEnemySprite, drawEnemyGround, drawBruteArmor, drawLooseHelmet, drawSeam, drawArmorSeams, drawChargeWarn } from './enemyArt.js';
 import { buildTowerSprites, drawTower, drawNeedle, towerUnit } from './towerArt.js';
 import { drawWeapon, rasterizeArt, setHandleTint } from './weaponArt.js';
 import { cosmeticColor } from './meta.js';
-import { plateFor } from './levelArt.js';
+import { plateFor, ensureSprites, kitSprite } from './levelArt.js';
 import { makeTweens, easing } from './tween.js';
-import { UI_ART, uiImage } from './kit.js';
+import { UI_ART, uiImage, ZONES, SPRITES, heartPadKey, HIT_BITS } from './kit.js';
 
 const ctx = view.ctx;
 const vfx = makeTweens();                                        // render-only tweens
@@ -30,6 +31,7 @@ const PROMPT_FONT = '500 15px ' + FONT;
 const HUD_FONT = '400 17px ' + UI_FONT;
 const BANNER_FONT = '400 48px ' + UI_FONT;
 const BANNER_SUB_FONT = '400 19px ' + UI_FONT;
+const HEART_FONT = '400 40px ' + UI_FONT;                       // the HP on the heart pad (scaled to the pad)
 
 const PART_COLORS = ['#ffffff', '#8ff7ff', '', '#ffd23f', '#ff8a3d'];   // particle c: 0 white, 1 cyan, 3 gold, 4 ember (2 = alternating 0/1)
 // big floating words, indexed by label kind (LABEL_SNIP / LABEL_NICK / LABEL_CLANG / LABEL_SHIELD in game.js)
@@ -90,11 +92,60 @@ function renderBackground() {
 
 // ======================= world =======================
 
-function drawWorkshopHit(state) {
-  if (state.workshopHitT <= 0) return;
+// The workshop is the heart pad at the end of the road, and it shows the HP (there's no HP counter in the HUD): the
+// zone's pad in the damage stage for the HP left (kit.js heartPadKey; stage 0 is a generated plate's own pad, so nothing
+// is drawn over it there; a painted plate gets the kit's pad over its painted one from the start), a red flash on a
+// hit, and the HP as a number on the heart (not in level 0, where nothing hurts it). Each hit also throws a burst of
+// loose bits off the pad (drawHeartBurst).
+let heartZone = '', heartHp = -1;
+const heartNum = { hp: -1, text: '' };
+function drawHeart(state) {
+  const lv = level(), zone = ZONES[lv.world] ? lv.world : 'denim';
+  if (zone !== heartZone) { heartZone = zone; ensureSprites([0, 1, 2, 3, 4].map(n => heartPadKey(zone, n)).concat(HIT_BITS)).catch(() => {}); }
   const p = state.paths[0], x = p.x[p.n - 1], y = p.y[p.n - 1];              // every route ends on the heart pad
-  ctx.globalAlpha = state.workshopHitT * 0.55; ctx.fillStyle = '#ff3b3b';
-  ctx.beginPath(); ctx.arc(x, y, level().workshopR * view.L * (0.8 + (1 - state.workshopHitT) * 0.3), 0, TAU); ctx.fill();
+  const R = lv.workshopR * view.L, f = state.hp / C.workshopHp, tut = state.mode === 'TUTORIAL';
+  if (state.hp < heartHp && !tut) heartBurst(x, y, R);
+  heartHp = state.hp;
+  let stage = 0;
+  while (stage < C.heartStageAt.length && f <= C.heartStageAt[stage]) stage++;
+  if (stage || !lv.gen) kitSprite(ctx, heartPadKey(zone, stage), x, y, R / SPRITES[heartPadKey(zone, 0)][5] * 1.04, 0, 0);
+  if (state.workshopHitT > 0) {
+    ctx.globalAlpha = state.workshopHitT * 0.55; ctx.fillStyle = '#ff3b3b';
+    ctx.beginPath(); ctx.arc(x, y, R * (0.8 + (1 - state.workshopHitT) * 0.3), 0, TAU); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  if (tut) return;
+  if (heartNum.hp !== state.hp) { heartNum.hp = state.hp; heartNum.text = String(Math.max(0, state.hp)); }
+  const low = state.hp <= C.heartLowHp, px = Math.max(R * C.heartNumFrac, C.heartNumMinPx / view.Z);
+  const s = (1 + 0.35 * state.workshopHitT) * (low && state.hp > 0 ? 1 + 0.08 * Math.sin(state.clock * 7) : 1);
+  ctx.save();
+  ctx.translate(x, y - R * 0.04); ctx.scale(s * px / 40, s * px / 40);       // the font is set at 40px and scaled
+  ctx.font = HEART_FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+  ctx.lineWidth = 9; ctx.strokeStyle = low ? '#3a0303' : '#5a0d0d'; ctx.strokeText(heartNum.text, 0, 2);
+  ctx.fillStyle = low ? '#ffe27a' : '#fff6e6'; ctx.fillText(heartNum.text, 0, 2);
+  ctx.restore();
+}
+// The hit burst: stuffing puffs, thread ends and popped stitches fly off the pad, spin and fade (render-only; the
+// randomness is purely visual).
+const bits = [];
+for (let i = 0; i < 24; i++) bits.push({ on: false, key: '', x0: 0, y0: 0, dx: 0, dy: 0, rot: 0, vr: 0, p: 0 });
+function heartBurst(x, y, R) {
+  const reach = C.heartBurstPx * view.L;
+  for (let i = 0; i < C.heartBurstN; i++) {
+    const b = bits.find(o => !o.on) || bits[i % bits.length], a = Math.random() * TAU, d = reach * (0.5 + Math.random() * 0.5);
+    b.on = true; b.key = HIT_BITS[(Math.random() * HIT_BITS.length) | 0]; b.p = 0;
+    b.x0 = x + Math.cos(a) * R * 0.3; b.y0 = y + Math.sin(a) * R * 0.3;            // from the heart, out past the pad's edge
+    b.dx = Math.cos(a) * d; b.dy = Math.sin(a) * d; b.rot = Math.random() * TAU; b.vr = (Math.random() - 0.5) * 6;
+    vfx.cancel(b); vfx.add(b, FLY_DONE, C.heartBurstMs, easing.outCubic, off, b);
+  }
+}
+function drawHeartBurst() {
+  const sc = C.heartBurstScale * view.L;
+  for (const b of bits) {
+    if (!b.on) continue;
+    ctx.globalAlpha = 1 - b.p * b.p;
+    kitSprite(ctx, b.key, b.x0 + b.dx * b.p, b.y0 + b.dy * b.p, sc * (1 - 0.3 * b.p), b.rot + b.vr * b.p, 0);
+  }
   ctx.globalAlpha = 1;
 }
 
@@ -151,11 +202,12 @@ function drawEnemies(state) {
     lastHp[i] = e.hp; wasOn[i] = e.on ? 1 : 0;
     if (!e.on) { flashFrames[i] = 0; continue; }
     const t = e.type, step = Math.sin(e.age * 7 + e.phase), rot = t.boss ? 0 : step * wad;
-    drawEnemyGround(ctx, e.name, e.x, e.y, e.pinned && !e.walking ? 0 : 0.55 + 0.35 * Math.abs(step));
+    drawEnemyGround(ctx, e.name, e.x, e.y, (e.pinned && !e.walking) || e.armorDownT > 0 ? 0 : 0.55 + 0.35 * Math.abs(step));   // no dust standing still (a dazed boss too)
     const shake = e.windup ? C.bossTremblePx * Math.sin(state.clock * 70) : 0;   // winding up for a charge: it trembles
     if (shake) ctx.translate(shake, 0);
-    drawEnemySprite(ctx, e.name, e.x, e.y, rot);
+    drawEnemySprite(ctx, e.name, e.x, e.y, rot, e.rank);
     if (e.armored) drawBruteArmor(ctx, e, rot);
+    else if (t.boss && e.helmPh > 0) drawLooseHelmet(ctx, e, state.clock);   // knocked off by its charge, then picked back up
     if (shake) ctx.translate(-shake, 0);
     if (t.boss) {                                               // its rules, shown: the opening seam, or glowing seams while armor is down
       const m = bossMode(e);
@@ -350,7 +402,7 @@ function drawTowers(state) {
   for (let i = 0; i < state.towers.length; i++) {
     const t = state.towers[i];
     if (!t.on) continue;
-    const def = C.towers[t.type], R = towerReach(t.type);
+    const def = C.towers[t.type], R = towerReachOf(t);               // the ring at its rank and tier (pins.js)
     ctx.beginPath(); ctx.arc(t.x, t.y, R, 0, TAU);
     if (t.type === 'magnet') { ctx.globalAlpha = 0.28; ctx.fillStyle = magnetGrad(i, t, R, def.color); }
     else { ctx.globalAlpha = 0.07; ctx.fillStyle = def.color; }
@@ -362,7 +414,7 @@ function drawTowers(state) {
     }
   }
   ctx.globalAlpha = 1;
-  for (const t of state.towers) if (t.on) drawTower(ctx, t.type, t.x, t.y, state.clock, t);
+  for (const t of state.towers) if (t.on) drawTower(ctx, t, state.clock);
 }
 const DASH = [6, 6], NO_DASH = [];
 // Needles in flight (Needle Pin shots), same art as the one loaded on the Pin, a little smaller.
@@ -597,8 +649,37 @@ function drawBossBar(state) {
 
 // The boss's rule right now, right-aligned under its bar (clear of the HUD column on the left): pale while it's
 // something to wait for, gold when a snip will land. It swells and glows for bossHintPulseSec when it changes.
-let hintKey = '', hintT0 = -1;
+// Under that, once its HP drops to bossTauntAt, its taunt2 (config bosses) for bossTauntSec, fading out: a smaller
+// pale purple line, split in two near its middle when it's too wide to clear the HUD column (worked out once, as it
+// turns on).
+let hintKey = '', hintT0 = -1, tauntOn = false, tauntT0 = 0, tauntLines = [];
+const TAUNT_FONT = '400 14px ' + UI_FONT;
+function wrapTaunt(text, maxW) {
+  ctx.font = TAUNT_FONT;
+  if (ctx.measureText(text).width <= maxW) return [text];
+  const words = text.split(' ');
+  let best = 1, bestD = Infinity;
+  for (let i = 1; i < words.length; i++) {
+    const d = Math.abs(ctx.measureText(words.slice(0, i).join(' ')).width - ctx.measureText(words.slice(i).join(' ')).width);
+    if (d < bestD) { bestD = d; best = i; }
+  }
+  return [words.slice(0, best).join(' '), words.slice(best).join(' ')];
+}
 function drawBossHint(state, boss, rx, y) {
+  const def = C.bosses[boss.name], f = boss.hp / boss.maxHp;
+  if (f > C.bossTauntAt) tauntOn = false;                            // a fresh boss (a retry) re-arms it
+  else if (!tauntOn) { tauntOn = true; tauntT0 = state.clock; tauntLines = def && def.taunt2 ? wrapTaunt('“' + def.taunt2 + '”', view.SW - 110) : []; }
+  const tt = state.clock - tauntT0;
+  if (tauntOn && tauntLines.length && tt < C.bossTauntSec) {
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, (C.bossTauntSec - tt) / 0.6);     // fades over the last 0.6s
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.font = TAUNT_FONT; ctx.lineJoin = 'round';
+    for (let i = 0; i < tauntLines.length; i++) {
+      ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.strokeText(tauntLines[i], rx, y + 22 + i * 17);
+      ctx.fillStyle = '#f3c8ff'; ctx.fillText(tauntLines[i], rx, y + 22 + i * 17);
+    }
+    ctx.restore();
+  }
   const m = bossMode(boss), H = C.bossHints;
   let key;
   if (m === 'swarm') key = boss.shieldDownT > 0 ? 'shieldDown' : 'swarm';
@@ -606,7 +687,7 @@ function drawBossHint(state, boss, rx, y) {
   else key = boss.seamOpen ? 'seamOpen' : 'seam';
   if (key !== hintKey) { hintKey = key; hintT0 = state.clock; }
   const go = key === 'shieldDown' || key === 'armorDown' || key === 'seamOpen';
-  const p = Math.max(0, 1 - (state.clock - hintT0) / C.bossHintPulseSec), s = 1 + 0.15 * p;   // small: it grows leftward toward the hearts
+  const p = Math.max(0, 1 - (state.clock - hintT0) / C.bossHintPulseSec), s = 1 + 0.15 * p;   // small: it grows leftward toward the HUD
   ctx.save();
   ctx.translate(rx, y); ctx.scale(s, s);
   ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.font = HUD_FONT; ctx.lineJoin = 'round';
@@ -628,7 +709,7 @@ export function draw(state) {
   ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
   if (fx.camShake > 0) ctx.translate(Math.sin(state.clock * 83) * fx.camShake, Math.cos(state.clock * 71) * fx.camShake);   // kill shake moves the whole world
   ctx.drawImage(bgCanvas, 0, 0, view.W, view.H);
-  drawWorkshopHit(state);
+  drawHeart(state);
   drawEntryMarks(state);
   drawTowers(state);
   if (fx.kick > 0) ctx.translate(-input.aimX * C.snipKickPx * fx.kick, -input.aimY * C.snipKickPx * fx.kick);
@@ -638,6 +719,7 @@ export function draw(state) {
   drawCritters(state);
   drawNeedles(state);
   drawFragments(state);
+  drawHeartBurst();
   if (live()) {
     drawFingers();
     drawWeaponWithTrails(state, dt);

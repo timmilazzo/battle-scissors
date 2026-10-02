@@ -49,6 +49,10 @@ export const seamOpen = [0.45, 0, 880, 0, 0.06, 0.12, 0, 1.5, 12, 0, 440, 0.05, 
 export const kingWindup = [0.7, 0.05, 55, 0.25, 0.7, 0.2, 3, 1.5, 1.5, 0, 0, 0, 0, 0.6, 0, 0, 0, 0.8, 0.2, 0.6, -600];
 // The Brute King's armor drops after a charge: a metallic clatter falling in pitch.
 export const armorOff = [0.55, 0.05, 900, 0, 0.03, 0.25, 1, 1, -18, 0, 0, 0, 0.04, 0.5, 30, 0, 0, 0.5, 0.03];
+// Its thimble helmet hits the ground: a tinny clunk that bounces once (repeat).
+export const helmetLand = [0.5, 0.1, 620, 0, 0.01, 0.14, 1, 1, 0, 0, 0, 0, 0.07, 0.3, 20, 0, 0, 0.4, 0.02];
+// ...and goes back on: a short clink rising into place.
+export const helmetOn = [0.45, 0.02, 700, 0, 0.02, 0.12, 1, 1, 12, 0, 300, 0.04, 0, 0, 20, 0, 0, 0.5, 0.02];
 // Critter squish (silverfish): a wet crunch: a short noisy crack, low-passed, sagging in pitch with a squelchy wobble.
 export const squish = [0.9, 0.1, 220, 0, 0.03, 0.14, 4, 2.4, -14, 0, 0, 0, 0, 3.5, 18, 0.2, 0, 0.5, 0.04, 0.3, -1400];
 // A silverfish skitters away from opening blades: a tiny dry tick-tick (repeating noisy blip, high-passed).

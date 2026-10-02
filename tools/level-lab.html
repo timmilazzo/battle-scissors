@@ -5,7 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Level Lab</title>
 <!-- Dev tool: type a road recipe (see src/levelGen.js), see the generated plate, then play it. Run from the dev server
-     (node tools/serve.js), open /tools/level-lab.html. Not part of the deployed site. -->
+     (node tools/serve.js), open /tools/level-lab.html. Not part of the deployed site.
+     Export PNG downloads the plate (with any dressing) and a copy with the routes/pads overlay, as an artist reference.
+     Dress mode places kit sprites by hand (src/levelDress.js): click to place, drag to move, wheel to scale, shift+wheel
+     to rotate, Delete/Backspace removes; the textarea holds the `dressing: [...]` to paste into the level file. -->
 <style>
   body { margin: 0; font: 14px system-ui, sans-serif; background: #1b1512; color: #f3e6c8; }
   header { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px; background: #2c1e14; position: sticky; top: 0; z-index: 2; }
@@ -14,13 +17,20 @@
   input[type=number] { width: 90px; padding: 7px; background: #120d0a; color: #f3e6c8; border: 1px solid #6b4a2e; border-radius: 6px; }
   button, a.btn { font: inherit; padding: 7px 12px; border-radius: 6px; border: 1px solid #c99a3e; background: #5a3a1c; color: #ffe4aa; cursor: pointer; text-decoration: none; }
   label { display: inline-flex; gap: 4px; align-items: center; }
+  #wrap { display: flex; flex-wrap: wrap; align-items: flex-start; }
   main { display: flex; flex-wrap: wrap; gap: 12px; padding: 12px; }
   .cell { display: flex; flex-direction: column; gap: 6px; }
   .cell canvas { height: min(80vh, 900px); border-radius: 8px; box-shadow: 0 4px 18px #000; }
   .grid .cell canvas { height: 46vh; }
+  .dressing .cell canvas { cursor: crosshair; }
   .meta { font: 12px ui-monospace, Consolas, monospace; max-width: 520px; white-space: pre-wrap; color: #d9c7a0; }
   .warn { color: #ff9a6a; }
   #help { font: 12px ui-monospace, Consolas, monospace; color: #bfa98a; padding: 0 12px; white-space: pre-wrap; }
+  aside { display: flex; flex-direction: column; gap: 8px; padding: 12px; width: 380px; max-width: calc(100vw - 24px); box-sizing: border-box; }
+  aside[hidden] { display: none; }
+  aside .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  aside select { flex: 1 1 160px; }
+  textarea { font: 12px ui-monospace, Consolas, monospace; min-height: 280px; padding: 7px 9px; background: #120d0a; color: #f3e6c8; border: 1px solid #6b4a2e; border-radius: 6px; resize: vertical; }
 </style>
 </head>
 <body>
@@ -32,45 +42,91 @@
   <button id="random">Random recipe</button>
   <button id="six">6 seeds</button>
   <label><input id="overlay" type="checkbox" checked> routes + pads</label>
+  <label><input id="dress" type="checkbox"> Dress</label>
+  <button id="export" title="Downloads the plate as painted (with dressing), then a copy with the routes + pads overlay">Export PNG</button>
   <a id="play" class="btn" target="_blank">Play it ›</a>
 </header>
 <div id="help">segments: straight · bend [left|right|center] · s [left|right] [amp] · wave [n] · wiggle [n] · zigzag [n] [left|right] · fork [wide|narrow|long] [pin] · triple · start left|right|center · entry left|right|top [pct] · spiral [left|right] [turns] · heart left|right|center · size n (line colour = entrance)</div>
-<main id="out"></main>
+<div id="wrap">
+  <main id="out"></main>
+  <aside id="dresspanel" hidden>
+    <div class="row"><select id="sprite" aria-label="Sprite"></select><label>scale <input id="scale" type="number" value="0.5" step="0.05" min="0.05"></label></div>
+    <div class="row"><button id="dclear">Clear all</button><span class="meta" id="dsel"></span></div>
+    <div class="meta">click = place · drag = move · wheel = scale · shift+wheel = rotate · Delete = remove · Esc = deselect
+paste a dressing (JSON array, or the whole `dressing: [...]` line) below to load it</div>
+    <textarea id="djson" spellcheck="false" aria-label="Dressing JSON"></textarea>
+    <span class="meta warn" id="derr"></span>
+  </aside>
+</div>
 <script type="module">
   import { CONFIG as C } from '../src/config.js';
   import { buildLevel, randomRecipe, curve } from '../src/levelGen.js';
   import { loadKit, paintLevel } from '../src/levelArt.js';
+  import { SPRITES } from '../src/kit.js';
+  import { loadDressing, drawDressing } from '../src/levelDress.js';
 
   const $ = id => document.getElementById(id), out = $('out');
-  function view(def) {
-    const plate = paintLevel(def), c = document.createElement('canvas');
-    c.width = def.w; c.height = def.h;
-    const g = c.getContext('2d');
-    g.drawImage(plate, 0, 0, def.w, def.h);                  // a bigger level's plate is painted smaller
-    if ($('overlay').checked) {
-      def.paths.forEach((P, i) => {
-        g.strokeStyle = ['#ff3b3b', '#3bff7a', '#3bb4ff', '#ffd23f'][(def.entryOf ? def.entryOf[i] : i) % 4]; g.lineWidth = 3; g.setLineDash([]);
-        g.beginPath(); curve(P, 12).forEach(([x, y], k) => (k ? g.lineTo(x, y) : g.moveTo(x, y))); g.stroke();
-      });
-      g.strokeStyle = 'rgba(255,255,255,0.8)'; g.setLineDash([8, 8]); g.lineWidth = 2;
-      for (const [x, y] of def.spots) { g.beginPath(); g.arc(x, y, C.towers.needle.radius, 0, Math.PI * 2); g.stroke(); }
-      g.setLineDash([]); g.strokeStyle = 'rgba(255,0,255,0.5)';                  // narrow-phone crop (360 x 780)
-      const crop = (def.w - 360 * def.h / 780) / 2; g.strokeRect(crop, 0, def.w - 2 * crop, def.h);
-    }
-    const cell = document.createElement('div'); cell.className = 'cell';
-    const meta = document.createElement('div'); meta.className = 'meta';
-    meta.innerHTML = '<b>' + def.recipe + '</b>  seed ' + def.seed + '\nsize ' + def.size + ' (the game zooms out to fit), entrances ' + def.entries + ', paths ' + def.paths.length + ', pads ' + def.spots.length +
-      (def.warnings.length ? '\n<span class="warn">' + def.warnings.join('\n') + '</span>' : '');
-    cell.append(c, meta);
-    return cell;
+  const zoneOf = def => def.world;
+
+  // ---------- drawing: the plate at its own resolution, in plate units under a 1 / size scale ----------
+  function drawOverlay(g, def) {
+    def.paths.forEach((P, i) => {
+      g.strokeStyle = ['#ff3b3b', '#3bff7a', '#3bb4ff', '#ffd23f'][(def.entryOf ? def.entryOf[i] : i) % 4]; g.lineWidth = 3; g.setLineDash([]);
+      g.beginPath(); curve(P, 12).forEach(([x, y], k) => (k ? g.lineTo(x, y) : g.moveTo(x, y))); g.stroke();
+    });
+    g.strokeStyle = 'rgba(255,255,255,0.8)'; g.setLineDash([8, 8]); g.lineWidth = 2;
+    for (const [x, y] of def.spots) { g.beginPath(); g.arc(x, y, C.towers.needle.radius, 0, Math.PI * 2); g.stroke(); }
+    g.setLineDash([]); g.strokeStyle = 'rgba(255,0,255,0.5)';                  // narrow-phone crop (360 x 780)
+    const crop = (def.w - 360 * def.h / 780) / 2; g.strokeRect(crop, 0, def.w - 2 * crop, def.h);
   }
+  // opts: { overlay, dressing (placements), sel (selected placement) }; draws onto canvas c (resized to the plate)
+  function compose(c, def, plate, opts) {
+    c.width = plate.width; c.height = plate.height;
+    const g = c.getContext('2d');
+    g.drawImage(plate, 0, 0);
+    g.save(); g.scale(plate.width / def.w, plate.height / def.h);
+    if (opts.dressing && opts.dressing.length) drawDressing(g, { dressing: opts.dressing });
+    if (opts.overlay) drawOverlay(g, def);
+    if (opts.sel) {
+      const r = SPRITES[opts.sel.key][5] * opts.sel.s;
+      g.setLineDash([10, 6]); g.lineWidth = 3; g.strokeStyle = '#ffe14a';
+      g.beginPath(); g.arc(opts.sel.x, opts.sel.y, r, 0, Math.PI * 2); g.stroke(); g.setLineDash([]);
+    }
+    g.restore();
+    return c;
+  }
+  function metaText(def) {
+    return '<b>' + def.recipe + '</b>  seed ' + def.seed + '\nsize ' + def.size + ' (the game zooms out to fit), entrances ' + def.entries + ', paths ' + def.paths.length + ', pads ' + def.spots.length +
+      (def.warnings.length ? '\n<span class="warn">' + def.warnings.join('\n') + '</span>' : '');
+  }
+  function view(def, plate, opts) {
+    const c = compose(document.createElement('canvas'), def, plate, opts);
+    const cell = document.createElement('div'); cell.className = 'cell';
+    const meta = document.createElement('div'); meta.className = 'meta'; meta.innerHTML = metaText(def);
+    const dmeta = document.createElement('div'); dmeta.className = 'meta warn';
+    cell.append(c, meta, dmeta);
+    return { cell, c, dmeta };
+  }
+
+  // ---------- the level ----------
   // the level in the chosen zone's look (a level file's `world`)
   const lvl = (recipe, seed) => Object.assign(buildLevel(recipe, seed), { world: $('zone').value });
   $('zone').onchange = () => build();
   function playLink(recipe, seed) { $('play').href = '../index.html?recipe=' + encodeURIComponent(recipe) + '&seed=' + seed; }
+  let cur = null;          // the single view: { def, plate, c, dmeta }
+  let dress = [];          // placements, { key, x, y, s, rot } in plate units; kept across rebuilds
+  let sel = null;          // the selected placement
+  function redraw() {
+    if (!cur) return;
+    compose(cur.c, cur.def, cur.plate, { overlay: $('overlay').checked, dressing: dress, sel: $('dress').checked ? sel : null });
+  }
   function build() {
     const recipe = $('recipe').value, seed = +$('seed').value || 1;
-    out.className = ''; out.replaceChildren(view(lvl(recipe, seed)));
+    const def = lvl(recipe, seed), plate = paintLevel(def), v = view(def, plate, { overlay: $('overlay').checked, dressing: dress });
+    cur = { def, plate, c: v.c, dmeta: v.dmeta };
+    out.className = $('dress').checked ? 'dressing' : ''; out.replaceChildren(v.cell);
+    hookCanvas(v.c);
+    dressChanged();
     playLink(recipe, seed);
     history.replaceState(null, '', '?recipe=' + encodeURIComponent(recipe) + '&seed=' + seed);
   }
@@ -80,11 +136,169 @@
   $('random').onclick = () => { const s = (Math.random() * 1e6) | 0; $('seed').value = s; $('recipe').value = randomRecipe(s); build(); };
   $('six').onclick = () => {
     const recipe = $('recipe').value, s0 = +$('seed').value || 1;
-    out.className = 'grid'; out.replaceChildren(...[0, 1, 2, 3, 4, 5].map(i => view(lvl(recipe, s0 + i))));
+    cur = null;
+    out.className = 'grid'; out.replaceChildren(...[0, 1, 2, 3, 4, 5].map(i => {
+      const def = lvl(recipe, s0 + i);
+      return view(def, paintLevel(def), { overlay: $('overlay').checked }).cell;
+    }));
   };
+
+  // ---------- Export PNG: the plate as painted (with dressing), then the same with the routes + pads overlay ----------
+  const slug = s => s.toLowerCase().replace(/[^a-z0-9.]+/g, '-').replace(/\.(?!\d)/g, '').replace(/^-+|-+$/g, '') || 'level';
+  function download(canvas, name) {
+    canvas.toBlob(blob => {
+      const url = URL.createObjectURL(blob), a = document.createElement('a');
+      a.href = url; a.download = name; document.body.append(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    }, 'image/png');
+  }
+  $('export').onclick = () => {
+    if (!cur) build();
+    const { def, plate } = cur, base = slug(def.recipe) + '-seed' + def.seed + '-' + zoneOf(def);
+    download(compose(document.createElement('canvas'), def, plate, { dressing: dress }), base + '.png');
+    setTimeout(() => download(compose(document.createElement('canvas'), def, plate, { overlay: true, dressing: dress }), base + '-overlay.png'), 400);
+  };
+
+  // ---------- Dress mode ----------
+  // the sprite picker, grouped by the section comments in src/kit.js's SPRITES (a flat list if that can't be read)
+  async function fillSprites() {
+    const groups = [];
+    try {
+      const src = await (await fetch('../src/kit.js')).text();
+      const body = src.slice(src.indexOf('export const SPRITES'), src.indexOf('};', src.indexOf('export const SPRITES')));
+      let g = null;
+      for (const line of body.split('\n')) {
+        const cm = line.match(/^\s*\/\/\s*(.+)$/), km = line.match(/^\s*(\w+)\s*:\s*\[/);
+        if (cm) groups.push(g = { label: cm[1].replace(/\s*\(.*\)\s*$/, ''), keys: [] });
+        else if (km && SPRITES[km[1]]) { if (!g) groups.push(g = { label: 'sprites', keys: [] }); g.keys.push(km[1]); }
+      }
+    } catch (e) { /* flat list below */ }
+    const listed = new Set(groups.flatMap(g => g.keys)), rest = Object.keys(SPRITES).filter(k => !listed.has(k));
+    if (rest.length) groups.push({ label: groups.length ? 'other' : 'sprites', keys: rest });
+    $('sprite').replaceChildren(...groups.filter(g => g.keys.length).map(g => {
+      const og = document.createElement('optgroup'); og.label = g.label;
+      og.append(...g.keys.map(k => new Option(k, k)));
+      return og;
+    }));
+    $('sprite').value = 'spoolRed' in SPRITES ? 'spoolRed' : Object.keys(SPRITES)[0];
+  }
+  $('sprite').onchange = () => loadDressing({ dressing: [{ key: $('sprite').value }] });
+
+  const round = (v, d) => Math.round(v * 10 ** d) / 10 ** d;
+  const clean = d => ({ key: d.key, x: Math.round(d.x), y: Math.round(d.y), s: round(d.s, 3), rot: round(d.rot, 3) });
+  function toText() {
+    return 'dressing: [\n' + dress.map(d => '  ' + JSON.stringify(clean(d))).join(',\n') + (dress.length ? '\n' : '') + '],';
+  }
+  // `dressing: [...]`, a bare JSON array, or the JS-literal style (unquoted keys, single quotes, trailing commas)
+  function parseText(t) {
+    t = t.trim().replace(/^dressing\s*:\s*/, '').replace(/[,;]\s*$/, '');
+    if (!t) return [];
+    let a;
+    try { a = JSON.parse(t); } catch (e) {
+      a = JSON.parse(t.replace(/'/g, '"').replace(/([{,]\s*)([A-Za-z_]\w*)\s*:/g, '$1"$2":').replace(/,\s*([\]}])/g, '$1'));
+    }
+    if (!Array.isArray(a)) throw new Error('not an array');
+    return a.map((d, i) => {
+      if (!d || !SPRITES[d.key]) throw new Error('#' + i + ': unknown sprite key ' + (d && d.key));
+      if (![d.x, d.y].every(Number.isFinite)) throw new Error('#' + i + ': x and y must be numbers');
+      return { key: d.key, x: d.x, y: d.y, s: Number.isFinite(d.s) ? d.s : 0.5, rot: Number.isFinite(d.rot) ? d.rot : 0 };
+    });
+  }
+  $('djson').oninput = () => {
+    try { dress = parseText($('djson').value); sel = null; $('derr').textContent = ''; loadDressing({ dressing: dress }).then(redraw); dressChanged(true); }
+    catch (e) { $('derr').textContent = 'not loaded: ' + e.message; }
+  };
+  $('dclear').onclick = () => { dress = []; sel = null; dressChanged(); };
+
+  // distance from (x, y) to the polyline P
+  function distToPoly(P, x, y) {
+    let best = Infinity;
+    for (let i = 1; i < P.length; i++) {
+      const [ax, ay] = P[i - 1], [bx, by] = P[i], dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy || 1;
+      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / l2));
+      best = Math.min(best, Math.hypot(x - ax - t * dx, y - ay - t * dy));
+    }
+    return best;
+  }
+  // placements whose visible radius reaches the painted road (roadHalf + roadBorder), a Pin pad or the heart pad
+  function dressWarnings(def) {
+    const G = C.levelGen, roadOuter = G.roadHalf + G.roadBorder, polys = def.paths.map(p => curve(p, 12)), w = [];
+    dress.forEach((d, i) => {
+      const r = SPRITES[d.key][5] * d.s, hits = [];
+      if (polys.some(P => distToPoly(P, d.x, d.y) < r + roadOuter)) hits.push('the road');
+      def.spots.forEach(([x, y], j) => { if (Math.hypot(d.x - x, d.y - y) < r + def.spotR) hits.push('pad ' + j); });
+      if (def.heart && Math.hypot(d.x - def.heart[0], d.y - def.heart[1]) < r + def.workshopR) hits.push('the heart pad');
+      if (hits.length) w.push('dressing #' + i + ' ' + d.key + ' overlaps ' + hits.join(', '));
+    });
+    return w;
+  }
+  // after any change: redraw, rewrite the JSON (not while it's being typed in), the selection readout and the warnings
+  function dressChanged(fromText) {
+    redraw();
+    if (!fromText) $('djson').value = toText();
+    $('dsel').textContent = sel ? '#' + dress.indexOf(sel) + ' ' + sel.key + '  s ' + round(sel.s, 3) + '  rot ' + round(sel.rot * 180 / Math.PI, 1) + '°' : dress.length + ' placed';
+    if (cur) {
+      const w = dressWarnings(cur.def);
+      cur.dmeta.textContent = w.join('\n');
+    }
+  }
+
+  // mouse -> plate units (the canvas is shown CSS-scaled, and a bigger level's plate is painted at 1 / size)
+  function platePt(c, e) {
+    const r = c.getBoundingClientRect();
+    return [(e.clientX - r.left) / r.width * cur.def.w, (e.clientY - r.top) / r.height * cur.def.h];
+  }
+  function hit(x, y) {
+    for (let i = dress.length - 1; i >= 0; i--) { const d = dress[i]; if (Math.hypot(d.x - x, d.y - y) < SPRITES[d.key][5] * d.s) return d; }
+    return null;
+  }
+  let drag = null;
+  function hookCanvas(c) {
+    c.onmousedown = e => {
+      if (!$('dress').checked || !cur || e.button !== 0) return;
+      e.preventDefault(); document.activeElement.blur();   // so Delete goes to the placement, not the textarea
+      const [x, y] = platePt(c, e);
+      sel = hit(x, y);
+      if (!sel) {
+        const key = $('sprite').value, s = +$('scale').value || 0.5;
+        sel = { key, x, y, s, rot: 0 };
+        dress.push(sel);
+        loadDressing({ dressing: [sel] }).then(redraw);
+      }
+      drag = { c, dx: sel.x - x, dy: sel.y - y };
+      dressChanged();
+    };
+    c.addEventListener('wheel', e => {
+      if (!$('dress').checked || !sel) return;
+      e.preventDefault();
+      const d = e.deltaY || e.deltaX, notches = Math.max(-10, Math.min(10, -d / (e.deltaMode ? 3 : 100))) || 0;   // up = bigger / clockwise
+      if (e.shiftKey) sel.rot = ((sel.rot + notches * Math.PI / 36 + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;   // 5° a notch, kept in -π..π
+      else sel.s = Math.max(0.05, Math.min(3, sel.s * 1.06 ** notches));
+      dressChanged();
+    }, { passive: false });
+  }
+  window.addEventListener('mousemove', e => {
+    if (!drag || !sel || !cur) return;
+    const [x, y] = platePt(drag.c, e);
+    sel.x = x + drag.dx; sel.y = y + drag.dy;
+    dressChanged();
+  });
+  window.addEventListener('mouseup', () => { drag = null; });
+  window.addEventListener('keydown', e => {
+    if (!$('dress').checked || /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
+    if ((e.key === 'Delete' || e.key === 'Backspace') && sel) { e.preventDefault(); dress.splice(dress.indexOf(sel), 1); sel = null; dressChanged(); }
+    else if (e.key === 'Escape') { sel = null; dressChanged(); }
+  });
+  $('dress').onchange = () => {
+    $('dresspanel').hidden = !$('dress').checked;
+    if (!cur) build(); else { out.className = $('dress').checked ? 'dressing' : ''; dressChanged(); }
+  };
+
   const q = new URLSearchParams(location.search);
   if (q.get('recipe')) $('recipe').value = q.get('recipe');
   if (q.get('seed')) $('seed').value = q.get('seed');
+  $('dresspanel').hidden = !$('dress').checked;          // a reload may keep the checkbox ticked
+  fillSprites();
   loadKit().then(build);
 </script>
 </body>

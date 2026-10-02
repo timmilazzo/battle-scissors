@@ -10,7 +10,7 @@
 //
 // loadLevel returns the level as played, the same shape either way: { id, name, blurb, world, gen, bg | (painted by
 // levelArt), w, h, paths, spots, spotR, roadHalfWidth, workshopR, allowedPins, startThread, waves, unlockOnClear,
-// signText, starRules } (+ recipe, seed, heart, deco, warnings for a generated one).
+// signText, starRules } (+ recipe, seed, heart, deco, warnings, and the file's `dressing` if any, for a generated one).
 import { CONFIG as C } from '../config.js';
 import { buildLevel, randomRecipe } from '../levelGen.js';
 import first from './00-first.js';
@@ -76,6 +76,7 @@ export function loadLevel(id, seed) {
     if (lv.warnings.length) console.warn('levelGen "' + lv.recipe + '" seed ' + lv.seed + ':', lv.warnings.join('; '));
   }
   Object.assign(lv, { id: f.id, name: f.name, blurb: f.blurb }, shared(f));
+  if (f.recipe && f.dressing) lv.dressing = f.dressing;   // hand-placed sprites (src/levelDress.js), in plate units
   if (f.random) lv.world = ['meadow', 'denim', 'lair'][(seed >>> 0) % 3];   // a random road in a random zone's look
   cache.set(key, lv);
   return lv;

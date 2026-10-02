@@ -7,7 +7,7 @@ Plain ES modules, no build step, no dependencies. Made for phones; a mouse and k
 ## Play
 
 - **On a phone:** open the GitHub Pages URL, then use *Add to Home Screen* (Android: Chrome menu > Install app / Add to Home screen; iOS: Safari > Share > Add to Home Screen). It launches fullscreen with no browser chrome. Android locks it to portrait; iOS web apps can't lock orientation, so hold the phone upright.
-- **Controls (Hold, the default):** hold a finger on the screen and the blades open above it (each weapon opens at its own speed); lift to snip. Lifting early cuts weaker. When the SHRED meter (top left, under the hearts) is full, tap it, then touch where you want the spin. A **+** appears beside the road on each free pad once you can afford a Pin; tap it to build one.
+- **Controls (Hold, the default):** hold a finger on the screen and the blades open above it (each weapon opens at its own speed); lift to snip. Lifting early cuts weaker. When the SHRED meter (top left, under the wave badge) is full, tap it, then touch where you want the spin. A **+** appears beside the road on each free pad once you can afford a Pin; tap it to build one.
 - **Controls (Pinch, in Settings on the title):** two fingers on the screen are the scissor handles. Spread them to open the blades and pinch fast to snip; rotate your hand to aim. Slow closes do nothing. SHRED works the same way: tap the full meter, then put your fingers down where it should spin.
 - **Desktop:** move the mouse, hold the left button to open, release to snip. Wheel = spread, A/D = rotate, Space = instant snip, E = SHRED, P/Esc = pause, R = back to title. The full list is at the top of `index.html`.
 
@@ -45,11 +45,12 @@ Segments run top to bottom: `straight`, `bend left|right|center`, `s left|right`
 
 Thread buys Pins inside a level and is gone when it ends. **Buttons** are what you keep. They are never converted into each other.
 
-- **Earned** only from performance and achievements, with no randomness: 10 / 15 / 25 for the first time you earn each star of a level; a score bonus of floor(score / 100) Buttons, capped at 10 per level (a replay pays only what beats your best bonus there); 16 one-time achievements (two for squishing silverfish) (listed on the map's Trophies screen, locked ones included); and a chest per world (three-star every level in it: 100 Buttons and a cosmetic, contents shown up front).
-- **Spent** in the Shop (on the map): four pairs of scissors that are only sold there (200 to 500, each on sale after a set level) and cosmetics (handle colours, blade glows, 100 each); in Your Scissors: three upgrade tiers per pair (150 / 300 / 600), SHRED's three tiers (120 / 240 / 400: it starts as one spin and a snip, then Double Spin, Quick Charge, Whirlwind) and Sharpen (40: every snip slowly dulls a pair, from half sharp at the start; a dull pair does 20% less snip damage, a sharp one 20% more, and Sharpen puts it back to full). Pins and stars are never for sale.
-- **Total supply: 2,135 Buttons** (stars 650, achievements 1,055, score bonus 130, world chests 300). `node tools/buttonsupply.js` recomputes it from the game data.
+- **Earned** only from playing, with no randomness: every win pays a score bonus of floor(score / 100) Buttons, capped by level (8 on Level 1 up to 32 on Level 13; Random Quilt pays like a mid level), replays included, so you can always earn more; 10 / 15 / 25 for the first time you earn each star of a level; 16 one-time achievements (two for squishing silverfish) (listed on the map's Trophies screen, locked ones included); and a chest per world (three-star every level in it: 100 Buttons and a cosmetic, contents shown up front).
+- **Spent** in the Sewing Box (on the map and the weapon screen: what you hold): three upgrade tiers per pair (150 / 300 / 600), three permanent tiers per Pin (120 / 240 / 450: a cheaper build, a wider ring, then the Pin's own trick), SHRED's three tiers (120 / 240 / 400: it starts as one spin and a snip, then Double Spin, Quick Charge, Whirlwind) and Sharpen (40: every snip slowly dulls a pair, from half sharp at the start; a dull pair does 20% less snip damage, a sharp one 20% more, and Sharpen puts it back to full); and in the Shop (on the title and the map: new things): four pairs of scissors that are only sold there (200 to 500, each on sale after a set level) and cosmetics (handle colours, blade glows, 100 each). Pins themselves and stars are never for sale.
+- **One-time supply: 2,005 Buttons** (stars 650, achievements 1,055, world chests 300), plus the wage on every win. `node tools/buttonsupply.js` prints it, the wage by level and everything there is to buy.
+- Inside a level, Thread also ranks a built Pin up (II, then III: a wider ring, more power), tapping the gold button on its pad. Ranks are gone when the level ends.
 
-Nothing waits on a clock: no timers, energy, daily rewards or streaks.
+Nothing waits on a clock: no timers, energy, daily rewards, streaks or limited-time stock.
 
 ## Critters
 

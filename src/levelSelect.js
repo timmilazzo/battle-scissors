@@ -4,6 +4,7 @@
 // level lab's "Play it" link.
 import { CONFIG as C } from './config.js';
 import { Save, persist, levelRecord } from './save.js';
+import { STORY } from './story.js';
 import { hasLevel, levelInfo, addCustomLevel } from './levels/index.js';
 
 const q = new URLSearchParams(location.search), urlLevel = q.get('level'), urlRecipe = q.get('recipe');
@@ -25,23 +26,34 @@ export function clearedLevels() {
   return s;
 }
 // End of a run: best score, cleared + best stars on a win, and the level's unlockOnClear the first time it's won
-// (a weapon joins Save.unlocks.scissors, credits just play; either way it queues a reveal for the level map).
+// (a weapon joins Save.unlocks.scissors, credits just play; either way it queues a reveal for the level map, after
+// the level's morning-after note if story.js has one). A first
+// win also queues a card for the Shop stock it puts on sale: SHRED's tiers (CONFIG.shredFrom), a pair (shopAfter).
 // (Custom Road is a one-off, so it isn't recorded.)
 export function recordLevelResult(id, won, score, stars, unlock) {
   if (id === 'custom') return;
   const r = levelRecord(id);
   r.bestScore = Math.max(r.bestScore, score);
   if (won) {
+    if (!r.cleared && STORY.morning[id]) Save.reveals.push({ morning: id });   // the morning-after note plays first
     if (!r.cleared && unlock) {
       if (unlock.scissors && !Save.unlocks.scissors.includes(unlock.scissors)) Save.unlocks.scissors.push(unlock.scissors);
       if (unlock.pin && !Save.unlocks.pins.includes(unlock.pin)) Save.unlocks.pins.push(unlock.pin);
       if (unlock.scissors) Save.reveals.push({ scissors: unlock.scissors });
       if (unlock.credits) Save.reveals.push({ credits: true });
     }
+    if (!r.cleared) {
+      if (id === C.shredFrom) Save.reveals.push({ shop: 'shred' });
+      for (const w in C.weapons) if (C.weapons[w].shop && C.weapons[w].shopAfter === id) Save.reveals.push({ shop: w });
+      for (const type in C.towers) if (C.pinFrom[type] === id) Save.reveals.push({ box: type });   // its tiers go on sale in the Sewing Box
+    }
     r.cleared = true; r.stars = Math.max(r.stars, stars);
   }
   persist();
 }
+
+// Whether id is one of the map's numbered levels (Random Quilt and Custom Road aren't: they're played from the title).
+export const onMap = id => C.map.nodes.some(n => n[0] === id);
 
 // "Level 4: Running Stitch" for a map level (numbered from 0: the tutorial), just the name for the others.
 export function levelLabel(id) {

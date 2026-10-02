@@ -1,8 +1,9 @@
-# Sprite wishlist, round 2
+# Sprite wishlist, rounds 2 to 4
 
 Round 1 (the level-generator kit: fixed pieces, textures, sewing / meadow / lair props, map stars) is delivered and
 lives in `assets/kit/`. This round covers what the game still fakes in code or with stand-ins, what the playtests
-turned up, and things we'll want later. Level plates are 941 × 1672 px ("plate px") and show at about 1:1 on a phone,
+turned up, and things we'll want later. Round 3 (level dressing: frames, hero props, road and ground dressing) and
+round 4 (the story: drawer-scale junk, Tomato the pincushion, the morning note) are at the end, before the prompts. Level plates are 941 × 1672 px ("plate px") and show at about 1:1 on a phone,
 so anything placed on a level is asked for at **2× its plate size**.
 
 **Priority:** **P1** = needed now (a stand-in or a playtest problem). **P2** = soon (replaces code-drawn art, or
@@ -35,7 +36,7 @@ The title buttons are cropped out of the mock (`assets/title-mock.webp`) as a st
 
 | Item | Count | Deliver at | Notes |
 |---|---|---|---|
-| Big felt buttons: PLAY, HOW TO PLAY, UPGRADES, SHOP | 4 × 2 states | 730 × 196 | Normal and pressed (pressed = sunk a little, slightly darker). Lettering baked in, Lilita One style. |
+| Big felt buttons: PLAY, HOW TO PLAY, SEWING BOX, SHOP | 4 × 2 states | 730 × 196 | Normal and pressed (pressed = sunk a little, slightly darker). Lettering baked in, Lilita One style. SEWING BOX replaces the old UPGRADES tile: it is the inventory screen (what you hold and its upgrades); the Shop is only for new things. |
 | Round icon tiles: gear (settings), sound on, sound off | 3 × 2 states | 200 × 200 | Same felt tile as the mock's. |
 
 ### 3. Buttons currency icon
@@ -128,7 +129,7 @@ Replacements for the procedural art in `enemyArt.js` / `towerArt.js`. Top-down, 
 | Enemies: Scrap, Runner, Bolster, Brute, Button Beetle | 5 × 2 frames (waddle) | 2× their size (Scrap ⌀ 60 → 120, Brute ⌀ 110 → 220) | Plus a white silhouette of each for the hit flash, if easy. |
 | Bosses: Seam Ripper (seam closed / open), Brute King (armored / armor down), The Unstitcher (3 phases) | 7 | 320 × 320 | |
 | Pins: Needle, Ice, Fire, Magnet | 4 | 300 × 300 | Felt cushion base with the charm on a post, like the current code art. |
-| Pin upgrade looks (future: a second tier per Pin) | 4 | 300 × 300 | Same Pin, fancier: gold trim, a second charm. |
+| Pin rank looks: rank II and rank III of each Pin | 4 × 2 | 300 × 300 | In-level ranks (bought with Thread during a level). Same Pin, fancier each step, the way the code art does it now: rank II adds two more pins to the cushion and a wider flag; rank III two more pins with gold heads and a gold stripe along the flag's foot. The charm's glow is drawn in code and brightens by rank. |
 
 ### 13. Effects
 
@@ -174,6 +175,261 @@ tips up, 800 × 1000 view box, pivot at about (400, 440). Ideas: pinking shears 
 scissors (tiny, fast), a rotary cutter (a rolling wheel, a new kind of cut), the Seam Ripper itself as a post-credits
 reward.
 
+## Round 3: level dressing
+
+Rounds 1 and 2 are in (`assets/kit/`), except the denim props (section 5, still wanted). The generated levels (every
+map level from 3 on) now use the kit, but they still look flat next to the two painted plates, `assets/level-bg.webp`
+(Meadow Road) and `assets/level2-bg.webp` (Button Fork). Attach both. What the painted ones have that the kit doesn't:
+
+- **A frame.** A wooden sewing tray runs round Meadow Road: rim walls, compartments, big spools, a jar of buttons, a
+  pincushion, all cropped by the plate edge. Button Fork has the same idea with trays, shears and a tape measure.
+- **Hero props.** Things 3–4× bigger than anything in the kit, half off the plate.
+- **Road dressing.** Fence posts and rails along the road and round the pads (Meadow Road); a frayed, layered edge
+  (Button Fork).
+- **Ground variety.** The painted ground changes from place to place; ours is one tile repeated.
+
+Sizes are plate px as before (941 × 1672 for a normal level), delivered at 2× unless a row says otherwise. Some levels
+are bigger (`size 1.1` to `1.5`: the plate is that many times wider and taller) and are shown zoomed out, so I may
+draw frame pieces and heroes up to 1.5× their plate size there; the 2× delivery covers that.
+
+**Where the frame lives.** The road's centreline stays within plate x 175..766, so frame pieces live in the outer
+~150 px of each side and in the top and bottom margins. The road's edge can still swing out to ~110 px from a side and
+a Pin pad to ~95 px, so where one comes close I stop the strip with an end cap or step it outward. Roads also run
+through the frame (the top entrance, and side entrances on most levels), which is why every rim needs an end cap.
+A narrow phone crops about 80 px off each side, so the rim wall itself should sit roughly 60–140 px in from the edge
+and still read as a tray lip from a 30–50 px sliver: a lit top edge and a dark inner line. Anything outboard of the
+wall (compartments and what's in them) may be cut off.
+
+Extra rules for this round, on top of the ones above:
+
+| | |
+|---|---|
+| **Tiling strips** | Drawn horizontal. The left and right ends must join seamlessly end to end (put two side by side to check), with no knot, bracket or pin cut in half at an end. I rotate them for the sides and bend the thin ones along curves by slicing them. |
+| **Which side is which** | On every strip, the bottom long edge faces the play area (the ground or the road), the top faces out. |
+| **Tiles** | New ground and road tiles match the colour, brightness and fibre scale of the `_01` tile they sit beside, so I can mix cells of them with soft masks and no seam shows. Attach the `_01` tile as the reference. |
+| **Heroes** | Paint the whole object, uncropped. I crop it at the plate edge. |
+
+### 18. Frame pieces (P1)
+
+One set per zone, 8 files each. Top-down: the top of the wall, with a sliver of its inner face showing on the play
+side (soft top-left light as usual, still no cast shadows; I shade the ground beside it).
+
+| Item | Count | Plate size | Deliver at | Notes |
+|---|---|---|---|---|
+| Rim wall, straight strip | 2 variants | 512 × 56 | 1024 × 112 | Tiles end to end. |
+| Rim outer corner | 1 | 140 × 140 | 280 × 280 | Where two rim walls meet at a plate corner. Separate piece, not tiling. |
+| Rim inner corner | 1 | 140 × 140 | 280 × 280 | Where the rim steps inward round a compartment. |
+| Rim end cap | 1 | 56 × 80 | 112 × 160 | The wall stops cleanly (a road passes through the gap). I mirror it for the other end. |
+| Compartment divider, straight strip | 1 | 256 × 32 | 512 × 64 | Tiles end to end. A thinner wall splitting the outer band into cells. |
+| Divider T-joint | 1 | 100 × 100 | 200 × 200 | A divider meeting the rim. |
+| Compartment floor | 1 | tile | 1024 × 1024 seamless | The inside of a cell, under the heroes. |
+
+- **Meadow** (`meadow_frame_*`): a wooden sewing tray like Meadow Road's: warm honey wood with visible grain along
+  the strip, rounded top edge, small dark nail heads now and then (not at the strip ends). Floor: plain lighter wood.
+- **Denim** (`denim_frame_*`): a workbox: dark stained wood with brass corner brackets (on the corners only), and a
+  quilted denim lining folded over the top of the wall. Floor: quilted denim, a darker wash than the ground.
+- **Lair** (`lair_frame_*`): a velvet-lined case: black lacquered wall, deep purple velvet rolled over its top edge,
+  a thin line of tarnished brass beading along the play side. Floor: crushed purple velvet, dark.
+
+### 19. Edge hero props (P1)
+
+The big things that sit in the frame's compartments and hang half off the plate. Our current props are drawn at about
+their plate size (a spool ~120 px, a big tree ~220 px); these are drawn 3–4× that, so they're asked for large. Keep
+the silhouettes simple and bold, the detail on the side that faces the play area, and no lettering.
+
+**Meadow** (`meadow_hero_*`)
+
+| Item | Count | Plate size (up to) | Deliver at |
+|---|---|---|---|
+| Thread spool lying on its side, wooden ends (red, blue) | 2 | 480 × 300 | 960 × 600 |
+| Thread spool standing, seen end-on (round) (green, yellow) | 2 | 450 × 450 | 900 × 900 |
+| Glass jar of buttons, seen from above, no lid (round mouth full of coloured buttons) | 1 | 360 × 360 | 720 × 720 |
+| Tomato pincushion with round-headed pins | 1 | 450 × 450 | 900 × 900 |
+| Folded fabric stack (blue with white cross-stitch flowers; red gingham) | 2 | 520 × 340 | 1040 × 680 |
+| Ball of yarn with two knitting needles through it | 1 | 420 × 420 | 840 × 840 |
+
+**Denim** (`denim_hero_*`)
+
+| Item | Count | Plate size (up to) | Deliver at | Notes |
+|---|---|---|---|---|
+| Tailor's shears, closed, brass handles | 1 | 700 × 300 | 1400 × 600 | Closed and clearly scenery: much bigger than any player pair, no glow. |
+| Tape measure, coiled, tail trailing off | 1 | 460 × 460 | 920 × 920 | Tick marks only, no readable numbers. |
+| Round button tin, lid off, full of buttons | 1 | 440 × 440 | 880 × 880 | |
+| Rolled bolt of denim with a paper band | 1 | 640 × 300 | 1280 × 600 | Blank band, no text. |
+| Wooden spool box with four spools in it | 1 | 500 × 360 | 1000 × 720 | Like Button Fork's top-left tray. |
+| Brass thimble, large | 1 | 300 × 300 | 600 × 600 | |
+
+**Lair** (`lair_hero_*`)
+
+| Item | Count | Plate size (up to) | Deliver at | Notes |
+|---|---|---|---|---|
+| Giant seam ripper (the tool), lying diagonally | 1 | 700 × 160 | 1400 × 320 | Tarnished, red ball on the short prong. |
+| Rusty pinking shears, closed | 1 | 640 × 280 | 1280 × 560 | Scenery, like the denim shears. |
+| Black velvet pincushion bristling with bent pins | 1 | 440 × 440 | 880 × 880 | |
+| Tarnished brass darning mushroom, from above | 1 | 360 × 360 | 720 × 720 | |
+| Heap of tangled bobbins and unravelled thread | 1 | 480 × 480 | 960 × 960 | |
+| Torn lace doily, flat | 1 | 500 × 500 | 1000 × 1000 | Lies flat under other things, so keep it low. |
+
+### 20. Road kit (P1; the decals and road felts can follow as P2)
+
+Pieces I place along the road by code. The road is ~132 plate px wide (112 of beige felt, a 10 px brown edge each
+side).
+
+| Item | Count | Plate size | Deliver at | Notes |
+|---|---|---|---|---|
+| Meadow fence post, top-down (round cut top, wood rings, a glimpse of its side) | 3 variants | ⌀ 28 | 56 × 56 | Stands every ~60 px along the road and round the heart pad. |
+| Meadow rope link | 2 variants | 64 × 14 | 128 × 28 | A short twisted rope piece, post to post. Its ends overlap the next link by ~8 plate px, so a chain of them follows a curve with no gaps. One slightly sagging. |
+| Meadow fence rail (like Meadow Road's) | 2 variants | 64 × 12 | 128 × 24 | Alternative to the rope; same overlap. |
+| Denim selvage edge strip | 1 | 256 × 28 | 512 × 56 | Tiles. A clean selvedge band (white with the thin red line) along the road side. |
+| Denim frayed edge strip | 1 | 256 × 28 | 512 × 56 | Tiles. Raw denim edge, loose blue and white threads hanging outward. |
+| Lair pinned edge strip | 2 variants | 256 × 32 | 512 × 64 | Tiles. A dark velvet ribbon with tarnished pins pushed through every 64 px (4 per strip, none cut by an end), heads outward. |
+| Darned patch across the road | 2 variants | 130 × 90 | 260 × 180 | A mended hole, criss-cross darning in a slightly different beige. |
+| Boot print pressed into the felt (left, right) | 2 | 34 × 60 | 68 × 120 | |
+| Pin dropped on the road | 2 variants | 90 × 14 | 180 × 28 | |
+| Chalk arrow pointing along the road | 1 | 70 × 100 | 140 × 200 | Like the one at Button Fork's entrance. |
+| Road felt tile | 2 more | tile | 1024 × 1024 seamless | Same beige and weave as `sewing_road_felt_01`: one a little worn and pilled, one with faint quilting lines. |
+
+All the decals sit on the road, so keep them flat and low in contrast (road colours, soft edges). Nothing on the road
+may look like an enemy, a critter or a pickup.
+
+### 21. Ground variety (P2)
+
+| Item | Count | Plate size | Deliver at | Notes |
+|---|---|---|---|---|
+| Meadow ground tiles | 2 | tile | 1024 × 1024 seamless | `meadow_ground_02` / `_03`: one with more clover and short grass, one with tiny flowers dotted in. |
+| Denim ground tiles | 2 | tile | 1024 × 1024 seamless | One a faded lighter wash, one darker and worn. |
+| Lair ground tiles | 2 | tile | 1024 × 1024 seamless | One crushed velvet, one with loose frayed threads. |
+| Flower bed (meadow) | 3 variants | 220 × 160 | 440 × 320 | A loose cluster of small felt flowers and leaves. |
+| Grass tuft (meadow) | 3 variants | 60 × 50 | 120 × 100 | |
+| Moss patch (meadow green; lair purple-grey) | 2 | 200 × 150 | 400 × 300 | |
+| Button spill (sewing) | 1 | 200 × 150 | 400 × 300 | A small heap of mixed buttons spreading out. |
+| Pin scatter (sewing) | 1 | 160 × 120 | 320 × 240 | A few pins lying every which way. |
+
+The clusters lie on the ground rather than stand on it: low and flat, with outer edges that thin out so they melt
+into the ground tile. They get scattered many times per level, so avoid one standout detail that repeats visibly.
+
+### 22. Denim zone props: still outstanding (P1)
+
+No new items: section 5 above is still wanted, and there is no `assets/kit/denim/` yet. Levels 7–10 and Random Quilt
+are denim and still scatter only the generic sewing props.
+
+### 23. Per-level dressing overlays (P2: hold until I say a level's layout is final)
+
+By default each level is dressed with the sprites above: a list of placements per level (which frame pieces, heroes
+and clusters go where), made with tooling I'm building now. That covers every level. The overlay is the premium
+option, for a level whose layout is final: one hand-composed painting of that level's frame and heroes, so it looks
+as good as Meadow Road.
+
+- **What:** a transparent PNG exactly the size of the level's plate (941 × 1672 times its size; table below), at
+  **1× plate size** (like section 16: it's a whole backdrop, and a zoomed-out level shows it smaller than that anyway).
+- **How:** I send a reference export of the level from the level lab (road, Pin pads, heart pad, entrances and the
+  narrow-phone crop lines drawn in). Paint the frame and heroes over it in that zone's look (sections 18–19), then
+  hand back only the paint, on a transparent background.
+- **Keep clear:** the road plus ~30 px each side, every Pin pad, the heart pad and every place a road enters. Nothing
+  opaque over any of them. Keep the top-left corner calm (the HUD sits there).
+- **Hold:** any change to a level's recipe or seed moves its road and the overlay would have to be redone, so wait
+  until I mark a level final.
+
+| Level | Id | Name | Zone | Size | Deliver at |
+|---|---|---|---|---|---|
+| 3 | `hem` | Zigzag Hem | meadow | 1.1 | 1035 × 1839 |
+| 4 | `running` | Running Stitch (Seam Ripper boss) | meadow | 1.2 | 1129 × 2006 |
+| 5 | `double` | Double Seam | meadow | 1.2 | 1129 × 2006 |
+| 6 | `blanket` | Blanket Stitch | meadow | 1.2 | 1129 × 2006 |
+| 7 | `loop` | Button Loop | denim | 1.3 | 1223 × 2174 |
+| 8 | `hemline` | Hemline (Brute King boss) | denim | 1.3 | 1223 × 2174 |
+| 9 | `cross` | Crossroads | denim | 1.3 | 1223 × 2174 |
+| 10 | `bias` | Bias Tape | denim | 1.4 | 1317 × 2341 |
+| 11 | `selvage` | Selvage | lair | 1.4 | 1317 × 2341 |
+| 12 | `whip` | Whipstitch (Unstitcher boss) | lair | 1.5 | 1412 × 2508 |
+| 13 | `lair` | Ripper's Lair | lair | 1.5 | 1412 × 2508 |
+
+That's 11 levels. Level 0 (First Snip, the tutorial, 941 × 1672, meadow) could have one too if it's easy; Random
+Quilt can't (a new road every run). The three boss levels overlap with section 16 (painted boss plates): whichever
+comes first, the other isn't needed for that level.
+
+## Round 3.1: the workshop heart shows the HP
+
+The top-left heart counter goes away; the heart pad at the end of the road shows the damage instead. The game
+draws the HP number on it in code, so no digits are needed.
+
+### 24. Heart pad damage stages (P1): delivered
+
+Per zone (`meadow`, `denim`, `lair`), the zone's own heart pad (`assets/kit/09_zone_pads/<zone>_heart_pad_01.png`,
+attach it) redrawn in four damage stages. **Same canvas (460 × 460), same heart, same size, same position, same
+colours and light** as the attached pad, so the game can swap between them: only the damage changes. Nothing may
+stick out further than the undamaged pad's outline. Keep the centre of the heart fairly plain (a number goes there).
+
+- `<zone>_heart_pad_dmg1`: a few loose and missing stitches along the edge, one thread end hanging.
+- `<zone>_heart_pad_dmg2`: a torn corner flap, more stitches gone, a small tuft of white stuffing showing.
+- `<zone>_heart_pad_dmg3`: a long split along one side with stuffing bulging out, a frayed edge.
+- `<zone>_heart_pad_dmg4`: nearly torn in two, held together by one big safety pin, stuffing spilling, threads
+  dangling. Still clearly the same heart.
+
+Plus one sheet with no zone (`sewing`), small loose pieces for the hit burst, about 40–80 px each:
+
+- `sewing_stuffing_puff_01..03`: white cotton stuffing tufts, soft and lumpy.
+- `sewing_thread_end_01..03`: short curly loose thread ends (one red, one cream, one dark).
+- `sewing_stitch_bit_01..02`: a single popped stitch / snipped thread fragment.
+
+## Round 4: the story in the drawer
+
+The game now has a light story (`src/story.js`): every junk drawer that gets junky enough wears thin at the back,
+things come through at night made of the drawer's own leftovers, and the household scissors hold the line while the
+house sleeps. Nobody ever finds out. Tomato, the tomato pincushion, briefs the player at the start of each level,
+and after each boss a note turns up that the humans wrote the next morning. Everything in this round is set
+dressing for that: things from a real kitchen junk drawer, at the scissors' scale, so a level reads as "inside the
+drawer" without a word. Same rules as round 3 (top-down, felt and fabric, no shadows, magenta background), with
+two more:
+
+| | |
+|---|---|
+| **Scale** | The scissors the player holds are about as long as the plate is wide, so the drawer's junk is big. A real tomato pincushion is 450 plate px across (section 19), so 1 cm ≈ 65 plate px. Sizes below follow that; everything is delivered at 2× as usual. |
+| **Material** | The junk is still made of fabric: a battery is a felt tube with a stitched copper cap, a key is cut from grey felt with a running stitch round its edge, paper is cream felt with a pencil line sewn in. No photoreal plastic or metal. |
+
+### 25. Drawer junk, hero size (P2): delivered
+
+Big things that sit in the frame's compartments and hang half off the plate, like section 19's heroes (one object
+per image, uncropped, bold silhouette, no lettering). Zone `sewing`: they belong to every drawer. Levels place them
+by hand in the level lab's Dress mode (`dressing` in the level file), so no count is wrong.
+
+| Item | Count | Plate size (up to) | Deliver at | Notes |
+|---|---|---|---|---|
+| AA battery, lying flat | 1 | 330 × 110 | 660 × 220 | Felt tube, stitched copper cap, a stitched + at the other end. No brand. |
+| Dead ballpoint pen, cap missing | 1 | 900 × 80 | 1800 × 160 | Long and thin; a plain colour, a tiny bite mark on the end. |
+| Rubber band, a loose loop | 2 | 500 × 420 | 1000 × 840 | A thin felt loop that has settled into a wobbly oval; one tan, one red. Mostly empty inside: it will be laid over the ground. |
+| Takeout menu, folded, one corner showing | 1 | 1300 × 900 | 2600 × 1800 | A cream felt rectangle with a fold line and a few blank coloured blocks where the dishes would be. No readable text. Hangs well off the plate. |
+| House key on a split ring | 1 | 420 × 180 | 840 × 360 | Grey felt, running stitch round the edge, a felt tag on the ring. |
+| Chip-bag clip, open | 1 | 520 × 180 | 1040 × 360 | A bright colour; a stitched spring. |
+| Birthday candle, used, a bit of wax | 2 | 380 × 60 | 760 × 120 | Striped; a black wick tip. One bent. |
+| Loyalty / gift card, face down | 1 | 540 × 340 | 1080 × 680 | Plain colour, a stitched dark stripe along one long edge. No lettering. |
+
+### 26. Drawer junk, small (P2): delivered
+
+Scatter-sized pieces for the ground tiers (`singles` and a `cluster` or two), one sheet, zone `sewing`.
+
+| Item | Count | Plate size | Deliver at |
+|---|---|---|---|
+| Paperclip (one plain, one bent open) | 2 | 200 × 80 | 400 × 160 |
+| Bread clip, the little square tag | 2 | 130 × 110 | 260 × 220 |
+| Bottle cap, upside down | 2 | 190 × 190 | 380 × 380 |
+| Twist tie, curled | 2 | 300 × 120 | 600 × 240 |
+| Loose screw | 3 | 160 × 60 | 320 × 120 |
+| Coin | 2 | ⌀ 150 | 300 × 300 |
+| Elastic hair tie | 2 | ⌀ 240 | 480 × 480 |
+| Cluster: a tangle of rubber bands and twist ties | 1 | 420 × 360 | 840 × 720 |
+| Cluster: a spill of coins and screws | 1 | 400 × 300 | 800 × 600 |
+
+### 27. Tomato and the morning note (P2): delivered
+
+The two story pieces the UI draws in CSS and type today.
+
+| Item | Count | Deliver at | Notes |
+|---|---|---|---|
+| Tomato, the pincushion: a portrait | 1 × 2 | 240 × 240 | Front view, like the boss portraits (section 11): a round red tomato pincushion with the green felt strawberry on its stalk, a few round-headed pins stuck in at jaunty angles, kind eyes and a small knowing smile stitched on. Two expressions: calm (the level briefing) and amused (the morning note's reply). Shown at about 60 px on the star goals card and the reward card. |
+| A note's paper scrap | 3 | 640 × 400 | The paper the humans' morning notes are shown on, blank, for the game to letter in a handwriting face: a yellow sticky note with one curled corner; a torn-off strip of lined paper; the bottom corner of a shopping list with a few blank ticked lines above the empty space. Front view, flat, a soft felt-paper texture. |
+| A fridge magnet | 1 | 200 × 200 | Front view: a plain round felt magnet (the sticky note is pinned under it on the card). |
+
 ## Prompt to copy (one sheet per section)
 
 > Sprite sheet, straight top-down orthographic view, felt and fabric craft style matching the attached image, soft
@@ -189,6 +445,87 @@ For textures:
 
 > Seamless tileable texture, 1024×1024, top-down, flat even lighting, no vignette, no objects: **[texture]**, felt
 > craft style matching the attached image.
+
+Round 3 (attach `assets/level-bg.webp` and `assets/level2-bg.webp` to each):
+
+For frame pieces (section 18, one zone per sheet):
+
+> Game art kit for a sewing-tray frame, straight top-down orthographic view, felt and fabric craft style matching the
+> attached images, soft light from the top-left, no shadows. Straight pieces are drawn horizontal and tile seamlessly
+> end to end, with nothing cut in half at their ends; the bottom long edge faces inward. Pieces spaced well apart on a
+> flat #FF00FF magenta background, no magenta in the objects: **[the zone's frame description + section 18's list]**
+
+For hero props (section 19, one object per image):
+
+> One large object, straight top-down orthographic view, felt and fabric craft style matching the attached images,
+> soft light from the top-left, no shadows, the whole object uncropped and filling most of the canvas, bold simple
+> silhouette with rich detail, no lettering, centred on a flat #FF00FF magenta background, no magenta in the object:
+> **[item]**
+
+For the road kit (section 20; the strips as in the frame prompt, the rest as a sheet):
+
+> Sprite sheet of small road dressing pieces, straight top-down orthographic view, felt and fabric craft style
+> matching the attached images, soft light from the top-left, no shadows. Decals are flat and low in contrast, in the
+> colours of a beige felt road. Objects spaced well apart on a flat #FF00FF magenta background, no magenta in the
+> objects: **[section 20's list]**
+
+For the new ground and road tiles (sections 20 and 21):
+
+> Seamless tileable texture, 1024×1024, top-down, flat even lighting, no vignette, no objects: **[texture]**, felt
+> craft style, exactly the same colour, brightness and fibre scale as the attached tile, so the two can be blended.
+
+For ground clusters (section 21):
+
+> Sprite sheet, straight top-down orthographic view, felt and fabric craft style matching the attached images, soft
+> light from the top-left, no shadows, flat low clusters whose outer edges thin out, objects spaced well apart on a
+> flat #FF00FF magenta background, no magenta in the objects: **[section 21's cluster list]**
+
+For a level overlay (section 23, only once I've sent that level's export and marked it final):
+
+> Paint over the attached level image, straight top-down orthographic view, felt and fabric craft style matching the
+> attached painted levels: a **[zone]** frame round the edges (**[section 18's description]**) with large hero props
+> half off the edges. Leave the road, the round pads, the heart pad and every road entrance completely untouched,
+> with a margin. Output only the added painting on a transparent background, exactly **[w × h]** px.
+
+Round 3.1 (section 24):
+
+For the heart pad stages (one zone at a time; attach that zone's heart pad and `assets/level2-bg.webp`):
+
+> Redraw the attached heart pad four times, as four separate 460×460 images, straight top-down orthographic view, felt
+> and fabric craft style. Keep the exact same heart, size, position on the canvas, colours and top-left light in
+> all four; only add damage, getting worse each time, and nothing may stick out past the original outline. Keep the
+> middle of the heart fairly plain. No shadows, flat #FF00FF magenta background, no magenta in the object.
+> 1: a few loose and missing stitches, one hanging thread. 2: a torn corner flap, more stitches gone, a small tuft
+> of white stuffing. 3: a long split down one side with stuffing bulging out, frayed edge. 4: nearly torn in two,
+> held by one big safety pin, stuffing spilling, threads dangling.
+
+For the hit-burst pieces:
+
+> Sprite sheet, straight top-down orthographic view, felt and fabric craft style matching the attached image, soft
+> light from the top-left, no shadows, objects spaced well apart on a flat #FF00FF magenta background, no magenta in
+> the objects: three white cotton stuffing tufts, three short curly loose thread ends (red, cream, dark brown), two
+> single popped stitches / snipped thread fragments. Each about 60 px.
+
+Round 4 (attach `assets/level-bg.webp` and `assets/level2-bg.webp`; for section 27 attach `assets/title-bg.webp`):
+
+For the hero-size junk (section 25, one object per image):
+
+> One large object from a kitchen junk drawer, straight top-down orthographic view, made entirely of felt and
+> stitched fabric in the craft style of the attached images (no real plastic, metal or paper textures), soft light
+> from the top-left, no shadows, the whole object uncropped and filling most of the canvas, bold simple silhouette,
+> no lettering, centred on a flat #FF00FF magenta background, no magenta in the object: **[item]**
+
+For the small junk (section 26):
+
+> Sprite sheet of small kitchen junk drawer things, straight top-down orthographic view, each made of felt and
+> stitched fabric in the craft style of the attached images, soft light from the top-left, no shadows, no lettering,
+> objects spaced well apart on a flat #FF00FF magenta background, no magenta in the objects: **[section 26's list]**
+
+For Tomato and the note (section 27):
+
+> Game UI art, front view, flat felt appliqué with stitched edges in the style of the attached image, soft light
+> from the top-left, no shadows, each piece centred with space around it on a flat #FF00FF magenta background, no
+> magenta in the pieces: **[section 27's list]**
 
 Drop the files in `assets/kit/incoming/` and tell me. I'll cut them out, convert them to WebP, measure them and wire
 them in.

@@ -1,23 +1,33 @@
 // The meta economy: Buttons, the one currency that outlives a level (thread is in-level only and is never converted).
-// Buttons are earned only from performance and achievements, all deterministic:
-//   stars      the first time each star of a level is earned: CONFIG.meta.starButtons (re-earning pays 0)
-//   score      floor(score / scorePerButton), capped at scoreBonusCap per level: every run pays what it beats the
-//              level's best bonus by (Save.levels[id].bonusPaid), so a level's score bonus totals at most the cap
-//   achievements  src/achievements.js, once each
+// Buttons are earned only from playing, all deterministic:
+//   wage       every win: floor(score / scorePerButton), capped at scoreCap(id) (CONFIG.meta.scoreCapBase + scoreCapPerLevel
+//              x the map level number), replays included, so income never runs out; Random Quilt pays it too (as
+//              level hpOffMapLevel). Save.levels[id].bonusPaid keeps the level's best for the results card.
+//   stars      the first time each star of a map level is earned: CONFIG.meta.starButtons (re-earning pays 0)
+//   achievements  src/achievements.js, once each, on map levels
 //   world chests  three-star every level of a world: chestButtons + that world's cosmetic, once
-// Only the numbered map levels earn (not level 0, Random Quilt or a ?recipe= road), so the total supply is a fixed
-// number: tools/buttonsupply.js prints it. Buttons buy the Shop's scissors (CONFIG.weapons[id].shop), scissors
-// upgrades, Sharpen and SHRED's tiers (armory.js), cosmetics (shop.js); Pins and stars are never for sale. Nothing here waits on a clock or rolls a die. No DOM.
+// Level 0 and a ?recipe= road never earn. tools/buttonsupply.js prints the one-time supply and the wage per level.
+// Buttons buy the Shop's scissors (CONFIG.weapons[id].shop) and cosmetics (shop.js), and in the Sewing Box the
+// scissors' upgrade tiers, Sharpen, the Pins' permanent tiers and SHRED's tiers (armory.js). Stars are never for sale
+// and Pins are unlocked by progression (only their tiers are bought). Nothing here waits on a clock or rolls a die. No DOM.
 import { CONFIG as C } from './config.js';
 import { Save, persist, levelRecord } from './save.js';
 import { levelInfo } from './levels/index.js';
 import { ACHIEVEMENTS } from './achievements.js';
 import { upgradeTier, sharpness, canSharpen, shredTier } from './scissors.js';
+import { pinTier, PIN_TIERS } from './pins.js';
 import { weaponLocked, shopOpen } from './weaponSelect.js';
 
-// The levels that pay Buttons: every map level but level 0, in map order.
+// The levels that pay stars, achievements and chests: every map level but level 0, in map order.
 export const earningLevels = () => C.map.nodes.map(n => n[0]).filter(id => id !== C.tutLevel);
-export const earnsButtons = id => earningLevels().includes(id);
+export const earnsStars = id => earningLevels().includes(id);
+export const earnsButtons = earnsStars;
+// The levels that pay the wage: those, and Random Quilt.
+export const earnsWage = id => earnsStars(id) || id === 'random';
+// A level's number on the map (0 = level 0); off the map (Random Quilt, Custom Road) it counts as CONFIG.hpOffMapLevel.
+export const mapLevelNum = id => { const i = C.map.nodes.findIndex(n => n[0] === id); return i >= 0 ? i : C.hpOffMapLevel; };
+// The most the wage pays on a level.
+export const scoreCap = id => C.meta.scoreCapBase + C.meta.scoreCapPerLevel * mapLevelNum(id);
 export const worldOf = id => (levelInfo(id) || {}).world || '';
 export const worldIds = () => [...new Set(earningLevels().map(worldOf))];
 export const worldLevels = w => earningLevels().filter(id => worldOf(id) === w);
@@ -30,21 +40,23 @@ export function levelBefore(id) {
 }
 
 // End of a run (after recordLevelResult): pay its Buttons into the save and return the tally for the results card:
-// { earns, stars: ['new' | 'old' | 'none'] x3 ('old' = earned on an earlier run: greyed, pays 0), starButtons,
-//   scoreBonus, scoreButtons, achievements: [entries earned now], total, chest: world whose chest this run readied }.
+// { earns (anything at all: stars or the wage), wage (the wage: a win here pays the score bonus), scoreCap, stars:
+//   ['new' | 'old' | 'none'] x3 ('old' = earned on an earlier run: greyed, pays 0), starButtons, scoreBonus (= what it
+//   pays, scoreButtons), achievements: [entries earned now], total, chest: world whose chest this run readied }.
 export function settleRun(report, before) {
-  const M = C.meta, id = report.level, earns = earnsButtons(id);
-  const t = { earns, stars: [], starButtons: 0, scoreBonus: 0, scoreButtons: 0, achievements: [], total: 0, chest: '' };
+  const M = C.meta, id = report.level, earns = earnsStars(id), wage = earnsWage(id);
+  const t = { earns: earns || wage, wage, scoreCap: scoreCap(id), stars: [], starButtons: 0, scoreBonus: 0, scoreButtons: 0, achievements: [], total: 0, chest: '' };
   for (let n = 1; n <= 3; n++) {
     const got = report.won && n <= report.stars, fresh = got && earns && n > before.stars;
     t.stars.push(!got ? 'none' : fresh || !earns ? 'new' : 'old');
     if (fresh) t.starButtons += M.starButtons[n - 1];
   }
+  if (wage && report.won) {                                     // the wage: every win pays, capped by level
+    const rec = levelRecord(id), bonus = Math.min(t.scoreCap, Math.floor(report.score / M.scorePerButton));
+    t.scoreBonus = t.scoreButtons = bonus;
+    rec.bonusPaid = Math.max(rec.bonusPaid | 0, bonus);         // the level's best, for the results card
+  }
   if (earns) {
-    const rec = levelRecord(id), bonus = Math.min(M.scoreBonusCap, Math.floor(report.score / M.scorePerButton));
-    t.scoreBonus = bonus;
-    t.scoreButtons = Math.max(0, bonus - (rec.bonusPaid | 0));
-    rec.bonusPaid = Math.max(rec.bonusPaid | 0, bonus);
     for (const a of ACHIEVEMENTS) {
       if (Save.achievements.includes(a.id) || !a.check(report, Save, achievementCtx)) continue;
       Save.achievements.push(a.id); t.achievements.push(a);
@@ -74,9 +86,21 @@ export function openChest(w) {
   return true;
 }
 
-// ---------- shop ----------
+// ---------- the Sewing Box and the Shop ----------
 // Price of weapon id's next upgrade tier (0 = fully upgraded).
 export const upgradeCost = id => { const t = upgradeTier(id); return t < 3 ? C.meta.upgradeCosts[t] : 0; };
+// A Pin type's permanent tiers: on sale once the Pin's first level (CONFIG.pinFrom) is cleared (or the Pin is in
+// Save.unlocks.pins); its next tier's price (0 = maxed).
+export const pinOpen = type => !!(Save.levels[C.pinFrom[type]] && Save.levels[C.pinFrom[type]].cleared) || Save.unlocks.pins.includes(type);
+export const pinTierCost = type => { const t = pinTier(type); return t < PIN_TIERS ? C.meta.pinTierCosts[t] : 0; };
+export function buyPinTier(type) {
+  const cost = pinTierCost(type);
+  if (!cost) return 'max';
+  if (!pinOpen(type)) return 'not yet';
+  if (Save.buttons < cost) return 'buttons';
+  Save.buttons -= cost; Save.pinTiers[type] = pinTier(type) + 1; persist();
+  return '';
+}
 // Each buy returns '' on success, else why not ('max' | 'buttons' | 'owned').
 export function buyUpgrade(id) {
   const cost = upgradeCost(id);
@@ -104,6 +128,39 @@ export function buyShred() {
   if (Save.buttons < cost) return 'buttons';
   Save.buttons -= cost; Save.skills.shred = shredTier() + 1; persist();
   return '';
+}
+// ---------- what's new in the Sewing Box and the Shop ----------
+// Everything on sale that the balance covers right now, one entry each, with the screen ('box' = the Sewing Box, 'shop')
+// and tab it's on and its price: in the Sewing Box a held pair's next upgrade tier ('up:<weapon>:<tier>', scissors),
+// a Pin's next tier ('pin:<type>:<tier>', pins) and SHRED's next tier ('shred:<tier>', moves); in the Shop a pair on
+// sale ('pair:<weapon>', pairs) and a cosmetic ('cos:<id>', style). Sharpen is upkeep, never a deal. newDeals(screen) =
+// the ones the player hasn't had on screen yet (Save.tips.shopSeen): they light the gold dot on that screen's entrances
+// and fill the results card's Shop line; markDealsSeen(screen, tab) as that tab renders. A bought tier's next one is a
+// new id, so the dot returns only when there's really something new.
+export function deals() {
+  const out = [];
+  for (const id in C.weapons) {
+    const w = C.weapons[id];
+    if (!weaponLocked(id)) { const t = upgradeTier(id); if (t < 3 && Save.buttons >= upgradeCost(id)) out.push({ id: 'up:' + id + ':' + (t + 1), screen: 'box', tab: 'scissors', weapon: id, tier: t + 1, cost: upgradeCost(id) }); }
+    else if (shopOpen(id) && Save.buttons >= w.shop) out.push({ id: 'pair:' + id, screen: 'shop', tab: 'pairs', weapon: id, cost: w.shop });
+  }
+  for (const type in C.towers) {
+    const t = pinTier(type);
+    if (pinOpen(type) && t < PIN_TIERS && Save.buttons >= pinTierCost(type)) out.push({ id: 'pin:' + type + ':' + (t + 1), screen: 'box', tab: 'pins', pin: type, tier: t + 1, cost: pinTierCost(type) });
+  }
+  const st = shredTier();
+  if (shredOpen() && C.shredTiers[st + 1] && Save.buttons >= shredCost()) out.push({ id: 'shred:' + (st + 1), screen: 'box', tab: 'moves', tier: st + 1, cost: shredCost() });
+  for (const id in C.meta.cosmetics) {
+    const c = C.meta.cosmetics[id];
+    if (!c.chest && !Save.cosmetics.owned.includes(id) && Save.buttons >= c.price) out.push({ id: 'cos:' + id, screen: 'shop', tab: 'style', cosmetic: id, cost: c.price });
+  }
+  return out;
+}
+export const newDeals = screen => deals().filter(d => !Save.tips.shopSeen.includes(d.id) && (!screen || d.screen === screen));
+export function markDealsSeen(screen, tab) {
+  let changed = false;
+  for (const d of deals()) if (d.screen === screen && d.tab === tab && !Save.tips.shopSeen.includes(d.id)) { Save.tips.shopSeen.push(d.id); changed = true; }
+  if (changed) persist();
 }
 // Sharpen weapon id's edge back to 1 (sharp). Offered only below sharpenFrom (canSharpen).
 export function buySharpen(id) {

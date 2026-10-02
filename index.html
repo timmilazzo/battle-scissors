@@ -100,9 +100,9 @@
   #hint { display: none; margin: 0; max-width: 320px; text-align: center; font: 12px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: rgba(255, 241, 194, 0.75); }
   #hint b { color: #ffd23f; }
 
-  /* HUD (top-left, one compact column): wave badge, then the workshop's hearts left as one heart + a number below it
-     (stacked, not side by side, so it stays out of the top of the road where enemies enter). Filled by src/hud.js.
-     Score lives on the pause and game-over cards, not here. */
+  /* HUD (top-left, one compact column, out of the top of the road where enemies enter): wave badge, the SHRED meter, the
+     DULL badge. Filled by src/hud.js. The workshop's HP is on the heart pad at the end of the road (render.js drawHeart);
+     score lives on the pause and game-over cards. */
   #hud {
     position: fixed; top: calc(10px + env(safe-area-inset-top)); left: calc(10px + env(safe-area-inset-left)); z-index: 9;
     display: flex; flex-direction: column; align-items: flex-start; gap: 6px; pointer-events: none;
@@ -114,18 +114,10 @@
   .hud-wave .hud-level { font-size: 12px; letter-spacing: 1px; color: #fff1c2; margin-bottom: 3px; }   /* the map level's number, above WAVE */
   .hud-wave .hud-level[hidden] { display: none; }
   .hud-wave b { font-size: 22px; letter-spacing: 0.5px; font-variant-numeric: tabular-nums; }
-  .hud-hearts { display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px 0 10px; border-radius: 999px; outline-offset: -6px; }
-  .hud-hearts b { font-size: 19px; font-variant-numeric: tabular-nums; min-width: 1.2em; }
-  .hud-hearts.low b { color: #ff8a8a; }
-  .heart { width: 26px; height: 26px; background: url(assets/kit/07_icons/ui_icon_heart_full_01.png) center / contain no-repeat;
-    transition: transform 150ms, filter 150ms, opacity 150ms; }
-  .heart.lost { background-image: url(assets/kit/07_icons/ui_icon_heart_cracked_01.png); filter: grayscale(0.6) brightness(0.7); opacity: 0.7; transform: scale(0.85); }
-  .heart.pop { animation: hpop 420ms ease-out; }
-  @keyframes hpop { 30% { transform: scale(1.6); filter: brightness(2); } }
   .bump { animation: tbump 260ms ease-out; }
   @keyframes tbump { 40% { transform: scale(1.18); } }
 
-  /* action bar (bottom): the thread pill (Pin currency). SHRED is its own meter in the HUD column, under the hearts. */
+  /* action bar (bottom): the thread pill (Pin currency). SHRED is its own meter in the HUD column, under the wave badge. */
   #tray {
     position: fixed; left: 50%; bottom: calc(10px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 15;
     display: flex; align-items: flex-end; gap: 10px; pointer-events: none;
@@ -149,7 +141,7 @@
   /* first time a Pin is affordable (until its explainer has been seen): the thread pill pulses with the + buttons */
   #tray.pin-attn .thread-chip { animation: tchip 0.9s ease-in-out infinite; }
   @keyframes tchip { 50% { box-shadow: inset 0 2px 1px rgba(255, 255, 255, 0.28), 0 4px 0 var(--rim), 0 0 0 3px #fff1c2, 0 0 22px rgba(255, 241, 194, 0.9); } }
-  /* SHRED: a small round felt badge in the HUD column, under the hearts (clear of the hand, which covers the bottom
+  /* SHRED: a small round felt badge in the HUD column, under the wave badge (clear of the hand, which covers the bottom
      right, and narrow so it stays off the road); a ring round the scissors fills clockwise with snip kills (--p, set by
      actionBar.js). Full: it pulses gold, tap it to arm; armed: the next press on the table starts the spin there (tap
      it again to cancel). */
@@ -186,6 +178,16 @@
   #spots.attn .spot-add { animation: sattn 0.9s ease-in-out infinite; }
   @keyframes sattn { 50% { transform: scale(1.15); box-shadow: 0 4px 0 var(--rim), 0 0 0 3px #fff1c2, 0 0 24px rgba(255, 241, 194, 0.95); } }
   #spots .spot-add[aria-expanded="true"] { --fc: #6b3f1d; --rim: #2a170a; opacity: 1; animation: none; transform: rotate(45deg); }
+  /* the rank-up button on a built Pin (actionBar.js): gold felt with the next rank's name (II, III), dim while unaffordable */
+  .spot-up { --fc: #e0b04a; --rim: #6b4a12; position: absolute; padding: 0; border-radius: 50%; pointer-events: auto; cursor: pointer; touch-action: manipulation;
+    display: flex; align-items: center; justify-content: center; font: 400 15px var(--ui-font); color: #2a170a; letter-spacing: 0.5px; text-shadow: none; outline-offset: -5px;
+    box-shadow: inset 0 2px 1px rgba(255, 255, 255, 0.35), 0 3px 0 var(--rim), 0 6px 10px rgba(0, 0, 0, 0.45); }
+  .spot-up[hidden] { display: none; }
+  .spot-up:not(.poor) { animation: sbob 1.6s ease-in-out infinite; }
+  .spot-up.poor { filter: saturate(0.4) brightness(0.75); opacity: 0.8; }
+  #spots .spot-up[aria-expanded="true"] { --fc: #6b3f1d; --rim: #2a170a; color: #fff1c2; animation: none; }
+  /* the picker's rank card: the Pin's next rank in its icon, what it changes in the label */
+  .pick.rankcard .trank { font: 400 22px var(--ui-font); color: #fff4dc; letter-spacing: 1px; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5); }
 
   /* the Pin picker (actionBar.js): over the paused board, dimmed but for a hole round the pad (--cx, --cy, --hole); the
      Pins fly out from the pad (--fx/--fy back to it, staggered by --d) onto an arc, each a round felt icon in its Pin's
@@ -263,7 +265,41 @@
   @keyframes bosscard { 0% { transform: translate(-50%, -50%) scale(0.6); opacity: 0; } 10% { transform: translate(-50%, -50%) scale(1.06); opacity: 1; }
     16% { transform: translate(-50%, -50%) scale(1); } 90% { opacity: 1; } 100% { opacity: 0; } }
 
-  /* the level map's reward reveal (a weapon popping out) and the credits */
+  /* star goals: the card below the wave 1 banner (touches go through; closed by game.js after CONFIG.starGoalsMs, its
+     fade spans --dur) and the same list on the pause card. The third star's goal (.feat, the level's feat) stands out;
+     .lost = gone for this run, .met = done already */
+  #goals { position: fixed; left: 50%; top: calc(50% + 22px);   /* under the banner (36%) and the controls prompt (50%, render.js drawPrompt) */ transform: translateX(-50%); z-index: 14; pointer-events: none;
+    width: min(320px, calc(100vw - 32px)); box-sizing: border-box; padding: 10px 12px 12px; border-radius: 18px; outline-offset: -8px;
+    animation: goalscard var(--dur, 4.5s) ease-out both; }
+  #goals[hidden] { display: none; }
+  #goals h3 { margin: 0 0 7px; text-align: center; font: 400 16px/1 var(--ui-font); letter-spacing: 1.5px; color: #ffe4aa; text-shadow: 0 2px 0 #1f1006; }
+  /* Tomato's dispatch line for the level (story.js), above the goals: Tomato's portrait, a tiny "TOMATO SAYS" kicker and one sentence */
+  #goals .dispatch { display: grid; grid-template-columns: 52px 1fr; column-gap: 10px; align-items: center; margin: 0 0 9px; padding: 0 0 8px;
+    text-align: left; font: 400 17px/1.2 var(--ui-font); letter-spacing: 0.2px; color: #fff1c2;
+    text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45); border-bottom: 2px dashed rgba(255, 236, 196, 0.35); }
+  #goals .dispatch[hidden] { display: none; }
+  /* Tomato (27_story ui_tomato_calm) beside the line, spanning the kicker and the sentence */
+  #goals .dispatch::before { content: ''; grid-row: 1 / 3; width: 52px; height: 52px; background: url(assets/kit/27_story/ui_tomato_calm_01.webp) center / contain no-repeat;
+    filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.45)); }
+  #goals .dispatch small { display: block; margin-bottom: 3px; font-size: 11px; letter-spacing: 1.5px; color: #ffe4aa; opacity: 0.85; }
+  @keyframes goalscard { 0% { opacity: 0; transform: translateX(-50%) translateY(12px) scale(0.9); } 8% { opacity: 1; transform: translateX(-50%); }
+    88% { opacity: 1; } 100% { opacity: 0; } }
+  .goal-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; width: 100%; box-sizing: border-box; }
+  .goal-list[hidden] { display: none; }
+  .goal-list li { display: grid; grid-template-columns: 24px 1fr; gap: 9px; align-items: center; padding: 4px 9px; border-radius: 11px;
+    font: 400 16px/1.15 var(--ui-font); letter-spacing: 0.3px; color: #fff1c2; text-align: left; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45); }
+  .goal-list li i { width: 24px; height: 24px; background: url(assets/kit/sewing/sewing_star_gold_01.webp) center / contain no-repeat;
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.6)); }
+  .goal-list li.feat { padding: 7px 9px; font-size: 19px; color: #ffd23f; background: rgba(255, 201, 61, 0.15); box-shadow: inset 0 0 0 2px rgba(255, 201, 61, 0.6); }
+  .goal-list li.feat i { transform: scale(1.3); }
+  #goals li.feat i { animation: goalstar 700ms ease-in-out 500ms 3; }
+  @keyframes goalstar { 50% { transform: scale(1.7) rotate(-14deg); } }
+  .goal-list li.lost { color: #b9ad99; background: none; box-shadow: none; }
+  .goal-list li.lost span { text-decoration: line-through 2px; }
+  .goal-list li.lost i { background-image: url(assets/kit/sewing/sewing_star_empty_01.webp); opacity: 0.8; }
+  .goal-list li.met span::after { content: ' ✓'; color: #9ff3c8; }
+
+  /* reward cards (levelMap.js showReveal): new scissors, a world chest, the credits; over the map, the results card or the Shop */
   #reveal { position: fixed; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center; background: rgba(12, 6, 2, 0.72); cursor: pointer; }
   #reveal[hidden] { display: none; }
   #reveal .rv-card { position: relative; width: min(340px, calc(100vw - 32px)); box-sizing: border-box; padding: 18px 18px 20px; border-radius: 22px;
@@ -273,10 +309,47 @@
     -webkit-mask: radial-gradient(closest-side, #000 40%, transparent); mask: radial-gradient(closest-side, #000 40%, transparent); }
   #reveal img { display: block; width: 62%; max-height: 38vh; margin: 0 auto 8px; object-fit: contain; filter: drop-shadow(0 8px 10px rgba(0, 0, 0, 0.5)); animation: rvfloat 2.4s ease-in-out infinite; }
   #reveal .rv-name { font: 400 26px/1.1 var(--ui-font); color: #ffc93d; text-shadow: 0 3px 0 #2a170a; }
+  /* new scissors: a kicker over the art, the story line (why they turn up now), the blurb, GOT IT */
+  #reveal .rv-kicker { margin: 0 0 4px; font: 400 16px/1 var(--ui-font); letter-spacing: 2px; color: #ffe4aa; text-shadow: 0 2px 0 #2a170a; }
+  #reveal .rv-story { margin: 10px 0 6px; font: 400 18px/1.3 var(--ui-font); letter-spacing: 0.2px; color: #fff1c2; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45); }
+  #reveal .rv-blurb { margin: 0 0 14px; font: italic 600 14px/1.35 "Trebuchet MS", system-ui, sans-serif; color: #ffe4aa; opacity: 0.85; }
+  #reveal .rv-ok { width: 100%; min-width: 0; font-size: clamp(22px, 6.5vw, 28px); }
+  /* Shop stock a clear put on sale: SHRED's round badge in place of art, then LATER / TO THE SHOP side by side */
+  #reveal .rv-ico { width: 84px; height: 84px; margin: 8px auto 10px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 44px; color: #fff1c2; outline-offset: -7px; text-shadow: 0 3px 0 rgba(0, 0, 0, 0.45); animation: rvfloat 2.4s ease-in-out infinite; }
+  #reveal .rv-ico[hidden] { display: none; }
+  #reveal .rv-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  #reveal .rv-row .felt-btn { min-width: 0; width: auto; padding: 12px 8px 13px; font-size: clamp(15px, 4.6vw, 19px); }
   #reveal .rv-credits { font: 400 16px/1.45 var(--ui-font); color: #fff1c2; }
   #reveal .rv-credits h3 { margin: 0 0 8px; font-size: 28px; color: #ffc93d; text-shadow: 0 3px 0 #2a170a; }
   #reveal .rv-credits p { margin: 0 0 6px; }
   #reveal .rv-credits small { display: block; margin-top: 8px; font-size: 12.5px; color: #ffe4aa; }
+  #reveal .rv-credits .rv-demo { color: #ffe4aa; }
+  #reveal .rv-credits .rv-ask { margin: 12px 0 10px; font-size: 18px; line-height: 1.3; }
+  #reveal .rv-credits .rv-ask b { color: #ffc93d; }
+  #reveal .rv-credits .rv-ok { margin: 0 0 14px; }
+  /* the morning-after note (story.js `morning`): where it was found, the human's note on a scrap of paper, Tomato's reply */
+  #reveal .rv-from { margin: 10px 0 10px; font: italic 600 14px/1.3 "Trebuchet MS", system-ui, sans-serif; color: #ffe4aa; opacity: 0.85; }
+  /* The paper is a felt scrap from the kit (assets/kit/27_story, the note's paper in story.js): a sticky note under a
+     fridge magnet, a torn strip of lined paper (stretched to the text's height) or the bottom of a shopping list (the
+     ticked lines are on the art, the note goes in the space under them). The canvases are 640x400 with transparent margins. */
+  #reveal .rv-note { position: relative; margin: 0 4px 16px; padding: 14px 16px 16px; transform: rotate(-2deg); color: #3a2a10;
+    font: 400 17px/1.3 "Segoe Print", "Bradley Hand", "Comic Sans MS", cursive; text-align: left;
+    background: linear-gradient(#fffbe4, #f6ecc2); border-radius: 3px; box-shadow: 0 6px 12px rgba(0, 0, 0, 0.45); }
+  #reveal .rv-note.sticky, #reveal .rv-note.lined, #reveal .rv-note.shopping { box-shadow: none; border-radius: 0; filter: drop-shadow(0 6px 6px rgba(0, 0, 0, 0.45)); }
+  #reveal .rv-note.sticky { aspect-ratio: 640 / 400; box-sizing: border-box; display: flex; align-items: center; padding: 7% 20% 6% 21%;
+    background: url(assets/kit/27_story/ui_note_sticky_01.webp) center / 100% 100% no-repeat; transform: rotate(-3deg); }
+  #reveal .rv-note.sticky::before { content: ''; position: absolute; left: 44%; top: -6%; width: 44px; height: 44px;
+    background: url(assets/kit/27_story/ui_fridge_magnet_01.webp) center / contain no-repeat; filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.4)); }
+  #reveal .rv-note.lined { padding: 11px 26px 22px; line-height: 1.35; background: url(assets/kit/27_story/ui_note_lined_01.webp) center / 100% 235% no-repeat; transform: rotate(-1.5deg); }
+  #reveal .rv-note.shopping { aspect-ratio: 640 / 400; box-sizing: border-box; display: flex; align-items: center; padding: 21% 10% 8% 10%;
+    background: url(assets/kit/27_story/ui_note_shopping_01.webp) center / 100% 100% no-repeat; transform: rotate(1.5deg); }
+  /* Tomato's reply, with the pincushion grinning beside it (27_story ui_tomato_amused) */
+  #reveal .rv-reply { display: grid; grid-template-columns: 58px 1fr; column-gap: 10px; align-items: center; margin: 0 0 14px; text-align: left;
+    font: 400 18px/1.3 var(--ui-font); letter-spacing: 0.2px; color: #fff1c2; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45); }
+  #reveal .rv-reply::before { content: ''; grid-row: 1 / 3; width: 58px; height: 58px; background: url(assets/kit/27_story/ui_tomato_amused_01.webp) center / contain no-repeat;
+    filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.45)); }
+  #reveal .rv-reply small { display: block; margin-bottom: 3px; font-size: 12px; letter-spacing: 1.5px; color: #ffe4aa; opacity: 0.85; }
   @keyframes rvpop { 0% { transform: scale(0.3) rotate(-8deg); opacity: 0; } 100% { transform: none; opacity: 1; } }
   @keyframes rvspin { to { transform: rotate(360deg); } }
   @keyframes rvfloat { 50% { transform: translateY(-8px) rotate(-3deg); } }
@@ -344,10 +417,36 @@
     border: 2px dashed rgba(255, 210, 63, 0.6); font-size: 17px; color: #fff1c2; animation: rvpop 600ms cubic-bezier(.2, 1.6, .4, 1) both; }
   .res-unlock[hidden] { display: none; }
   .res-unlock img { width: 54px; height: 54px; object-fit: contain; filter: drop-shadow(0 4px 5px rgba(0, 0, 0, 0.5)); }
+  .res-shop { justify-content: space-between; font-size: 15px; }
+  .res-shop > span { flex: 1 1 auto; min-width: 0; }
+  #res-shop .felt-btn { flex: 0 0 auto; min-width: 0; width: auto; font-size: 17px; padding: 9px 16px 10px; }
+  /* a gold dot on the Shop's entrances (the title tile, the map's Shop button) while the Shop holds something the balance
+     covers that the player hasn't seen there yet (meta.js newDeals; main.js refreshNews) */
+  .felt-btn.news { position: relative; }
+  .news::after { content: ''; position: absolute; top: -5px; right: -5px; z-index: 1; width: 14px; height: 14px; border-radius: 50%; background: #ffd23f;
+    box-shadow: 0 0 0 2px #2a170a, 0 0 8px 2px #ffd23f; animation: newsdot 1.4s ease-in-out infinite; }
+  @keyframes newsdot { 50% { transform: scale(1.4); } }
   .screen.meta-screen { overflow-y: auto; justify-content: safe center; z-index: 12; }   /* .screen.x: must beat .screen (defined below), or a tall card centres off the top */
   .meta-screen .card { width: min(560px, 100%); gap: 10px; }
   .meta-bal { margin: -6px 0 0; display: flex; align-items: center; gap: 6px; font: 400 19px var(--ui-font); color: #ffd23f; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45); }
   .meta-body { width: 100%; display: grid; gap: 8px; }
+  /* Shop tabs (shop.js): a sunken felt strip stuck to the top while the list scrolls; the open tab is raised gold felt;
+     a gold dot = something new there the balance covers */
+  .shop-tabs { position: sticky; top: 0; z-index: 3; width: 100%; box-sizing: border-box; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px;
+    padding: 6px; border-radius: 18px; background: var(--felt-fuzz), #3d220e; box-shadow: inset 0 3px 7px rgba(0, 0, 0, 0.55), 0 6px 12px rgba(0, 0, 0, 0.35); }
+  .shop-tab { position: relative; display: flex; align-items: center; justify-content: center; gap: 6px; margin: 0; padding: 10px 4px 11px;
+    border: 3px solid transparent; border-radius: 13px; background: none; cursor: pointer; touch-action: manipulation;
+    font: 400 clamp(16px, 4.6vw, 20px)/1 var(--ui-font); letter-spacing: 0.4px; color: #e3c893; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5); }
+  .shop-tab:hover { color: #fff1c2; }
+  .shop-tab[aria-selected="true"] { --rim: #6a3a08; color: #fff6dc; cursor: default; border-color: var(--rim);
+    background: var(--felt-fuzz), radial-gradient(130% 110% at 30% 8%, rgba(255, 250, 230, 0.32), rgba(255, 250, 230, 0) 55%), #e79a22;
+    box-shadow: inset 0 2px 1px rgba(255, 255, 255, 0.3), inset 0 -3px 2px rgba(0, 0, 0, 0.25), 0 3px 0 var(--rim);
+    outline: 2px dashed rgba(255, 244, 214, 0.85); outline-offset: -7px;
+    text-shadow: 0 -1px 0 var(--rim), 1px 0 0 var(--rim), -1px 0 0 var(--rim), 0 2px 0 var(--rim); }
+  .shop-tab:focus-visible { outline: 3px solid #ffe27a; outline-offset: 1px; }
+  .shop-tab .dot { position: absolute; top: 5px; right: 7px; width: 10px; height: 10px; border-radius: 50%; background: #ffd23f; box-shadow: 0 0 0 2px #2a170a, 0 0 8px 1px #ffd23f; }
+  .shop-tab .dot[hidden] { display: none; }
+  .meta-row.sale { outline: 2px dashed rgba(255, 210, 63, 0.55); outline-offset: -4px; }
   .meta-body h3 { margin: 6px 0 0; font: 400 18px var(--ui-font); letter-spacing: 0.4px; color: #ffe4aa; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45); }
   .meta-body .hint { margin: -4px 0 0; font: 600 12px/1.35 "Trebuchet MS", system-ui, sans-serif; color: rgba(255, 241, 194, 0.75); }
   .meta-row { display: grid; grid-template-columns: 48px 1fr auto; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 14px;
@@ -378,7 +477,7 @@
     font-family: "Arial Rounded MT Bold", "Trebuchet MS", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     touch-action: manipulation;
   }
-  .screen[hidden] { display: none; }
+  .screen[hidden], .card .felt-btn[hidden] { display: none; }
   /* TITLE: painted plate, portrait (assets/title-bg.webp, 941x1672) or landscape (assets/title-bg-landscape.webp,
      1672x941) by screen shape. The art box is always full height: screens narrower than the plate crop its sides
      (portrait 375x812 shows plate x ~84..857; landscape 4:3 shows ~208..1462), wider ones get blurred side bars.
@@ -414,6 +513,22 @@
   .art-btn:hover { filter: brightness(1.07); }
   .art-btn:active { transform: translateY(3%) scale(0.97); filter: brightness(0.9); }
   .art-btn:focus-visible { outline: 3px solid #ffe27a; outline-offset: 3px; }
+  /* A title tile built in felt (no painted art yet): placed like .art-btn (--px/--py/--pw/--ph portrait,
+     --lx/--ly/--lw/--lh landscape, plate px); vh sizes its text with the full-height plate. Random Quilt: the old
+     Upgrades tile's orange-brown, a little quilt patch where the painted tiles have their icon. */
+  .title-tile { --fc: #a8561f; --rim: #4a220b; --dx: var(--px); --dy: var(--py); --dw: var(--pw); --dh: var(--ph); --fs: 1.9vh;
+    position: absolute; left: calc(var(--dx) / var(--cw) * 100%); top: calc(var(--dy) / var(--ch) * 100%);
+    width: calc(var(--dw) / var(--cw) * 100%); height: calc(var(--dh) / var(--ch) * 100%); margin: 0; padding: 0 1em;
+    display: flex; align-items: center; justify-content: center; gap: 0.8em; border-radius: 0.9em; border-width: 0.2vh;
+    font-size: var(--fs); font-weight: 400; letter-spacing: 0.04em; white-space: nowrap; outline-offset: -0.45em;
+    text-shadow: 0 -1px 0 var(--rim), 1px 0 0 var(--rim), -1px 0 0 var(--rim), 0 2px 0 var(--rim); }
+  @media (min-aspect-ratio: 1/1) { .title-tile { --dx: var(--lx); --dy: var(--ly); --dw: var(--lw); --dh: var(--lh); --fs: 3vh; } }
+  .title-tile .quilt-ico { flex: none; width: 1.5em; height: 1.5em; border-radius: 0.2em; transform: rotate(-8deg); box-shadow: 0 0.12em 0 rgba(0, 0, 0, 0.35);
+    background: conic-gradient(#ffc93d 0 25%, #3f9a2c 0 50%, #ffc93d 0 75%, #2f5fc0 0) center / 100% 100%; outline: 0.08em dashed rgba(255, 244, 214, 0.9); outline-offset: -0.22em; }
+  .title-tile:focus-visible { outline: 3px solid #ffe27a; outline-offset: 3px; }
+  .title-tile.locked { filter: grayscale(0.85) brightness(0.8); }
+  #title-custom { position: absolute; left: calc(10px + env(safe-area-inset-left)); top: calc(10px + env(safe-area-inset-top)); z-index: 1; min-width: 0; width: auto; font-size: 17px; padding: 9px 12px 10px; }
+  #title-custom[hidden] { display: none; }
   /* MAP: the level map art (CONFIG.map), full height like the title plate; a transparent button over each numbered patch
      (levelMap.js sets --x/--y/--w/--h in art px). Cleared = gold check, next = a pulsing glow, locked = dimmed. */
   #map { padding: 0; gap: 0; overflow: hidden; background: #1c1030; }
@@ -521,11 +636,12 @@
   .card .felt-btn.small { font-size: clamp(15px, 4.2vw, 18px); padding: 11px 8px 12px; letter-spacing: 0.3px; border-radius: 16px; outline-offset: -8px;
     text-shadow: 0 -1px 0 var(--rim), 1px 0 0 var(--rim), -1px 0 0 var(--rim), 0 3px 0 var(--rim); }
   .over-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
-  /* one-time Pin explainer (a pause card) */
+  /* the Pin explainer (a pause card, once per Pin type: the first also shows how to build) */
   #pins-intro .card { width: min(400px, 100%); gap: 10px; }
   #pins-intro .pin-diagram { width: 100%; height: auto; border-radius: 14px; border: 3px solid #2a170a; box-sizing: border-box; box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.35); }
   #pins-intro ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; font: 600 14px/1.35 "Trebuchet MS", system-ui, sans-serif; }
   #pins-intro li { display: grid; grid-template-columns: 20px 1fr; gap: 8px; align-items: start; }
+  #pins-intro li[hidden] { display: none; }
   #pins-intro li .dot { width: 16px; height: 16px; margin-top: 1px; border-radius: 50%; background: var(--tc); border: 2px solid #2a170a; box-sizing: border-box; box-shadow: 0 0 8px var(--tc); }
   #pins-intro li b { font: 400 15.5px var(--ui-font); letter-spacing: 0.3px; color: #ffd23f; }
   #pins-intro .lead { margin: 0; font: 400 18px/1.2 var(--ui-font); letter-spacing: 0.3px; text-align: center; color: #fff1c2; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45); }
@@ -557,8 +673,11 @@
     padding-top: 10px; border-top: 2px dashed rgba(255, 228, 170, 0.25); }
   .sel-sharp .sharp-meter { grid-column: 1 / -1; grid-row: 1; }
   .sel-sharp .sharpen-btn { grid-column: 2; grid-row: 2; margin-top: 4px; }
-  .sel-bal { grid-column: 1; grid-row: 2; justify-self: start; display: flex; align-items: center; gap: 4px; font: 400 13px var(--ui-font); color: #ffe4aa; }
-  .sel-bal::before { content: "You have"; margin-right: 2px; }
+  /* the Buttons balance is the way into the Sewing Box (main.js): a small felt chip, balance then the name */
+  .card .felt-btn.small.sel-box { grid-column: 1; grid-row: 2; justify-self: start; width: auto; min-width: 0; margin-top: 4px; padding: 6px 10px 7px;
+    display: inline-flex; align-items: center; gap: 5px; font-size: 13px; letter-spacing: 0.3px; }
+  .sel-box .sb-txt { color: #ffe4aa; }
+  .sel-box .sb-txt::before { content: '·'; margin-right: 5px; opacity: 0.7; }
   .sel-hero.honed .sm-track { animation: hone 800ms ease-out; }
   @keyframes hone { 0% { box-shadow: 0 0 0 0 rgba(255, 255, 220, 0.9), inset 0 2px 3px rgba(0, 0, 0, 0.6); filter: brightness(1.8); } 100% { box-shadow: 0 0 0 10px rgba(255, 255, 220, 0), inset 0 2px 3px rgba(0, 0, 0, 0.6); } }
   @media (max-height: 740px) { .sel-hero .wc-blurb { display: none; } .sel-hero > img { height: clamp(80px, 15vh, 230px); } }   /* short phones: keep Sharpen in view */
@@ -598,6 +717,8 @@
   .sm-track::after { content: ""; position: absolute; top: 0; bottom: 0; left: var(--p, 50%); right: 0; background: rgba(24, 12, 4, 0.84); box-shadow: inset 2px 0 0 #fff6dc; }
   .sm-track i { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: rgba(42, 23, 10, 0.55); z-index: 1; }
   .sm-ends { display: flex; justify-content: space-between; font-size: 11px; letter-spacing: 0.5px; color: rgba(255, 228, 170, 0.7); }
+  .sm-note { margin: 1px 0 0; font: italic 600 12px/1.25 "Trebuchet MS", system-ui, sans-serif; color: rgba(255, 228, 170, 0.85); }   /* what the humans did with it today (story.js) */
+  .sm-note:empty { display: none; }
   .card .felt-btn.small.sharpen-btn { --fc: #43a332; --rim: #1a4d12; width: auto; display: flex; align-items: center; gap: 6px; padding: 9px 12px 10px; font-size: 16px; white-space: nowrap; }
   .sb-price { display: inline-flex; align-items: center; gap: 3px; }
   .sb-price[hidden] { display: none; }
@@ -605,7 +726,7 @@
   .sharp-meter:is([data-band="0"], [data-band="1"]) + .sharpen-btn:not(:disabled) { animation: sbpulse 1.3s ease-in-out infinite; }
   @keyframes sbpulse { 50% { transform: scale(1.06); filter: brightness(1.15); } }
 
-  /* Your Scissors (src/armory.js): a panel per pair held (the equipped one gold-rimmed), then the ones not held yet */
+  /* The Shop's Scissors and Moves tabs (src/armory.js): a panel per pair held (the equipped one gold-rimmed), then the ones not held yet */
   .arm-card { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 12px; align-items: start; padding: 12px; border-radius: 16px; color: #fff1c2;
     background: var(--felt-fuzz), rgba(30, 14, 4, 0.45); box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.45); font: 600 12.5px/1.3 "Trebuchet MS", system-ui, sans-serif; }
   .arm-card.on { outline: 2px solid rgba(255, 210, 63, 0.7); outline-offset: -3px; }
@@ -622,6 +743,7 @@
   .arm-up .tag, .arm-head .tag { font: 400 13px var(--ui-font); color: #ffc93d; }
   /* Moves: SHRED's panel (its round purple badge, as in the HUD) */
   .arm-skill-ico { width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px; outline-offset: -6px; }
+  .arm-skill-ico.pin svg, #reveal .rv-ico.pin svg { width: 60%; height: 60%; }   /* a Pin's picker icon (actionBar.js PIN_ICON) in its felt */
   .arm-skill-now { color: #ffe4aa; }
   /* skills to come (CONFIG.skillIdeas): dimmer, a SOON tag, a Want this button */
   .arm-card.idea { background: var(--felt-fuzz), rgba(30, 14, 4, 0.3); outline: 2px dashed rgba(255, 228, 170, 0.25); outline-offset: -4px; }
@@ -712,7 +834,6 @@
 </div>
 <div id="hud" hidden>
   <div class="felt blue hud-wave"><small class="hud-level" id="hud-level" hidden>LEVEL 1</small><small>WAVE</small><b id="hud-wave">1/6</b></div>
-  <div class="felt dark hud-hearts" id="hud-hearts" aria-label="Workshop health"><span class="heart"></span><b id="hud-hp">10</b></div>
   <button id="shred-card" class="felt purple" type="button" aria-label="SHRED" hidden><span class="ring"></span><span class="ticon">✂</span></button>
   <div class="felt red hud-dull" id="hud-dull" hidden title="Dull blades: less snip damage. Sharpen them before a level.">DULL</div>
 </div>
@@ -727,6 +848,7 @@
 <div id="tip" hidden><span id="tip-text"></span></div>
 <button id="tut-skip" class="felt brown" type="button" aria-label="Skip this step" hidden><span>›</span></button>
 <div id="boss-card" class="felt purple" role="status" hidden><img id="boss-portrait" alt="" width="120" height="120"><h3 id="boss-name"></h3><p id="boss-taunt"></p></div>
+<div id="goals" class="felt dark" role="status" hidden><p id="goals-dispatch" class="dispatch" hidden><small></small><span></span></p><h3>STAR GOALS</h3><ul id="goals-list" class="goal-list"></ul></div>
 <div id="reveal" role="dialog" aria-label="Reward" hidden><div class="rv-card felt brown"><div class="rv-rays"></div><div id="reveal-body"></div></div></div>
 
 <div id="title" class="screen">
@@ -734,14 +856,17 @@
     <h1 class="sr-only">Battle Scissors: Kitchen Drawer Defense</h1>
     <div class="demo-tag felt" style="--px:690;--py:575;--lx:1085;--ly:425">DEMO</div>
     <!-- --x/--y/--w/--h: sprite rect in the mock; --px/--py: portrait position (default --x/--y);
-         --lx/--ly/--lw/--lh: landscape rect; --r: clip shape. PLAY, How to play, Settings and Sound are wired; the rest are placeholders. -->
+         --lx/--ly/--lw/--lh: landscape rect; --r: clip shape. The Shop tile sits in the old Upgrades slot (--py). -->
     <button id="play" class="art-btn" type="button" style="--x:212;--y:1030;--w:526;--h:192;--lx:616;--ly:640;--lw:440;--lh:161;--r:11% / 31%"><span class="sr-only">Play</span></button>
-    <button class="art-btn" id="title-upgrades" type="button" style="--x:291;--y:1244;--w:365;--h:98;--lx:373;--ly:815;--lw:297;--lh:80;--r:5% / 19%"><span class="sr-only">Upgrades</span></button>
-    <button class="art-btn" id="title-shop" type="button" style="--x:291;--y:1356;--w:365;--h:98;--lx:688;--ly:815;--lw:297;--lh:80;--r:5% / 19%"><span class="sr-only">Shop</span></button>
+    <button class="art-btn" id="title-shop" type="button" style="--x:291;--y:1356;--w:365;--h:98;--py:1244;--lx:373;--ly:815;--lw:297;--lh:80;--r:5% / 19%"><span class="sr-only">Shop</span></button>
+    <!-- Random Quilt: no painted tile yet, so a felt one in the old Upgrades tile's colours, in the slot under the Shop -->
+    <button class="title-tile felt" id="title-quilt" type="button" style="--px:299;--py:1361;--pw:349;--ph:86;--lx:694;--ly:819;--lw:285;--lh:70"><span class="quilt-ico" aria-hidden="true"></span><span>RANDOM QUILT</span></button>
     <button id="how" class="art-btn" type="button" style="--x:291;--y:1467;--w:365;--h:98;--lx:1003;--ly:815;--lw:297;--lh:80;--r:5% / 19%"><span class="sr-only">How to play</span></button>
     <button id="title-settings" class="art-btn icon" type="button" style="--x:699;--y:22;--w:90;--h:80;--px:652;--lx:1282;--ly:18;--lw:80;--lh:71;--r:20%"><span class="sr-only">Settings</span></button>
     <button id="title-sound" class="art-btn icon" type="button" aria-pressed="false" style="--x:824;--y:22;--w:90;--h:80;--px:754;--lx:1370;--ly:18;--lw:80;--lh:71;--r:20%"><span class="sr-only">Sound</span></button>
   </div>
+  <!-- ?recipe= in the URL (the level lab's Play it) adds a one-off Custom Road; main.js shows this then -->
+  <button id="title-custom" class="felt-btn small" type="button" hidden>Custom Road</button>
 </div>
 <div id="toast" class="toast" hidden></div>
 
@@ -749,33 +874,41 @@
   <div id="map-art" class="map-art" role="group" aria-label="Level map"></div>
   <div class="map-top">
     <span class="felt dark bt-chip" aria-label="Buttons"><span class="bt"></span><b id="map-buttons">0</b></span>
-    <button id="map-armory" class="felt-btn small" type="button">Scissors</button>
+    <button id="map-box" class="felt-btn small" type="button">Sewing Box</button>
     <button id="map-shop" class="felt-btn small" type="button">Shop</button>
     <button id="map-trophies" class="felt-btn small" type="button">Trophies</button>
   </div>
   <div class="map-bar">
     <button id="map-back" class="felt-btn back" type="button">BACK</button>
-    <button id="map-random" class="felt-btn small" type="button">Random Quilt</button>
-    <button id="map-custom" class="felt-btn small" type="button" hidden>Custom Road</button>
   </div>
 </div>
 
-<!-- Shop and Trophies: opened from the map (src/shop.js builds their contents); the title's Shop tile opens the Shop too -->
+<!-- Shop (tabs: Scissors / Moves / Style) and Trophies: src/shop.js builds their contents (the Scissors and Moves tabs
+     come from src/armory.js). The Shop opens from the map and the title's Shop tile; Trophies from the map. -->
 <div id="shop" class="screen meta-screen" hidden>
   <div class="card">
     <h2 class="blue" data-text="SHOP">SHOP</h2>
     <p class="meta-bal"><span class="bt"></span><b id="shop-buttons">0</b> Buttons</p>
-    <div id="shop-body" class="meta-body"></div>
+    <div id="shop-tabs" class="shop-tabs" role="tablist" aria-label="Shop">
+      <button class="shop-tab" type="button" role="tab" data-tab="pairs">Pairs<span class="dot" hidden></span></button>
+      <button class="shop-tab" type="button" role="tab" data-tab="style">Style<span class="dot" hidden></span></button>
+    </div>
+    <div id="shop-body" class="meta-body" role="tabpanel"></div>
     <button id="shop-back" class="felt-btn back" type="button">BACK</button>
   </div>
 </div>
-<!-- Your Scissors: the weapon inventory, upgrades and Sharpen (src/armory.js builds it); from the map and the title's Upgrades tile -->
-<div id="armory" class="screen meta-screen" hidden>
+<!-- the Sewing Box (sewingBox.js): what you hold and its upgrades; tabs built by armory.js -->
+<div id="box" class="screen meta-screen" hidden>
   <div class="card">
-    <h2 class="blue" data-text="YOUR SCISSORS">YOUR SCISSORS</h2>
-    <p class="meta-bal"><span class="bt"></span><b id="armory-buttons">0</b> Buttons</p>
-    <div id="armory-body" class="meta-body"></div>
-    <button id="armory-back" class="felt-btn back" type="button">BACK</button>
+    <h2 class="blue" data-text="SEWING BOX">SEWING BOX</h2>
+    <p class="meta-bal"><span class="bt"></span><b id="box-buttons">0</b> Buttons</p>
+    <div id="box-tabs" class="shop-tabs" role="tablist" aria-label="Sewing Box">
+      <button class="shop-tab" type="button" role="tab" data-tab="scissors">Scissors<span class="dot" hidden></span></button>
+      <button class="shop-tab" type="button" role="tab" data-tab="pins">Pins<span class="dot" hidden></span></button>
+      <button class="shop-tab" type="button" role="tab" data-tab="moves">Moves<span class="dot" hidden></span></button>
+    </div>
+    <div id="box-body" class="meta-body" role="tabpanel"></div>
+    <button id="box-back" class="felt-btn back" type="button">BACK</button>
   </div>
 </div>
 <div id="trophies" class="screen meta-screen" hidden>
@@ -796,7 +929,7 @@
     <div id="sel-hero" class="sel-hero">
       <img alt="">
       <div class="sel-info"><span class="wc-name"></span><span id="sel-lock" class="sel-lock"></span><span class="wc-blurb"></span><span class="wc-stats"></span></div>
-      <div id="sel-sharp" class="sel-sharp"><span class="sel-bal"><span class="bt"></span><b id="sel-buttons">0</b></span></div>
+      <div id="sel-sharp" class="sel-sharp"><button id="sel-box" class="felt-btn small sel-box" type="button" title="Your Buttons: open the Sewing Box"><span class="bt"></span><b id="sel-buttons">0</b><span class="sb-txt">Sewing Box</span></button></div>
     </div>
     <div id="weapon-cards" class="weapon-strip" role="group" aria-label="Your scissors"></div>
     <div class="select-actions">
@@ -826,7 +959,7 @@
 <div id="pins-intro" class="screen" role="dialog" aria-labelledby="pins-intro-title" hidden>
   <div class="card">
     <h2 id="pins-intro-title" data-text="BUILDING PINS">BUILDING PINS</h2>
-    <p class="lead">Pins help you snip.</p>
+    <p id="pins-intro-lead" class="lead">Pins help you snip.</p>
     <svg class="pin-diagram" viewBox="0 0 320 108" aria-hidden="true">
       <rect width="320" height="108" fill="#4f8a2a"/>
       <path d="M-10 100 C 90 92, 220 86, 330 96" fill="none" stroke="#b07a45" stroke-width="28"/>
@@ -838,11 +971,11 @@
       <path d="M104 48 l14 -6 v12 z" fill="#1c1107" fill-opacity="0.9"/>
       <rect x="118" y="12" width="190" height="66" rx="12" fill="#1c1107" fill-opacity="0.9"/>
       <g font-family="Trebuchet MS, sans-serif" font-size="11" font-weight="700" fill="#fff1c2" text-anchor="middle">
-        <circle cx="213" cy="38" r="10" fill="#e6eef5"/><text x="213" y="66">Needle Pin</text>
+        <circle id="pins-intro-dot" cx="213" cy="38" r="10" fill="#e6eef5"/><text id="pins-intro-name" x="213" y="66">Needle Pin</text>
       </g>
     </svg>
     <ul id="pins-intro-list">
-      <li><span class="dot" style="--tc:#9ff3c8"></span><span>Tap a <b>+</b>, pick a Pin. Kills pay thread.</span></li>
+      <li id="pins-intro-howto"><span class="dot" style="--tc:#9ff3c8"></span><span>Tap a <b>+</b>, pick a Pin. Kills pay thread.</span></li>
     </ul>
     <button id="pins-intro-ok" class="felt-btn" type="button"><span class="tri"></span>GOT IT</button>
   </div>
@@ -851,6 +984,7 @@
 <div id="pause-screen" class="screen" hidden>
   <div class="card">
     <h2 data-text="PAUSED">PAUSED</h2>
+    <ul id="pause-goals" class="goal-list" aria-label="Star goals" hidden></ul>
     <dl>
       <dt>Wave</dt><dd id="pause-wave">1 / 6</dd>
       <dt>Score</dt><dd id="pause-score">0</dd>
@@ -882,6 +1016,8 @@
       <ul id="res-tally" class="res-tally"></ul>
       <div id="res-total" class="res-total"></div>
       <div id="res-unlock" class="res-unlock" hidden></div>
+      <!-- the first Shop deal the balance covers that the player hasn't seen (results.js refreshResultsShop); the button opens the Shop on its tab -->
+      <div id="res-shop" class="res-unlock res-shop" hidden><span></span><button id="res-shop-btn" class="felt-btn small" type="button">Shop</button></div>
     </div>
     <dl>
       <dt>Level</dt><dd id="over-level">—</dd>

@@ -11,19 +11,19 @@
 // crossing in wave 1's first lull (it counts toward the cap and ignores those rules).
 //
 // Silverfish: crawls from one screen edge to the opposite one in crossSec on a gently wobbling line chosen to stay
-// off the road. Blades opening (not blades already held open and still) within skitterPx of it make it skitter once per crossing: a 90 degree turn away from
-// them and a burst for skitterSec, then it crawls on in its old direction.
+// off the road. Blades opening (not blades already held open and still) within skitterPx of it make it skitter once per crossing: a random turn (mostly toward
+// the middle of the screen, never straight off an edge) and a burst for skitterSec, then it crawls on in its old direction.
 import { CONFIG as C } from './config.js';
 import { view, level, TAU, clamp, segDistSq } from './core.js';
 import { cutZoneHits } from './scissors.js';
 
 // on, x/y = where it is (px), bx/by = its line's point (x/y adds the wobble), dx/dy = its crossing direction,
 // vx/vy = the direction it moves now (turned while skittering), speed = px/s, age (s), ph = wobble phase,
-// skittered = used its one skitter, skT = skitter burst left (s), ang = drawn heading, intro = the scripted crossing,
+// skittered = used its one skitter, skT = skitter burst left (s), skA / skS = its skitter's turn angle and side (0..1), ang = drawn heading, intro = the scripted crossing,
 // onRoad = how many of its line's 25 samples touch the road (0 unless no clear line fit this screen).
 export const critters = [];
 for (let i = 0; i < 4; i++) critters.push({ on: false, kind: '', x: 0, y: 0, bx: 0, by: 0, dx: 0, dy: 0, vx: 0, vy: 0,
-  speed: 0, age: 0, ph: 0, skittered: false, skT: 0, ang: 0, r: 0, intro: false, onRoad: 0 });
+  speed: 0, age: 0, ph: 0, skittered: false, skT: 0, skA: 0, skS: 0, ang: 0, r: 0, intro: false, onRoad: 0 });
 // squish splats: t = 0 -> 1 over splatSec, rot, and a few shape numbers (visual only, so Math.random)
 export const splats = [];
 for (let i = 0; i < 6; i++) splats.push({ on: false, x: 0, y: 0, t: 0, rot: 0, k0: 0, k1: 0, k2: 0, k3: 0 });
@@ -124,6 +124,7 @@ function spawnSilverfish(rnd, paths, intro) {
   c.dx = c.vx = (lane.ex - lane.sx) / len; c.dy = c.vy = (lane.ey - lane.sy) / len;
   c.speed = len / F.crossSec * (intro ? F.introSpeedMult : 1);
   c.age = 0; c.ph = rnd() * TAU; c.skittered = false; c.skT = 0; c.ang = Math.atan2(c.dy, c.dx);
+  c.skA = rnd(); c.skS = rnd();                                 // its skitter's turn, drawn now so the stream doesn't hang on play
   plan.spawned++;
   return c;
 }
@@ -161,10 +162,18 @@ export function updateCritters(dt, env) {
     if (!c.on) continue;
     c.age += dt;
     if (!c.skittered && env.shown && env.opening && env.open >= F.skitterOpen && bladeDist(c.x, c.y, env) <= F.skitterPx) {
-      // 90 degrees off its line, on the side away from the blades' middle
-      const mx = env.bx + Math.sin(env.theta) * env.L * 0.5, my = env.by - Math.cos(env.theta) * env.L * 0.5;
-      const s = (-c.dy) * (c.x - mx) + c.dx * (c.y - my) >= 0 ? 1 : -1;
-      c.vx = -c.dy * s; c.vy = c.dx * s; c.skT = F.skitterSec; c.skittered = true; said = 'skitter';
+      // a turn of skitterMinDeg..skitterMaxDeg off its line (past 90 it doubles back a little), usually toward the middle
+      // of the screen; the other way only skitterInward's remainder of the time, and never when the burst would carry
+      // it off screen, so it dodges but stays catchable
+      const toMid = (-c.dy) * (W / 2 - c.x) + c.dx * (H / 2 - c.y) >= 0 ? 1 : -1;
+      const t = (F.skitterMinDeg + (F.skitterMaxDeg - F.skitterMinDeg) * c.skA) * Math.PI / 180, sn = Math.sin(t);
+      let cs = Math.cos(t), s = c.skS < F.skitterInward ? toMid : -toMid;
+      const burst = c.speed * F.skitterMult * F.skitterSec;
+      const offScreen = () => { const ex = c.x + (c.dx * cs - c.dy * s * sn) * burst, ey = c.y + (c.dy * cs + c.dx * s * sn) * burst; return ex < 0 || ex > W || ey < 0 || ey > H; };
+      if (offScreen()) s = toMid;
+      if (offScreen()) cs = Math.abs(cs);                          // doubling back would leave by the edge it came in at
+      c.vx = c.dx * cs - c.dy * s * sn; c.vy = c.dy * cs + c.dx * s * sn;
+      c.skT = F.skitterSec; c.skittered = true; said = 'skitter';
     }
     let v = c.speed;
     if (c.skT > 0) { v *= F.skitterMult; if ((c.skT -= dt) <= 0) { c.skT = 0; c.vx = c.dx; c.vy = c.dy; } }

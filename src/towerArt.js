@@ -1,12 +1,16 @@
 // Procedural Pin (tower) art, after the level mock: a two-tier felt cushion with a stitched rim and yellow
 // cross-stitches, sewing pins with coloured heads stuck around it, a post holding the Pin's charm (Ice: a blue
 // crystal, Fire: an ember crystal, Magnet: a horseshoe magnet, Needle: a thread spool with a loaded needle) and, for
-// all but the Magnet, a little felt flag.
-// One sprite per type, built on resize at the spot's size; the charm's glow is drawn live on top. Called only by render.js.
+// all but the Magnet, a little felt flag. A Pin's in-level rank (game.js state.towers[i].rank, 1..3) shows on it: rank 2
+// adds two pins to the cushion and a wider flag, rank 3 two more pins (gold heads) and a stripe on the flag, and the
+// charm's glow grows with each.
+// One sprite per type and rank, built on resize at the spot's size; the charm's glow is drawn live on top. Called only by render.js.
 import { CONFIG as C } from './config.js';
 import { view, level, TAU } from './core.js';
 
-const sprites = {};
+const sprites = {};                                       // sprites[type][rank]
+const RANKS = () => C.pinRanks.costMult.length;
+const GLOW_ALPHA = [0.55, 0.7, 0.85];                     // the charm's glow by rank
 const K = 0.64;                                           // ellipse squash: the pads are seen from above at an angle
 const rgb = hex => { const n = parseInt(hex.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; };
 function mix(a, b, t) { const A = rgb(a), B = rgb(b); return 'rgb(' + A.map((v, i) => Math.round(v + (B[i] - v) * t)).join(',') + ')'; }
@@ -98,13 +102,14 @@ export function drawNeedle(ctx, x, y, ang, len, alpha) {
   ctx.globalAlpha = 1;
 }
 
-// Felt flag on a pole at the back right, with a snowflake, a flame or a needle on it.
-function flag(g, u, felt, icon) {
-  const px = 0.66 * u;
+// Felt flag on a pole at the back right, with a snowflake, a flame or a needle on it. rank 2+ flies a wider flag,
+// rank 3 a stripe along its foot.
+function flag(g, u, felt, icon, rank = 1) {
+  const px = 0.66 * u, wide = rank >= 2 ? 0.74 : 0.62;
   g.strokeStyle = '#6b4a2e'; g.lineWidth = Math.max(1.5, u * 0.06); g.lineCap = 'round';
   g.beginPath(); g.moveTo(px, -0.22 * u); g.lineTo(px, -1.42 * u); g.stroke();
   g.fillStyle = '#c9d1d8'; g.beginPath(); g.arc(px, -1.44 * u, u * 0.06, 0, TAU); g.fill();
-  const f = new Path2D(), x0 = px, x1 = px + 0.62 * u, y0 = -1.38 * u, y1 = -0.96 * u;
+  const f = new Path2D(), x0 = px, x1 = px + wide * u, y0 = -1.38 * u, y1 = -0.96 * u;
   f.moveTo(x0, y0); f.quadraticCurveTo((x0 + x1) / 2, y0 - 0.06 * u, x1, y0 + 0.02 * u);
   f.lineTo(x1, y1 + 0.02 * u); f.quadraticCurveTo((x0 + x1) / 2, y1 - 0.06 * u, x0, y1); f.closePath();
   g.fillStyle = felt; g.fill(f);
@@ -136,17 +141,20 @@ function flag(g, u, felt, icon) {
   }
   g.setLineDash([u * 0.05, u * 0.04]); g.strokeStyle = 'rgba(255,241,194,0.8)'; g.lineWidth = Math.max(0.8, u * 0.018);
   g.strokeRect(x0 + 0.05 * u, y0 + 0.04 * u, x1 - x0 - 0.1 * u, y1 - y0 - 0.06 * u); g.setLineDash([]);
+  if (rank >= 3) { g.fillStyle = '#ffd23f'; g.fillRect(x0 + 0.05 * u, y1 - 0.12 * u, x1 - x0 - 0.1 * u, 0.06 * u); }
 }
 
 const BACK = [200, 245, 295, 340], FRONT = [25, 155];     // pin angles (deg) on the base rim: behind / in front of the drum
-function drawArt(g, u, type) {
-  const def = C.towers[type], felt = def.felt;
+const RANK_PINS = [[], [222, 318], [222, 318, 60, 120]];  // extra pins per rank (rank 3's front pair gets gold heads)
+function drawArt(g, u, type, rank = 1) {
+  const def = C.towers[type], felt = def.felt, extra = RANK_PINS[Math.min(rank, 3) - 1];
   // contact shadow
   g.fillStyle = 'rgba(20,40,8,0.35)'; g.beginPath(); g.ellipse(u * 0.06, u * 0.2, u * 1.08, u * 1.08 * K, 0, 0, TAU); g.fill();
   drum(g, u, 0, u * 0.16, felt);                               // base cushion
   const pinAt = a => [Math.cos(a * Math.PI / 180) * u * 0.8, Math.sin(a * Math.PI / 180) * u * 0.8 * K];
   for (const a of BACK) { const [x, y] = pinAt(a); pin(g, x, y, u, def.head); }
-  if (type !== 'magnet') flag(g, u, felt, type === 'ice' ? 'snow' : type === 'needle' ? 'needle' : 'flame');
+  for (const a of extra) if (a > 180) { const [x, y] = pinAt(a); pin(g, x, y, u * 0.9, def.head); }
+  if (type !== 'magnet') flag(g, u, felt, type === 'ice' ? 'snow' : type === 'needle' ? 'needle' : 'flame', rank);
   drum(g, u * 0.56, -u * 0.3, u * 0.3, felt);                 // upper drum
   for (const a of [35, 70, 110, 145]) {                        // yellow cross-stitches on its front
     const r = a * Math.PI / 180;
@@ -161,42 +169,47 @@ function drawArt(g, u, type) {
   else if (type === 'needle') spool(g, u);
   else magnet(g, u);
   for (const a of FRONT) { const [x, y] = pinAt(a); pin(g, x, y, u, def.head); }
+  for (const a of extra) if (a < 180) { const [x, y] = pinAt(a); pin(g, x, y, u * 0.9, '#ffd23f'); }
 }
 
-// Rebuild every type's sprite for the current spot size and devicePixelRatio (called from resize).
+// Rebuild every type's sprites (one per rank) for the current spot size and devicePixelRatio (called from resize).
 export function buildTowerSprites(dpr) {
   const u = towerUnit(), left = 1.2 * u, top = 1.62 * u, w = 2.6 * u, h = 2.6 * u;   // art spans x -1.02..1.35u, y -1.52..0.9u
   for (const type in C.towers) {
-    const c = (sprites[type] && sprites[type].canvas) || document.createElement('canvas');
-    c.width = Math.max(1, Math.ceil(w * dpr)); c.height = Math.max(1, Math.ceil(h * dpr));
-    const g = c.getContext('2d');
-    g.setTransform(dpr, 0, 0, dpr, left * dpr, top * dpr);
-    g.clearRect(-left, -top, w, h);
-    drawArt(g, u, type);
-    // the charm's glow: a soft disc in the Pin's colour, drawn additively each frame
-    const glow = (sprites[type] && sprites[type].glow) || document.createElement('canvas'), gr = u * 0.75;
-    glow.width = glow.height = Math.max(1, Math.ceil(gr * 2 * dpr));
-    const gg = glow.getContext('2d'), rad = gg.createRadialGradient(glow.width / 2, glow.height / 2, 0, glow.width / 2, glow.height / 2, glow.width / 2);
-    rad.addColorStop(0, C.towers[type].color); rad.addColorStop(1, 'rgba(0,0,0,0)');
-    gg.fillStyle = rad; gg.fillRect(0, 0, glow.width, glow.height);
-    sprites[type] = { canvas: c, left, top, w, h, glow, gr };
+    const set = sprites[type] || (sprites[type] = []);
+    for (let rank = 1; rank <= RANKS(); rank++) {
+      const old = set[rank], c = (old && old.canvas) || document.createElement('canvas');
+      c.width = Math.max(1, Math.ceil(w * dpr)); c.height = Math.max(1, Math.ceil(h * dpr));
+      const g = c.getContext('2d');
+      g.setTransform(dpr, 0, 0, dpr, left * dpr, top * dpr);
+      g.clearRect(-left, -top, w, h);
+      drawArt(g, u, type, rank);
+      // the charm's glow: a soft disc in the Pin's colour, drawn additively each frame
+      const glow = (old && old.glow) || document.createElement('canvas'), gr = u * 0.75;
+      glow.width = glow.height = Math.max(1, Math.ceil(gr * 2 * dpr));
+      const gg = glow.getContext('2d'), rad = gg.createRadialGradient(glow.width / 2, glow.height / 2, 0, glow.width / 2, glow.height / 2, glow.width / 2);
+      rad.addColorStop(0, C.towers[type].color); rad.addColorStop(1, 'rgba(0,0,0,0)');
+      gg.fillStyle = rad; gg.fillRect(0, 0, glow.width, glow.height);
+      set[rank] = { canvas: c, left, top, w, h, glow, gr };
+    }
   }
 }
 
-// The Pin standing on its spot (x, y = the spot's centre), with its charm glowing (Fire flickers, the others breathe).
-// t = the game's tower (the Needle Pin reads its aim, reload and recoil to draw the loaded needle).
-export function drawTower(ctx, type, x, y, clock, t) {
-  const s = sprites[type]; if (!s) return;
+// The Pin standing on its spot, with its charm glowing (Fire flickers, the others breathe; brighter by rank).
+// t = the game's tower (type, rank, def, the spot's centre x, y; the Needle Pin reads its aim, reload and recoil to draw
+// the loaded needle).
+export function drawTower(ctx, t, clock) {
+  const type = t.type, x = t.x, y = t.y, set = sprites[type], s = set && (set[t.rank] || set[1]); if (!s) return;
   ctx.drawImage(s.canvas, x - s.left, y - s.top, s.w, s.h);
   if (type === 'needle') {                                       // no glow: the needle sits on the spool, aimed, and
-    const u = towerUnit(), ready = 1 - Math.min(1, t.timer / C.towers.needle.cooldownSec);   // slides back in as it reloads
+    const u = towerUnit(), ready = 1 - Math.min(1, t.timer / (t.def ? t.def.cooldownSec : C.towers.needle.cooldownSec));   // slides back in as it reloads
     const my = y - C.needleMuzzle * level().spotR * view.L, back = u * (0.35 * (1 - ready) + 0.12 * t.kick);
     drawNeedle(ctx, x - Math.cos(t.aim) * back, my - Math.sin(t.aim) * back, t.aim, u * 0.95, ready * ready);
     return;
   }
   const cy = y - (type === 'magnet' ? 1.05 : 1.08) * towerUnit();
   const flick = type === 'fire' ? 0.75 + 0.25 * Math.sin(clock * 13 + x) * Math.sin(clock * 7.3) : 0.8 + 0.2 * Math.sin(clock * 3 + x);
-  ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.55 * flick;
+  ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = (GLOW_ALPHA[Math.min(t.rank, 3) - 1] || 0.55) * flick;
   ctx.drawImage(s.glow, x - s.gr, cy - s.gr, s.gr * 2, s.gr * 2);
   ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
 }

@@ -8,7 +8,7 @@ export default {
   // Thread: 6 per kill + 26 to start = 284 for all 43 enemies; its 2 silverfish (30 each) bring it back to
   // the old 344 (8 per kill). tools/wavesheet.js prints the numbers.
   startThread: 26,           // thread at the start (null = CONFIG.startThread)
-  threadPerKill: 6,          // thread per kill (null = CONFIG.threadPerKill)
+  threadPerKill: 7,          // thread per kill (null = CONFIG.threadPerKill)
   critters: { silverfish: 2 },   // bonus critters this level (the cap; src/critters.js)
   // Introduces the Brute (large, armored). Four waves.
   waves: [
