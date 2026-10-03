@@ -1,0 +1,265 @@
+{
+  "assets": [
+    {
+      "name": "autumn_hero_bottle_opener_01",
+      "file": "assets/kit/incoming/29_autumn/autumn_hero_bottle_opener_01.png",
+      "section": "29_autumn",
+      "width": 960,
+      "height": 960,
+      "kind": "sprite",
+      "sha256": "b0b04871cc818410ed50f80da1f735e36aa09424344365973fbe6ec691dd1c58"
+    },
+    {
+      "name": "autumn_hero_copper_mug_01",
+      "file": "assets/kit/incoming/29_autumn/autumn_hero_copper_mug_01.png",
+      "section": "29_autumn",
+      "width": 960,
+      "height": 960,
+      "kind": "sprite",
+      "sha256": "231de863dde682b3f83549388c30ac7d5e1c673f02f6b5281f148c2eeaf3fbb0"
+    },
+    {
+      "name": "autumn_hero_honey_dipper_01",
+      "file": "assets/kit/incoming/29_autumn/autumn_hero_honey_dipper_01.png",
+      "section": "29_autumn",
+      "width": 960,
+      "height": 960,
+      "kind": "sprite",
+      "sha256": "bcf263d64ce77cade19ed5030911dfca2247e6e71db777db0b3f494374ce0180"
+    },
+    {
+      "name": "autumn_hero_maple_gold_01",
+      "file": "assets/kit/incoming/29_autumn/autumn_hero_maple_gold_01.png",
+      "section": "29_autumn",
+      "width": 720,
+      "height": 800,
+      "kind": "sprite",
+      "sha256": "30cafabd4c2c8cea6b5a8599df1d2c5ba73b868d5d4b538262007400df1354c9"
+    },
+    {
+      "name": "autumn_hero_maple_red_01",
+      "file": "assets/kit/incoming/29_autumn/autumn_hero_maple_red_01.png",
+      "section": "29_autumn",
+      "width": 720,
+      "height": 800,
+      "kind": "sprite",
+      "sha256": "d356911c32a15ef03cca999b0b0f0ec6f4fe645fba01828020ebd67b1bc98ea9"
+    },
+    {
+      "name": "autumn_hero_pumpkin_green_01",
+      "file": "assets/kit/incoming/29_autumn/autumn_hero_pumpkin_green_01.png",
+      "section": "29_autumn",
+      "width": 640,
+      "height": 600,
+      "kind": "sprite",
+      "sha256": "97f79178beb8f6b704433c29a1c1a00e24f90625cbf38246d924cd06fdaa7351"
+    },
+    {
+      "name": "autumn_hero_pumpkin_orange_01",
+      "file": "assets/kit/incoming/29_autumn/autumn_hero_pumpkin_orange_01.png",
+      "section": "29_autumn",
+      "width": 640,
+      "height": 600,
+      "kind": "sprite",
+      "sha256": "393cb29a88bc9c340e7c0a8de48b95016cad472aa02cf1f3555d76a025c430d6"
+    },
+    {
+      "name": "autumn_hero_twine_01",
+      "file": "assets/kit/incoming/29_autumn/autumn_hero_twine_01.png",
+      "section": "29_autumn",
+      "width": 960,
+      "height": 960,
+      "kind": "sprite",
+      "sha256": "8dfdcf8dcece998466f4ab9b7022944544cdaaebc5d1dfa73405cc603d781633"
+    },
+    {
+      "name": "night_fill_lavender_01",
+      "file": "assets/kit/incoming/30_night/night_fill_lavender_01.png",
+      "section": "30_night",
+      "width": 72,
+      "height": 72,
+      "kind": "sprite",
+      "sha256": "4faa575c7b4ed956f29cdb6b8017c46f8afaafe42f253dd69f3aef2775da960d"
+    },
+    {
+      "name": "night_fill_lavender_02",
+      "file": "assets/kit/incoming/30_night/night_fill_lavender_02.png",
+      "section": "30_night",
+      "width": 72,
+      "height": 72,
+      "kind": "sprite",
+      "sha256": "0e2a29d1e4884dccd57741c5e4712eec2f5c33f71cce8687fb78cdb4714d3fee"
+    },
+    {
+      "name": "night_fill_pebble_cream_01",
+      "file": "assets/kit/incoming/30_night/night_fill_pebble_cream_01.png",
+      "section": "30_night",
+      "width": 48,
+      "height": 48,
+      "kind": "sprite",
+      "sha256": "200893e9c36be8165a1c11e452853456be84fd5589429d1e74c4aea1fd5bc843"
+    },
+    {
+      "name": "night_fill_pebble_grey_01",
+      "file": "assets/kit/incoming/30_night/night_fill_pebble_grey_01.png",
+      "section": "30_night",
+      "width": 48,
+      "height": 48,
+      "kind": "sprite",
+      "sha256": "06e0c15bc4e0d450eb96fdcc7a153c5f3556a9334e426da1b0cbd3923589268d"
+    },
+    {
+      "name": "night_fill_star_01",
+      "file": "assets/kit/incoming/30_night/night_fill_star_01.png",
+      "section": "30_night",
+      "width": 40,
+      "height": 40,
+      "kind": "sprite",
+      "sha256": "17c32658912d8c9e051976f8bc799927dee0ec1725a138cef0b01f1348e1b4bf"
+    },
+    {
+      "name": "night_hero_clothespin_01",
+      "file": "assets/kit/incoming/30_night/night_hero_clothespin_01.png",
+      "section": "30_night",
+      "width": 960,
+      "height": 960,
+      "kind": "sprite",
+      "sha256": "859d1d07060e316167c64f19284edb3415df7cb8ee58038f2a35fcd9758cbfa3"
+    },
+    {
+      "name": "night_hero_cookie_cutter_01",
+      "file": "assets/kit/incoming/30_night/night_hero_cookie_cutter_01.png",
+      "section": "30_night",
+      "width": 960,
+      "height": 960,
+      "kind": "sprite",
+      "sha256": "e23b1c4d9df6acf2a39481efa1066fc42e16e92a897d6c65d99f65199db70b6c"
+    },
+    {
+      "name": "night_hero_key_01",
+      "file": "assets/kit/incoming/30_night/night_hero_key_01.png",
+      "section": "30_night",
+      "width": 960,
+      "height": 960,
+      "kind": "sprite",
+      "sha256": "91fc01cd1abec2f6984d05e780a2fa2a8ebe3fbbbb0128381d5fa1be8790ab68"
+    },
+    {
+      "name": "night_hero_lavender_big_01",
+      "file": "assets/kit/incoming/30_night/night_hero_lavender_big_01.png",
+      "section": "30_night",
+      "width": 600,
+      "height": 680,
+      "kind": "sprite",
+      "sha256": "2cca4c89aa1b6815c3d9756bc96986e77072ee587fc380399379e3dbc778bbd4"
+    },
+    {
+      "name": "night_hero_lavender_small_01",
+      "file": "assets/kit/incoming/30_night/night_hero_lavender_small_01.png",
+      "section": "30_night",
+      "width": 600,
+      "height": 680,
+      "kind": "sprite",
+      "sha256": "357cc3dee524653b945eb8fea2f6ec60af6bd6f843393b1c380aa98953144f8b"
+    },
+    {
+      "name": "night_hero_moon_01",
+      "file": "assets/kit/incoming/30_night/night_hero_moon_01.png",
+      "section": "30_night",
+      "width": 960,
+      "height": 960,
+      "kind": "sprite",
+      "sha256": "4c24efb4b2f38dab87c3a2949b9450cd5e55cd5e48fee252071aeb88328033eb"
+    },
+    {
+      "name": "night_hero_pencil_01",
+      "file": "assets/kit/incoming/30_night/night_hero_pencil_01.png",
+      "section": "30_night",
+      "width": 960,
+      "height": 960,
+      "kind": "sprite",
+      "sha256": "9519fd4bf410a47a666a643cd053abe807519326114b5dc1eebb12638190e157"
+    },
+    {
+      "name": "night_hero_spoon_01",
+      "file": "assets/kit/incoming/30_night/night_hero_spoon_01.png",
+      "section": "30_night",
+      "width": 960,
+      "height": 960,
+      "kind": "sprite",
+      "sha256": "4ac3c76117cad1fa183a773083f7cc6879e2b5749661115b69f1f6fd7b0b7ba3"
+    },
+    {
+      "name": "snow_hero_bare_tree_01",
+      "file": "assets/kit/incoming/31_snow/snow_hero_bare_tree_01.png",
+      "section": "31_snow",
+      "width": 600,
+      "height": 840,
+      "kind": "sprite",
+      "sha256": "6e787824c58d6c3f64385f4b9e56e8f8d624a0a017e6cfb7710b16f904242efd"
+    },
+    {
+      "name": "snow_hero_cottage_01",
+      "file": "assets/kit/incoming/31_snow/snow_hero_cottage_01.png",
+      "section": "31_snow",
+      "width": 960,
+      "height": 960,
+      "kind": "sprite",
+      "sha256": "0dd153f044611acf40fbb6d21b766c651cc661577b4f4ebd35c17cd5219855e8"
+    },
+    {
+      "name": "snow_hero_cottage_02",
+      "file": "assets/kit/incoming/31_snow/snow_hero_cottage_02.png",
+      "section": "31_snow",
+      "width": 960,
+      "height": 960,
+      "kind": "sprite",
+      "sha256": "7f8ad39eccc47c0e86673e1f1c21f618dd005b5fb1572c5f382f8c2cff708209"
+    },
+    {
+      "name": "snow_hero_fir_big_01",
+      "file": "assets/kit/incoming/31_snow/snow_hero_fir_big_01.png",
+      "section": "31_snow",
+      "width": 600,
+      "height": 840,
+      "kind": "sprite",
+      "sha256": "b128b6ea6c7e2b7050e72209315a8e353b0b1d8b5aa38e3a61523de969972cfb"
+    },
+    {
+      "name": "snow_hero_fir_small_01",
+      "file": "assets/kit/incoming/31_snow/snow_hero_fir_small_01.png",
+      "section": "31_snow",
+      "width": 600,
+      "height": 840,
+      "kind": "sprite",
+      "sha256": "418cf4a178923ca28f47e088e0c82b3f2b7cd4a6707f520d0074cdaa2c06e1c4"
+    },
+    {
+      "name": "snow_hero_sled_01",
+      "file": "assets/kit/incoming/31_snow/snow_hero_sled_01.png",
+      "section": "31_snow",
+      "width": 960,
+      "height": 960,
+      "kind": "sprite",
+      "sha256": "aa767c40460c484bb4514fdfa8070763913c0daaa424ad03e3d128251375cbb6"
+    },
+    {
+      "name": "snow_hero_spool_white_01",
+      "file": "assets/kit/incoming/31_snow/snow_hero_spool_white_01.png",
+      "section": "31_snow",
+      "width": 960,
+      "height": 960,
+      "kind": "sprite",
+      "sha256": "723b86837e7bf325b13029b6a15e6431e0e03e204b97b5a94fe9cbf73a488c4b"
+    },
+    {
+      "name": "snow_hero_star_01",
+      "file": "assets/kit/incoming/31_snow/snow_hero_star_01.png",
+      "section": "31_snow",
+      "width": 960,
+      "height": 960,
+      "kind": "sprite",
+      "sha256": "cdfe514c5c75dae2075ec7c13fe7ef1a58fe4eb52f21ef39f9b64d84d7699b25"
+    }
+  ]
+}
