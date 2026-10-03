@@ -1,9 +1,9 @@
-# Sprite wishlist, rounds 2 to 5
+# Sprite wishlist, rounds 2 to 6
 
 Round 1 (the level-generator kit: fixed pieces, textures, sewing / meadow / lair props, map stars) is delivered and
 lives in `assets/kit/`. This round covers what the game still fakes in code or with stand-ins, what the playtests
 turned up, and things we'll want later. Round 3 (level dressing: frames, hero props, road and ground dressing) and
-round 4 (the story: drawer-scale junk, Tomato the pincushion, the morning note) and round 5 (the five worlds: three new looks, their map plates, chests and portraits) are at the end, before the prompts. Level plates are 941 × 1672 px ("plate px") and show at about 1:1 on a phone,
+round 4 (the story: drawer-scale junk, Tomato the pincushion, the morning note) and round 5 (the five worlds: three new looks, their map plates, chests and portraits) and round 6 (menus that match the title: button and panel blanks, icons, felt numerals, baked words, screen scenes, and the game sprites) are at the end, before the prompts. Level plates are 941 × 1672 px ("plate px") and show at about 1:1 on a phone,
 so anything placed on a level is asked for at **2× its plate size**.
 
 **Priority:** **P1** = needed now (a stand-in or a playtest problem). **P2** = soon (replaces code-drawn art, or
@@ -31,6 +31,8 @@ polish on screens people already see). **P3** = later (future content; nothing i
 The blank-patch map with patch 0 is in (`assets/level-map.webp`).
 
 ### 2. Title buttons, exported on their own
+
+Superseded by section 40 (round 6): the title's slots have changed since.
 
 The title buttons are cropped out of the mock (`assets/title-mock.webp`) as a stand-in.
 
@@ -81,6 +83,8 @@ The denim zone has a ground texture but scatters only the generic sewing props.
 
 ### 7. UI icons (front view, flat, 2-tone felt)
 
+Delivered (`assets/kit/07_icons`); only the heart and the spool are wired in so far. More icons are in section 38.
+
 | Item | Count | Deliver at |
 |---|---|---|
 | Pause, play/resume, home, back arrow, retry, copy, mail (feedback) | 7 | 128 × 128 |
@@ -121,6 +125,8 @@ These are procedural today and work, but hand art would match the plates better.
 ## P3: later
 
 ### 12. Enemy and Pin sprites
+
+Superseded by section 45 (round 6), which covers every enemy, Pin and effect now in the game.
 
 Replacements for the procedural art in `enemyArt.js` / `towerArt.js`. Top-down, each on its own canvas.
 
@@ -527,9 +533,206 @@ heroes apply.
 
 ### 33. New enemies and Pins (P3)
 
+Superseded by section 45 (round 6).
+
 The Leaf, Burr, Moth, Snowball and Icicle and the Cork, Lamp and Candle Pins are drawn in code like the others
 (section 12 covers sprites for all of them later). The three new pairs (Kitchen Shears, Stork Snips, Ribbon Shears)
 are SVG, as section 17.
+
+## Round 6: menus that match the title, and everything still faked
+
+The title screen is painted art; nearly every other screen is CSS felt standing in for art (panels, buttons, tabs, chips,
+headings, the HUD, the boss bar), and some things are worse than stand-ins: the five Skills' badges are **emoji**
+(⏳ 🛡 ✚ 〰 ⋯), six trophies have no badge, and every enemy and Pin is drawn in code. This round asks for all of it, so
+the menus, worlds and play read as one hand-made object. Two style references are in `docs/ui-refs/`:
+`button-style.webp` (the title's painted buttons: what every button and panel should match) and `icon-style.webp` (the
+round 2 icons, delivered: what every new icon should match). Attach both to every UI sheet.
+
+**Delivered but not wired in yet** (no need to ask again; I wire these first): the pause, resume, home, back, retry,
+copy, mail and SHRED icons (`07_icons`), the "you are here" pin and the star strip (`06_markers`), the currency heap.
+
+### Why no felt alphabet
+
+I thought about it and it's the wrong buy. An image generator won't keep 40-odd letters at one cap height, stroke
+weight, stitch spacing and baseline across a sheet, and every miss shows the moment two letters sit side by side. A
+bitmap alphabet also can't kern, wrap, be read by a screen reader or carry other languages, and it gives nothing
+Lilita One with the CSS felt fill doesn't already give body text. Felt lettering only pays off where the words are
+**fixed** (screen titles, banner words: baked as whole words below, so the letters are drawn together and agree) or
+where the text is **only digits** (ten glyphs, short, the most-seen text in the game: section 37). Everything else stays
+in the font.
+
+### Rules for round 6 (on top of the rules for every file)
+
+| | |
+|---|---|
+| **View** | Front view, flat felt appliqué with stitched edges, like `icon-style.webp`. Soft light from the top-left, no cast or drop shadows (I add them). The game sprites in section 45 stay top-down. |
+| **Size** | UI shows on phones at about 3 device pixels per CSS pixel, so deliver UI pieces at **3× the CSS size** given (round 5 came at a quarter of the asked size; bigger is always fine, I scale down). |
+| **9-slice pieces** | Marked 9S. They stretch to any size, so: the same edge all the way round (same rim thickness, same stitch distance from the edge on all four sides, four identical corners), the middle plain and evenly lit with no gradient in one direction, no lettering, no icon. I measure the slice lines myself. |
+| **Colours** | The title's felts: green (PLAY), rust (UPGRADES), denim blue (SHOP), purple (HOW TO PLAY), plus gold (buy, reward), grey (locked, disabled) and dark brown (chips, wells). Gold running stitch on the colours, cream stitch on brown and grey. |
+| **States** | Normal and pressed for anything you tap: pressed = the same piece sunk a little (the lip under it gone, a touch darker), on the same canvas in the same spot. |
+| **Lettering** | Only where an item says "baked". Baked words are puffy stitched felt letters like the logo's (`assets/title-bg.webp`), every word on its own transparent canvas, not cropped. |
+
+### 34. Button blanks, 9S (P1)
+
+The core of the round: replaces `.felt-btn` everywhere (START, RESUME, NEXT LEVEL, BACK, Buy, Upgrade, Sharpen, the
+Settings rows, the map's tiles).
+
+| Item | Count | Shown at (CSS) | Deliver at | Notes |
+|---|---|---|---|---|
+| Wide button | 7 felts × 2 states | 300 × 64 | 900 × 192 | Green, rust, blue, purple, gold, grey, red (the one "are you sure" button: Wipe save). Thin near-black edge, a darker bevel band just inside it, gold stitch about 18 px (at 900 wide) in from the edge, corners about 40 px round, a shallow lip under the bottom edge. Exactly the title buttons without their icon and words. |
+| Small button | 7 felts × 2 states | 140 × 40 | 420 × 120 | Same, with a thinner rim and the stitch closer to the edge, so it doesn't crowd the words at small sizes (that crowding is why the current small buttons look cheap). |
+| Square icon tile | 5 felts (rust, blue, purple, dark brown, grey) × 2 states | 58 × 58 | 180 × 180 | The pause button and the map's Sewing Box / Shop / Trophies tiles. Rounded square, as the title's gear and sound tiles. |
+| Round icon tile | 3 felts (rust, dark brown, grey) × 2 states | 46 × 46 | 140 × 140 | The map's ‹ › arrows, close buttons, the tutorial's skip arrow. |
+| Pill chip | dark brown, gold | 90 × 36 | 270 × 108 | The Buttons balance, the thread counter, goal pills, the star count on a chest. Not tappable, one state. |
+
+### 35. Panels and frames, 9S (P1)
+
+Replaces `.card` and the pieces inside it on every overlay (Shop, Sewing Box, Trophies, weapon screen, Settings,
+pause, results, Pin explainer, reward cards, feedback, leaderboard).
+
+| Item | Count | Shown at (CSS) | Deliver at | Notes |
+|---|---|---|---|---|
+| Card panel | 2 (brown felt; cream linen for the notes, the credits and the feedback card) | 360 × 520 | 1080 × 1560 | A thick stitched felt panel like a sewn-on patch: dark edge, cream running stitch about 40 px in. Plain middle. |
+| Sunken well | 1 | 300 × 120 | 900 × 360 | A pressed-in slot of darker felt (the stats on pause and results, the tab bar's groove, the sharpness track's bed). |
+| List row | 3 (plain, gold-stitched "on sale / equipped / selected", grey "locked") | 320 × 90 | 960 × 270 | Shop, Sewing Box and Trophies rows, the Pin picker's cards, Settings' Hold / Pinch cards. A lighter felt than the panel so rows read on it. |
+| Tab | 2 (selected: raised gold; unselected: flat, darker) | 100 × 40 | 300 × 120 | Sits in the sunken well. |
+| Text field | 1 | 280 × 48 | 840 × 144 | Cream felt sunk into the panel (the leaderboard name, the feedback box). |
+| Tip bubble | 1 body (9S) + 2 tails (pointing down, pointing up) | 220 × 70 | 660 × 210, tail 90 × 60 | Cream felt speech bubble with a dark stitch (the in-game tips; the toast reuses the body). The tail is a separate sprite that tucks under the body. |
+| Weapon card frame | 3 (normal, selected with a gold stitch and a soft glow, locked grey) | 100 × 130 | 300 × 390 | The strip of pairs on the weapon screen. |
+| Tag | 4 felts (gold, red, green, purple) | 60 × 22 | 180 × 66 | A small stitched label for NEW, NEW HERE, EQUIPPED, EASY, PRO (words in the font over it). A little ribbon tail at the left end. |
+
+### 36. Heading banners and baked words (P1 headings, P2 the in-game words)
+
+| Item | Count | Shown at (CSS) | Deliver at | Notes |
+|---|---|---|---|---|
+| Ribbon banner, 9S across | 4 (gold, green for a win, red for a loss, blue) | 300 × 72 | 900 × 216 | A felt ribbon with folded tails at both ends that sits over a card's top edge, as the current headings do. Stretches in the middle only; the tails stay whole. |
+| Screen titles, baked | 15 words | 40 to 54 tall | 160 px letter height | SHOP, SEWING BOX, TROPHIES, SETTINGS, PAUSED, CHOOSE YOUR SHEARS, LEADERBOARD, FEEDBACK, YOUR NAME, NEW PIN, NEW PINS, BUILDING PINS, DRAWER DEFENDED!, WORKSHOP OVERRUN, SURVIVED. Gold felt (the logo's BATTLE) for the first eleven and SURVIVED; green for DRAWER DEFENDED!, red for WORKSHOP OVERRUN. "SURVIVED 12 WAVES" is SURVIVED + section 37's digits + WAVES from below. |
+| In-game words, baked | 19 | 28 to 60 tall | 160 px letter height | SNIP!, nick (small, lower case), CLANG!, SHIELDED!, SPIKES!, LIT!, CRACK!, MULTI, GUST!, SHRED, FOCUS, THIMBLE, MARKED, PINKING, BASTED, WAVE, WAVES, CLEARED, BOSS. These pop over the board many times a minute and are canvas text today. Each in a colour that says what it is: cream (SNIP!), steel grey (CLANG!), gold (LIT!), purple (SHRED), the Skill's felt for its word (Focus blue #3f6fc4, Thimble brass #b8862a, Mark purple #7a4fc9, Pinking pink #c2357a, Basting green #2e8a6a). |
+
+### 37. Felt numerals (P1)
+
+| Item | Count | Shown at (CSS) | Deliver at | Notes |
+|---|---|---|---|---|
+| Digits 0 to 9, and + / × % ∞ − : | 17 glyphs × 2 colourways | 16 to 48 tall | each on its own 160 × 200 canvas | Cream felt with a dark outline (on any felt) and gold felt (scores, Buttons). **One sheet per colourway, all glyphs the same height, sitting on the same baseline, the same stroke and stitch.** Used for the map's patch numbers, the HP on the heart pad, the wave badge (3 / 6), the results tally and the Buttons balance. Damage numbers stay in the font (too many, too small). |
+
+### 38. Icons (P1)
+
+Front view, felt appliqué, matching `icon-style.webp` exactly (cream stitch, 2 to 3 colours, the same chunky outline).
+Each on its own canvas, centred with room round it.
+
+| Item | Count | Deliver at | Notes |
+|---|---|---|---|
+| Gear, sound on, sound off, vibration (a buzzing phone) | 4 | 192 × 192 | The title and Settings. |
+| Sewing box (a wooden box with a handle), shop cart, trophy cup, map (a folded map with a stitched path), leaderboard (a three-step podium), dice (the random name), close ×, plus +, info i, chevron left, chevron right | 11 | 192 × 192 | The map's top row, the leaderboard, the + on Pin spots, the arrows. The cart should match the one on the title's SHOP button. |
+| Endless (a quilt square of four patches) | 1 | 192 × 192 | The title's ENDLESS tile; today a CSS conic gradient. |
+| Upgrade (two gold chevrons, like the title's UPGRADES), sharpen (a whetstone with a spark), equip (a tick on a coat hanger) | 3 | 192 × 192 | The Sewing Box's three actions. |
+| Rank-up II and III (gold chevron stripes, two and three) | 2 | 128 × 128 | The gold button on a built Pin. |
+| Stats: reach (a ruler), spread (an open fan / angle), power (a fist or anvil), speed (a running shoe) | 4 | 128 × 128 | The weapon card's stat rows. |
+| Run stats: wave (a pennant), kills (a snipped-in-half scrap doll), accuracy (a target), score (a rosette), clock | 5 | 128 × 128 | Pause and results cards. |
+| Controls: one finger holding (Hold), two fingers pinching (Pinch) | 2 | 192 × 192 | Settings' two control cards. Friendly glove hands like the tutorial glove (`10_characters`). |
+
+### 39. Move and Pin badges (P1: the Skills are emoji today)
+
+| Item | Count | Deliver at | Notes |
+|---|---|---|---|
+| Skill icons | 5 | 192 × 192 | Tailor's Focus (an hourglass whose bulbs are thread spools), Thimble Guard (a brass thimble with a stitched shine), Seam Mark (a triangle of blue tailor's chalk drawing an X), Pinking Cut (pinking shears with a zigzag cut line), Basting Stitch (a needle trailing a long running stitch). Same family as the delivered SHRED icon. |
+| Move badge blank | 1 | 192 × 192 | A round felt badge with a sunken groove round its rim (the charge ring fills the groove in code) and a plain middle for the icon. Neutral grey felt: I tint it to each move's colour. |
+| Pin icons, front view | 7 | 192 × 192 | Needle (a darning needle through a spool), Ice (a frost crystal), Fire (a match head with a felt flame), Magnet (a red horseshoe magnet), Cork (a wine cork), Lamp (a warm light bulb), Candle (a striped birthday candle, lit). For the Pin picker, the Sewing Box's Pins tab and the Pin explainer (SVG today). |
+
+### 40. Title, exported (P1; supersedes section 2)
+
+The title still crops its buttons out of `assets/title-mock.webp`, and the slots have moved since: the Shop sits where
+Upgrades was and ENDLESS is a CSS stand-in under it.
+
+| Item | Count | Deliver at | Notes |
+|---|---|---|---|
+| PLAY | 2 states | 1580 × 580 | Lettering baked, exactly as the mock. |
+| SHOP, ENDLESS, HOW TO PLAY | 3 × 2 states, plus ENDLESS locked (greyed, a small padlock tag hanging off it) | 1100 × 296 | ENDLESS in the rust felt (the old UPGRADES tile's), with the quilt-square icon of section 38. |
+| Gear, sound on, sound off tiles | 3 × 2 states | 270 × 240 | As the mock's top-right tiles. |
+| DEMO sticker | 1 | 600 × 260 | A red felt sticker slapped on at an angle, "DEMO" baked. Today it's CSS. |
+| The logo alone | 1 | 2200 × 1500 | BATTLE SCISSORS with its banner, on transparency, for a loading screen and the landscape layout. |
+
+### 41. Map dressing (P2)
+
+| Item | Count | Deliver at | Notes |
+|---|---|---|---|
+| World name plaques, baked | 5 | 900 × 220 | The world's name in felt letters on a plaque of its own material: The Sewing Tray (a wooden sign with a green felt inlay), The Mending Pile (a leather jeans label), The Kitchen Drawer (a copper biscuit-tin lid), The Bedside Drawer (a navy velvet tag with a brass rim), The Holiday Box (a gift tag on red ribbon). Replaces the brown CSS banner over the map. I grey a locked one in code. |
+| Boss medallion rings | 2 (gold for the bosses, silver for the mini bosses) | 300 × 300 | An empty round stitched frame; I clip the boss's portrait into it and stand it on patch 5 / 10, so the map shows who waits there. |
+| Locked world cover | 1 | 1872 × 3362 | A loose sheet of pale muslin thrown over a map plate, pinned at the corners, a brass padlock tag in the middle; mostly translucent so the world shows faintly through. |
+| Cleared patch stamp | 1 | 240 × 200 | A cross-stitched X or tick sewn over the patch's felt, low contrast, so cleared levels read at a glance without covering the number. |
+
+### 42. Screen scenes (P2)
+
+Every overlay today is a brown card over the blurred game. These give the main screens a place in the house. Portrait
+941 × 1672 at 1:1 (they're backdrops, like the title plate), with a plain area in the middle where the card's list sits.
+
+| Item | Count | Notes |
+|---|---|---|
+| The Sewing Box, open | 1 | Seen from above: a wooden sewing box, lid up at the top, its lift-out tray of compartments filling the frame; the list scrolls over the felt-lined middle. |
+| The Shop | 1 | A haberdashery counter: a striped awning across the top, shelves of spools and pairs on hooks down the sides, an empty felt counter top in the middle. |
+| Trophies | 1 | A cork board in a felt-wrapped frame; the badges are pinned to it in code. |
+| The weapon screen | 1 | A cutting mat (green, with a faint grid) with the pairs' strip along the bottom edge. |
+
+### 43. Results and rewards (P2)
+
+| Item | Count | Deliver at | Notes |
+|---|---|---|---|
+| Win rosette | 1 | 600 × 700 | A prize rosette (gold felt petals, two ribbon tails) to sit behind the results' stars. |
+| Loss patch | 1 | 600 × 600 | A torn felt heart patch with a safety pin, for WORKSHOP OVERRUN. |
+| Reward sunburst | 1 | 1200 × 1200 | Felt rays in alternating cream and gold, from a plain middle; spins slowly behind new scissors' and chest cards (CSS rays today). |
+| Confetti | 8 shapes | 80 × 80 each | Felt bits: a button, a star, a heart, a snip of ribbon, a bow, a pom-pom, two thread curls. Thrown on a win. |
+
+### 44. In-game HUD (P2)
+
+| Item | Count | Deliver at | Notes |
+|---|---|---|---|
+| Wave badge | 1 (9S) | 300 × 240 | A felt pennant or a stitched shield for "LEVEL 1-4 / WAVE 1/4" at the top left (blue CSS felt today). |
+| Boss HP bar | frame (9S across) + fill strip + empty strip | 1200 × 120 | A stitched felt track with a padded end at each side, the fill a strip of red felt that tiles across, the empty part darker. With a small name plate (9S) for the boss's name. |
+| Pin spot + button | 2 states | 160 × 160 | A gold felt + on a round tile, for building on an empty pad (CSS today). |
+| Entry warning arrow | 1 | 200 × 200 | A chalk arrow with a "!" for where the next enemy comes in (drawn in code today). |
+| Thimble on the heart | 1 | 300 × 300 | The brass cap Thimble Guard puts over the heart pad, top-down. |
+
+### 45. Game sprites (P2 for worlds 1 and 2, P3 the rest; supersedes sections 12 and 33)
+
+Top-down, 2× plate size, two waddle frames each, plus a white silhouette for the hit flash if easy. **Deliver each
+enemy in two layers on matching canvases: the body, and its patches alone,** so code can recolour the patches for
+ranks 2 and 3 (`CONFIG.enemyRanks.colors`) instead of needing three of everything.
+
+| Item | Count | Notes |
+|---|---|---|
+| Enemies, worlds 1 and 2 (P2) | Scrap, Runner, Bolster, Brute (plus its thimble helmet as its own sprite), Button Beetle | The plush ragdolls of `enemyArt.js`: felt egg body, stubby arms, patches, cross-stitched seams, button eyes. |
+| Enemies, worlds 3 to 5 (P3) | Leaf, Burr, Moth (wings up / down, and its shadow), Snowball (one size, scaled in code), Icicle | |
+| Mini bosses (P3) | Bobbin, Zipper (and one tooth), Honey Dipper, Bottle Cap, Snow Globe | Top-down versions of the delivered portraits. |
+| Bosses (P3) | Seam Ripper (seam closed / open), Brute King (helmet on / off), Twine Ball, Skeleton Key (teeth closed / open), The Unstitcher (its three phases) | |
+| Pins (P2: Needle, Ice; P3 the other five) | 7 types × 3 ranks | Top-down felt cushion with the charm on a post, the code art's look: rank II adds two pins and a wider flag, rank III two gold-headed pins and a gold stripe on the flag. Plus the Needle in flight, the Cork trap pressed flat, a snow cap for a snowed-under Pin. |
+| Effects (P3) | Fire on felt (4-frame loop), frost ring, magnet ring, lamp light ring, candle melt drips, Basting's stitch line (a strip that tiles), Mark's chalk X, Pinking's zigzag trail, the ribbon curl, the shield bubble, a twine wrap and a honey drip overlay, dazed stars, gust wind streaks | Rings 512 × 512, mostly clear in the middle. |
+
+### 46. Trophies and swatches still missing (P1)
+
+| Item | Count | Deliver at | Notes |
+|---|---|---|---|
+| Achievement badges | 6 | 256 × 256 | Drawer Swept, Lights Out, Box Packed Away (clear worlds 3 to 5), Golden Harvest, Golden Hour, Golden Snow (three-star them). Same round embroidered patch as the delivered sixteen. World 5 borrows the old Lair's badges today. |
+| Cosmetic swatches | 3 | 160 × 160 | Copper Glow, Lantern Glow, Frost Handles (the chest rewards of worlds 3 to 5). |
+
+### Still outstanding from round 5
+
+The river and snow rim strips with seamless ends, the three new worlds' heroes at full size, and the night fill
+pieces at fill size (see the round 5 notes at the end).
+
+### Order of work
+
+One sheet per row, roughly in this order; the first five fix what players see on every screen.
+
+1. Section 34 (buttons) and 35 (panels): one sheet per felt colour.
+2. Section 39 (Skill and Pin icons) and 46 (badges, swatches): the emoji and the blanks.
+3. Section 38 (icons), with `icon-style.webp` attached.
+4. Section 37 (numerals): one sheet per colourway.
+5. Section 36 (banners and words) and 40 (title).
+6. Sections 41 to 44.
+7. Section 45.
+
+About 330 pieces in all, most of them small. Not in this round, on purpose: a felt alphabet (above), level names and
+body text (the font), damage numbers (the font), weapon thumbnails (drawn from the weapon SVGs).
 
 ## Prompt to copy (one sheet per section)
 
@@ -672,6 +875,35 @@ For a boss or mini boss portrait (attach `assets/title-bg.webp` and a delivered 
 > Game character portrait, front view, 600×600, a felt and stitched fabric creature in the craft style of the attached
 > images, soft light from the top-left, no shadows, centred with space around it on a flat #FF00FF magenta background,
 > no magenta in the character: **[description from the section]**
+
+Round 6 (attach `docs/ui-refs/button-style.webp` and `docs/ui-refs/icon-style.webp` to every UI sheet):
+
+For the 9-slice blanks (sections 34, 35, 44; one felt colour per sheet):
+
+> Game UI kit, front view, flat felt appliqué with stitched edges in the style of the attached button image, soft light
+> from the top-left, no shadows, no lettering, no icons. Every piece has the same rim all the way round: identical
+> corners, the stitch the same distance from the edge on all four sides, and a plain, evenly lit middle with no
+> gradient, so it can be stretched as a 9-slice. Pieces spaced well apart on a flat #FF00FF magenta background, no
+> magenta in the pieces: **[the list, with each piece's colour and size]**
+
+For the baked words (section 36) and the numerals (37):
+
+> Game title lettering, front view, puffy stitched felt letters exactly in the style of the attached logo, soft light
+> from the top-left, no shadows. Each word (or glyph) on its own, uncropped, spaced well apart, all the same letter
+> height, sitting on the same baseline, the same stroke width and stitch; a flat #FF00FF magenta background, no
+> magenta in the letters: **[the words or glyphs, and the felt colour]**
+
+For the icons (sections 38, 39):
+
+> Game UI icon set, front view, flat felt appliqué with cream stitched edges, 2 to 3 colours each, exactly matching the
+> attached icon sheet (the same outline weight, stitch and light), each icon centred with space around it on a flat
+> #FF00FF magenta background, no magenta in the icons: **[the list]**
+
+For a screen scene (section 42; attach `assets/title-bg.webp`):
+
+> A game screen backdrop, portrait 941×1672, straight top-down view, in the felt and stitched fabric craft style of the
+> attached image: **[the scene]**. Leave a plain, evenly lit area in the middle (about 640×1000) for a menu to sit
+> on; the detail lives round the edges. No lettering, no characters.
 
 ### Round 5 notes (what came back, 2 October 2026)
 
