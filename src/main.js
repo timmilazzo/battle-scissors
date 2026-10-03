@@ -25,6 +25,7 @@ import { initShop, openShop, openTrophies, refreshShop } from './shop.js';
 import { initBox, openBox, refreshBox } from './sewingBox.js';
 import { initArmory } from './armory.js';
 import { buySharpen, newDeals } from './meta.js';
+import { giveMove } from './skills.js';
 
 applySavedOverrides();
 // The canvas draws banners and labels in the felt font (Lilita One, index.html); ask for it now so it's ready.
@@ -77,7 +78,7 @@ const sharpenFail = { buttons: 'Not enough Buttons', sharp: 'Already sharp', loc
 initWeaponSelect({ onPick: id => { selectWeapon(id); rasterizeArt(); }, onStart: play, onBack: () => backOut(),
   onSharpen: id => { unlockAudio(); const why = buySharpen(id); if (why) showToast(sharpenFail[why] || why); else sfx('pinPop', 0); return why; },
   // the Moves row: what the level about to start allows (game.js: SHRED from CONFIG.shredFrom, a Skill from CONFIG.skillFrom)
-  getMoves: () => ({ shred: shredAllowed(), shredNew: shredIsNew(), skills: Object.keys(C.skills).filter(skillAllowed).map(id => ({ id, isNew: skillIsNew(id) })) }) });
+  getMoves: () => (shredAllowed() ? [{ id: 'shred', isNew: shredIsNew() }] : []).concat(Object.keys(C.skills).filter(skillAllowed).map(id => ({ id, isNew: skillIsNew(id) }))) });
 // Level picker (same screen): switch the plate, road(s) and Pin spots, then re-run the resize chain for the new plate.
 // The pause card's Back to map only shows for a map level (Random Quilt / Custom Road have Title screen beside it).
 const pauseMap = document.getElementById('pause-map');
@@ -96,18 +97,18 @@ setTutorialDoneHook(() => { useWeapon(savedWeapon()); showQuilt(); openMap(); })
 // Level map (PLAY on the title): a level opens the shears screen (named there); BACK returns to the title.
 const selectLevel = document.getElementById('select-level'), selectNew = document.getElementById('select-new');
 // What level id brings for the first time: its new Pins, SHRED and Skill (CONFIG.pinFrom / shredFrom / skillFrom), on the
-// weapon screen. A Skill's first level also picks that Skill for the second move slot (the Moves row shows it, NEW).
+// weapon screen. A move's first level also gives it a move slot (an empty one, else the second; skills.js giveMove), so
+// the Moves row shows it there, NEW.
 function showLevelName(id) {
   selectLevel.textContent = levelLabel(id);
   const news = Object.keys(C.pinFrom).filter(t => C.pinFrom[t] === id && C.towers[t]).map(t => C.towers[t].name);
-  if (C.shredFrom === id) news.push('SHRED');
+  if (C.shredFrom === id) { news.push('SHRED'); giveMove('shred'); }
   for (const k in C.skillFrom) {
     if (C.skillFrom[k] !== id || !C.skills[k]) continue;
-    news.push(C.skills[k].name);
-    if (Save.equippedSkill !== k) { Save.equippedSkill = k; persist(); }
+    news.push(C.skills[k].name); giveMove(k);
   }
   selectNew.hidden = !news.length; selectNew.textContent = 'NEW HERE: ' + news.join(', ');
-  renderMoves();
+  renderMoves(true);
   return news.length > 0;
 }
 function chooseLevel(id) {
@@ -307,7 +308,7 @@ refreshNews();
 goTitle();
 requestAnimationFrame(frame);
 
-// The playtest workbench (?lab=1): a drawer over the game to build a road in any world's look, pick any pair, Skill and
+// The playtest workbench (?lab=1): a drawer over the game to build a road in any world's look, pick any pair, both moves and
 // Pin tiers, and spawn enemies on demand. Loaded only then, so the normal game never pays for it.
 if (LAB) import('./lab.js').then(m => m.initLab({
   playLevel: id => { unlockAudio(); toast.hidden = true; if (id !== view.levelId || levelInfo(id).random) switchLevel(id); useWeapon(savedWeapon()); startGame(); },

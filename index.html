@@ -19,8 +19,9 @@
     - Shift+wheel or A / D .. rotate
     - Hold left button ...... blades open (per weapon, ~0.4-0.65s); release = snap shut (release early = weaker strike)
     - Space ................. instant snip at the current pose (tests cut-zone logic directly)
-    - E ..................... SHRED (Helicopter special) when charged; on touch: tap a second (HOLD) or third (PINCH) finger while gripping
-    - F ..................... the Skill (the second move, under SHRED): same as tapping its badge
+    - E ..................... move slot 1, F ... move slot 2: same as tapping that slot's badge (each slot holds SHRED or a
+                              Skill, picked on the weapon screen); SHRED in either fires at once while gripping. On touch:
+                              tap a second (HOLD) or third (PINCH) finger while gripping for SHRED
     - Pins (towers) ......... tap (click) a + on an empty spot beside the road, then pick a Pin
     - R ..................... back to the title screen (same as the Reset button)
     - P or Esc .............. pause / resume (same as the ⏸ button)
@@ -101,8 +102,8 @@
   #hint { display: none; margin: 0; max-width: 320px; text-align: center; font: 12px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: rgba(255, 241, 194, 0.75); }
   #hint b { color: #ffd23f; }
 
-  /* HUD (top-left, one compact column, out of the top of the road where enemies enter): wave badge, the SHRED meter, the
-     Skill's meter, the DULL badge. Filled by src/hud.js. The workshop's HP is on the heart pad at the end of the road (render.js drawHeart);
+  /* HUD (top-left, one compact column, out of the top of the road where enemies enter): wave badge, the two move slots'
+     meters, the DULL badge. Filled by src/hud.js. The workshop's HP is on the heart pad at the end of the road (render.js drawHeart);
      score lives on the pause and game-over cards. */
   #hud {
     position: fixed; top: calc(10px + env(safe-area-inset-top)); left: calc(10px + env(safe-area-inset-left)); z-index: 9;
@@ -146,11 +147,12 @@
   /* first time a Pin is affordable (until its explainer has been seen): the thread pill pulses with the + buttons */
   #tray.pin-attn .thread-chip { animation: tchip 0.9s ease-in-out infinite; }
   @keyframes tchip { 50% { box-shadow: inset 0 2px 1px rgba(255, 255, 255, 0.28), 0 4px 0 var(--rim), 0 0 0 3px #fff1c2, 0 0 22px rgba(255, 241, 194, 0.9); } }
-  /* SHRED: a small round felt badge in the HUD column, under the wave badge (clear of the hand, which covers the bottom
-     right, and narrow so it stays off the road); a ring round the scissors fills clockwise with snip kills (--p, set by
-     actionBar.js). Full: it pulses gold, tap it to arm; armed: the next press on the table starts the spin there (tap
-     it again to cancel). The Skill's badge (#skill-card, the second move slot) sits under it and shares the look:
-     .on while its effect runs (Focus, Thimble), .poor while Basting's Thread is short, its price in .mcost. */
+  /* The move meters (#move-card-0, #move-card-1: one per move slot, SHRED or a Skill): small round felt badges in the HUD
+     column, under the wave badge (clear of the hand, which covers the bottom right, and narrow so they stay off the
+     road), in the move's own felt (--sfc / --srim, set by actionBar.js); a ring round the icon fills clockwise with the
+     slot's charge (--p). Full: it pulses gold, tap it to use or arm; armed: it waits for the next press (SHRED's spin,
+     Mark's tap, Basting's drag) or snip (Pinking); tap it again to cancel. .on while its effect runs (Focus, Thimble),
+     .poor while Basting's Thread is short, its price in .mcost. */
   .move-card {
     pointer-events: auto; z-index: 15; position: relative;
     width: 48px; height: 48px; padding: 0; border-radius: 50%; outline-offset: -5px;
@@ -173,8 +175,8 @@
   .move-card .mcost[hidden] { display: none; }
   .move-card.on { --ringc: #bfe8ff; animation: tready 1.4s ease-in-out infinite; }
   .move-card.poor { filter: grayscale(0.7) brightness(0.7); }
-  #skill-card .ticon { font-size: 16px; color: #2a170a; }
-  #skill-card:not(.ready):not(.armed) { --fc: var(--sfc, #4a2a12); --rim: var(--srim, #1f1006); }   /* the Skill's own felt (actionBar.js sets --sfc / --srim) */
+  .move-card.skill .ticon { font-size: 16px; color: #2a170a; }
+  .move-card:not(.ready):not(.armed) { --fc: var(--sfc, #4a2a12); --rim: var(--srim, #1f1006); }   /* the move's own felt (actionBar.js sets --sfc / --srim) */
   @keyframes tready { 50% { filter: brightness(1.18); box-shadow: inset 0 2px 1px rgba(255, 255, 255, 0.28), 0 4px 0 var(--rim), 0 0 22px rgba(255, 210, 63, 0.9); } }
 
   /* Pin spots: a green felt + button on each empty pad of the level (positioned by actionBar.js) */
@@ -248,7 +250,7 @@
   #tip[hidden] { display: none; }
   #tip.passthru { pointer-events: none; }
   #tip::after { content: ""; position: absolute; top: calc(100% + 3px); left: var(--arrow, 50%); margin-left: -9px; border: 9px solid transparent; border-top-color: #7a4a1c; }
-  #tip.below::after { top: auto; bottom: calc(100% + 3px); border-top-color: transparent; border-bottom-color: #7a4a1c; }   /* under a top-of-screen anchor (the SHRED meter) */
+  #tip.below::after { top: auto; bottom: calc(100% + 3px); border-top-color: transparent; border-bottom-color: #7a4a1c; }   /* under a top-of-screen anchor (a move meter) */
 
   /* onboarding coach */
   #coach {
@@ -769,8 +771,20 @@
   .sel-box .sb-txt::before { content: '·'; margin-right: 5px; opacity: 0.7; }
   .sel-hero.honed .sm-track { animation: hone 800ms ease-out; }
   @keyframes hone { 0% { box-shadow: 0 0 0 0 rgba(255, 255, 220, 0.9), inset 0 2px 3px rgba(0, 0, 0, 0.6); filter: brightness(1.8); } 100% { box-shadow: 0 0 0 10px rgba(255, 255, 220, 0), inset 0 2px 3px rgba(0, 0, 0, 0.6); } }
-  /* the Moves row under the pair: SHRED (always on, not a choice) and the Skills, one picked (gold rim), NEW on its first level */
-  .sel-moves { width: 100%; flex-shrink: 0; display: flex; align-items: center; gap: 8px; }
+  /* the Moves row under the pair: the two slot chips (SLOT 1 / SLOT 2, each its move or "empty"); the open one (gold rim)
+     shows the picks row under it: the moves this level allows (the one in the slot gold-rimmed, NEW on its first level,
+     one in the other slot dashed), then Clear */
+  .sel-moves { width: 100%; flex-shrink: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+  #sel-moves-list { flex: 1 1 0; }   /* the slots stay on the caption's line (scrolling sideways when narrow) */
+  .sel-moves .sm-picks { flex: 1 0 100%; }
+  .sm-picks[hidden] { display: none; }
+  .move-chip .mc-cap { font-size: 9px; letter-spacing: 0.6px; color: rgba(255, 228, 170, 0.7); margin-right: 1px; }
+  .move-chip.slot[aria-expanded="true"] { border-color: #ffd23f; background: rgba(255, 210, 63, 0.18); }
+  .move-chip.empty .mc-ico { background: transparent; border: 2px dashed rgba(255, 228, 170, 0.5); color: #ffe4aa; }
+  .move-chip.empty .mc-name { color: rgba(255, 241, 194, 0.65); }
+  .move-chip.off { opacity: 0.5; }
+  .move-chip.elsewhere { border-style: dashed; }
+  .move-chip.clear .mc-ico { background: rgba(0, 0, 0, 0.35); font-size: 11px; }
   .sel-moves[hidden] { display: none; }
   .sm-cap { font: 400 12px var(--ui-font); letter-spacing: 1px; color: #ffe4aa; }
   .sm-list { display: flex; gap: 6px; min-width: 0; overflow-x: auto; scrollbar-width: none; padding: 3px 2px; }   /* one row; it scrolls sideways when the moves don't fit */
@@ -779,7 +793,6 @@
     color: #fff1c2; background: rgba(0, 0, 0, 0.28); border: 2px solid rgba(255, 228, 170, 0.25); cursor: pointer; flex: none; white-space: nowrap; }
   .move-chip .mc-ico { width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; background: var(--fc, #6d3fa8); }
   .move-chip[aria-pressed="true"] { border-color: #ffd23f; background: rgba(255, 210, 63, 0.18); box-shadow: 0 0 10px rgba(255, 210, 63, 0.4); }
-  .move-chip.fixed { cursor: default; }
   .move-chip .mc-new { margin-left: 2px; padding: 1px 4px 2px; border-radius: 5px; font-size: 10px; color: #2a170a; background: #ffd23f; }
   @media (max-height: 740px) { .sel-hero .wc-blurb { display: none; } .sel-hero > img { height: clamp(80px, 15vh, 230px); } }   /* short phones: keep Sharpen in view */
   /* wide screens (and a phone on its side): the sharpness column sits beside the stats instead of under them */
@@ -980,8 +993,9 @@
 </div>
 <div id="hud" hidden>
   <div class="felt blue hud-wave"><small class="hud-level" id="hud-level" hidden>LEVEL 1</small><small>WAVE</small><b id="hud-wave">1/6</b><span class="hud-kills" id="hud-kills-row" hidden><small>KILLS</small><b id="hud-kills">0</b></span></div>
-  <button id="shred-card" class="felt purple move-card" type="button" aria-label="SHRED" hidden><span class="ring"></span><span class="ticon">✂</span></button>
-  <button id="skill-card" class="felt move-card" type="button" aria-label="Skill" hidden><span class="ring"></span><span class="ticon"></span><span class="mcost" hidden></span></button>
+  <!-- the two move slots' meters (src/actionBar.js fills each with its slot's move: SHRED or a Skill) -->
+  <button id="move-card-0" class="felt move-card" type="button" aria-label="Move 1" hidden><span class="ring"></span><span class="ticon"></span><span class="mcost" hidden></span></button>
+  <button id="move-card-1" class="felt move-card" type="button" aria-label="Move 2" hidden><span class="ring"></span><span class="ticon"></span><span class="mcost" hidden></span></button>
   <div class="felt red hud-dull" id="hud-dull" hidden title="Dull blades: less snip damage. Sharpen them before a level.">DULL</div>
 </div>
 <div id="spots" hidden></div>
@@ -1086,8 +1100,10 @@
       <div class="sel-info"><span class="wc-name"></span><span id="sel-lock" class="sel-lock"></span><span class="wc-blurb"></span><span class="wc-stats"></span></div>
       <div id="sel-sharp" class="sel-sharp"><button id="sel-box" class="felt-btn small sel-box" type="button" title="Your Buttons: open the Sewing Box"><span class="bt"></span><b id="sel-buttons">0</b><span class="sb-txt">Sewing Box</span></button></div>
     </div>
-    <!-- the moves this level allows (src/weaponSelect.js): SHRED, and the Skills to pick one from (a tap toggles) -->
-    <div id="sel-moves" class="sel-moves" hidden><span class="sm-cap">MOVES</span><div id="sel-moves-list" class="sm-list" role="group" aria-label="Moves"></div></div>
+    <!-- the two move slots (src/weaponSelect.js): a chip per slot; tapping one opens the picks row under it (the moves this
+         level allows: SHRED and the Skills, then Clear) -->
+    <div id="sel-moves" class="sel-moves" hidden><span class="sm-cap">MOVES</span><div id="sel-moves-list" class="sm-list" role="group" aria-label="Move slots"></div>
+      <div id="sel-moves-picks" class="sm-list sm-picks" role="group" aria-label="Pick a move" hidden></div></div>
     <div id="weapon-cards" class="weapon-strip" role="group" aria-label="Your scissors"></div>
     <div class="select-actions">
       <button id="select-back" class="felt-btn back" type="button">BACK</button>
@@ -1152,7 +1168,7 @@
       <button id="pause-sound" class="felt-btn small" type="button" aria-pressed="false">Sound: on</button>
       <button id="pause-home" class="felt-btn small" type="button">Title screen</button>
     </div>
-    <p id="hint"><b>Desktop controls:</b> move = aim point · hold left button to open, release to snip (wider = stronger) · wheel = open/close (flick fast to snip) · A/D or Shift+wheel = rotate · Space = instant snip · E = SHRED · F = Skill · P/Esc = pause · R = title</p>
+    <p id="hint"><b>Desktop controls:</b> move = aim point · hold left button to open, release to snip (wider = stronger) · wheel = open/close (flick fast to snip) · A/D or Shift+wheel = rotate · Space = instant snip · E = move 1 · F = move 2 · P/Esc = pause · R = title</p>
   </div>
 </div>
 

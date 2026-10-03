@@ -38,9 +38,10 @@ let prevRaw = 0, needSnap = true, snapNext = false;
 let openPeak = 0;
 
 // onSnip(px, py, theta, spread, strong), onTooSlow(), onGrip(), onSpace(), onReset(), onPause() (P / Escape),
-// onSpecial() = the extra finger (second in 'hold', third in 'pinch') / E key, onSkill() = the F key (the second move slot), onPress() = a finger or the mouse button
+// onSpecial() = the extra finger (second in 'hold', third in 'pinch': SHRED, whichever move slot holds it), onMoveKey(i) =
+// a move slot's key (E = slot 0, F = slot 1), onPress() = a finger or the mouse button
 // going down on the table (a new hand: the first finger in 'hold', either handle in 'pinch'; an armed SHRED starts on it)
-const hooks = { onSnip: null, onTooSlow: null, onGrip: null, onSpace: null, onReset: null, onSpecial: null, onSkill: null, onPause: null, onPress: null };
+const hooks = { onSnip: null, onTooSlow: null, onGrip: null, onSpace: null, onReset: null, onSpecial: null, onMoveKey: null, onPause: null, onPress: null };
 // A pointer pressed on the table at screen (x, y) (touch identifier id, -1 = the mouse): remember it, then onPress.
 function pressAt(x, y, id) {
   input.pressX = input.ptX = x; input.pressY = input.ptY = y; input.ptDown = true; ptId = id;
@@ -278,8 +279,8 @@ export function initInput(h) {
     if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) hooks.onSpace(); }
     else if (e.code === 'KeyA') mouse.rot -= C.keyRotStep;
     else if (e.code === 'KeyD') mouse.rot += C.keyRotStep;
-    else if (e.code === 'KeyE') { if (!e.repeat && hooks.onSpecial) hooks.onSpecial(); }
-    else if (e.code === 'KeyF') { if (!e.repeat && hooks.onSkill) hooks.onSkill(); }
+    else if (e.code === 'KeyE') { if (!e.repeat && hooks.onMoveKey) hooks.onMoveKey(0); }   // move slot 1
+    else if (e.code === 'KeyF') { if (!e.repeat && hooks.onMoveKey) hooks.onMoveKey(1); }   // move slot 2
     else if (e.code === 'KeyR') hooks.onReset();
     else if ((e.code === 'KeyP' || e.code === 'Escape') && !e.repeat && hooks.onPause) hooks.onPause();
   });

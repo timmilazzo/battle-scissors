@@ -4,14 +4,16 @@
 // The pick is remembered in the save (Save.equippedScissors). Only the default weapon starts unlocked; the rest are a
 // map level's reward (its unlockOnClear) or bought in the Shop (CONFIG.weapons[id].shop, once shopAfter is cleared),
 // and either way join Save.unlocks.scissors.
-// Under the pair, a Moves row: SHRED (once this level has it; not a choice) and the Skills this level allows (the second
-// move slot, CONFIG.skills), one picked (Save.equippedSkill; a tap toggles it, NEW on its first level). main.js passes
-// getMoves() (what game.js allows on the level about to start), since this module doesn't import game.js.
+// Under the pair, a Moves row: the two move slots (Save.moves) as two chips, SLOT 1 and SLOT 2, each showing its move
+// (icon + name) or "empty"; tapping a slot opens a row of the moves this level allows (SHRED and the Skills, NEW on a
+// move's first level) to pick from, or Clear; picking the move the other slot holds moves it over (skills.js setMove).
+// main.js passes getMoves() (what game.js allows on the level about to start), since this module doesn't import game.js.
 import { CONFIG as C } from './config.js';
 import { Save, persist } from './save.js';
 import { rewardLevelOf } from './levels/index.js';
 import { weaponDef, sharpness, sharpBandIndex } from './scissors.js';
 import { sharpMeter, setSharpMeter, sharpenButton, setSharpenButton } from './sharpMeter.js';
+import { setMove } from './skills.js';
 // Stats show the weapon as upgraded (weaponDef; the tier shows as pips after its name).
 // Each stat is either a readout (text) or a bar (value, drawn relative to the best un-upgraded weapon in that stat).
 // Reach: blade length in story inches (play area = statDrawerHeightIn tall). Spread: full angle between the open blades.
@@ -65,7 +67,7 @@ export function savedWeapon() {
 }
 
 // onPick(id) when a pair is chosen, onStart() / onBack() for the two buttons, onSharpen(id) for the quick Sharpen
-// (returns '' when it went through, else why not), getMoves() = { shred, shredNew, skills: [{ id, isNew }] } for the Moves row.
+// (returns '' when it went through, else why not), getMoves() = [{ id, isNew }] (SHRED first, then the Skills) for the Moves row.
 export function initWeaponSelect({ onPick, onStart, onBack, onSharpen, getMoves }) {
   movesOf = getMoves || movesOf;
   const strip = document.getElementById('weapon-cards');
@@ -142,30 +144,55 @@ function fillStats(card, id, best) {
     stats.appendChild(row);
   });
 }
-// The Moves row: SHRED's chip (fixed) and a chip per Skill this level allows; tapping a Skill's chip picks it (again: none).
-let movesOf = () => ({ shred: false, shredNew: false, skills: [] });
-function moveChip(icon, name, felt, isNew) {
+// The Moves row: a chip per move slot; tapping one opens the picks row under it (the allowed moves, then Clear).
+let movesOf = () => [];
+let openSlot = -1;                                           // the slot whose picks row is open (-1 = none)
+// A move's look: SHRED's (CONFIG.shredBadge) or a Skill's (CONFIG.skills).
+const moveLook = id => id === 'shred' ? { icon: C.shredBadge.icon, felt: C.shredBadge.felt, name: 'SHRED', blurb: C.shredBadge.blurb } :
+  { icon: C.skills[id].icon, felt: C.skills[id].felt, name: C.skills[id].name, blurb: C.skills[id].blurb };
+function moveChip(icon, name, felt, isNew, cap) {
   const c = document.createElement('button');
   c.type = 'button'; c.className = 'move-chip';
-  c.innerHTML = '<span class="mc-ico"></span><span class="mc-name"></span>';
-  c.firstChild.textContent = icon; c.firstChild.style.setProperty('--fc', felt); c.lastChild.textContent = name;
+  c.innerHTML = (cap ? '<span class="mc-cap"></span>' : '') + '<span class="mc-ico"></span><span class="mc-name"></span>';
+  if (cap) c.firstChild.textContent = cap;
+  const ico = c.querySelector('.mc-ico');
+  ico.textContent = icon; if (felt) ico.style.setProperty('--fc', felt); c.lastChild.textContent = name;
   if (isNew) { const n = document.createElement('span'); n.className = 'mc-new'; n.textContent = 'NEW'; c.appendChild(n); }
   return c;
 }
-export function renderMoves() {
-  const box = document.getElementById('sel-moves'), list = document.getElementById('sel-moves-list'), m = movesOf();
-  list.textContent = '';
-  box.hidden = !m.shred && !m.skills.length;
-  if (m.shred) { const c = moveChip('✂', 'SHRED', '#7a3fb8', m.shredNew); c.classList.add('fixed'); c.tabIndex = -1; c.title = 'Always with you'; list.appendChild(c); }
-  for (const { id, isNew } of m.skills) {
-    const k = C.skills[id], c = moveChip(k.icon, k.name, k.felt, isNew);
-    c.title = k.blurb; c.setAttribute('aria-pressed', String(Save.equippedSkill === id));
-    c.addEventListener('click', () => { Save.equippedSkill = Save.equippedSkill === id ? '' : id; persist(); renderMoves(); });
+// fresh = the screen is opening for a level: start with the picks row closed.
+export function renderMoves(fresh = false) {
+  if (fresh) openSlot = -1;
+  const box = document.getElementById('sel-moves'), list = document.getElementById('sel-moves-list'), picks = document.getElementById('sel-moves-picks');
+  const allowed = movesOf(), isNew = id => allowed.some(m => m.id === id && m.isNew);
+  list.textContent = ''; picks.textContent = '';
+  box.hidden = !allowed.length;
+  if (!allowed.length) openSlot = -1;
+  Save.moves.forEach((id, i) => {
+    const here = !id || allowed.some(m => m.id === id), look = id ? moveLook(id) : null;
+    const c = look ? moveChip(look.icon, look.name, look.felt, isNew(id), 'SLOT ' + (i + 1)) : moveChip('+', 'empty', '', false, 'SLOT ' + (i + 1));
+    c.classList.add('slot'); c.classList.toggle('empty', !id); c.classList.toggle('off', !here);
+    c.setAttribute('aria-expanded', String(openSlot === i));
+    c.title = !id ? 'Tap to pick a move for this slot' : here ? look.blurb : look.name + ' isn’t on this level yet';
+    c.addEventListener('click', () => { openSlot = openSlot === i ? -1 : i; renderMoves(); });
     list.appendChild(c);
+  });
+  picks.hidden = openSlot < 0;
+  if (openSlot < 0) return;
+  for (const { id, isNew: fresh } of allowed) {                // the moves this level allows; picking one fills the open slot
+    const look = moveLook(id), c = moveChip(look.icon, look.name, look.felt, fresh), other = Save.moves.indexOf(id);
+    c.title = look.blurb + (other >= 0 && other !== openSlot ? ' (moves it from slot ' + (other + 1) + ')' : '');
+    c.setAttribute('aria-pressed', String(Save.moves[openSlot] === id));
+    if (other >= 0 && other !== openSlot) c.classList.add('elsewhere');
+    c.addEventListener('click', () => { setMove(openSlot, id); openSlot = -1; renderMoves(); });
+    picks.appendChild(c);
   }
-  const picked = list.querySelector('[aria-pressed="true"]');     // the row scrolls sideways: show the picked one
+  const clear = moveChip('✕', 'Clear', '', false);
+  clear.classList.add('clear'); clear.title = 'Leave this slot empty';
+  clear.addEventListener('click', () => { setMove(openSlot, ''); openSlot = -1; renderMoves(); });
+  picks.appendChild(clear);
+  const picked = picks.querySelector('[aria-pressed="true"]');   // the row scrolls sideways: show the one in the slot
   if (picked) requestAnimationFrame(() => picked.scrollIntoView({ block: 'nearest', inline: 'nearest' }));
-}
-// Re-check locks, upgrades, sharpness and Buttons (each time the screen opens, and after a quick Sharpen).
+}// Re-check locks, upgrades, sharpness and Buttons (each time the screen opens, and after a quick Sharpen).
 let refreshLocks = () => {};
 export const refreshWeaponSelect = () => refreshLocks();

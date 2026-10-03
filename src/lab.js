@@ -3,11 +3,11 @@
 // every level, pair and Pin unlocked and a pile of Buttons, and holds game.js's `lab` switches: every tool allowed, the
 // scheduled waves held, the heart unhurt, a stand-in map place for the hp / rank scaling. Sections: Road (a world's look
 // + a recipe + seed to build and play a road on the fly, or any map level), Scissors (pair, upgrade tier, sharpen),
-// Moves (SHRED tier, the Skill and its tier, charge both), Pins (permanent tiers, Thread), Enemies (spawn any type at a
+// Moves (each of the two move slots: empty, SHRED or a Skill, and its tier, switched at once; charge both), Pins (permanent tiers, Thread), Enemies (spawn any type at a
 // rank, in numbers; clear the board; hold waves; heart safe; heal). DOM only; nothing here is in the game's hot loop.
 import { CONFIG as C } from './config.js';
 import { Save, unlockAll } from './save.js';
-import { state, lab, labSpawn, labCharge, labClear, labHeal, labSkill } from './game.js';
+import { state, lab, labSpawn, labCharge, labClear, labHeal, labMove } from './game.js';
 import { weapon } from './scissors.js';
 import { ZONES } from './kit.js';
 import { randomRecipe } from './levelGen.js';
@@ -61,11 +61,24 @@ export function initLab(api) {
 
   // --- Moves ---
   panel.append(el('h4', '', 'Moves'));
-  const shredT = tiers(C.shredTiers.length - 1, Save.skills.shred || 0, t => { Save.skills.shred = t; });
-  const skillIds = Object.keys(C.skills);
-  const skillT = tiers(3, Save.skills[Save.equippedSkill] || 0, t => { if (Save.equippedSkill) { Save.skills[Save.equippedSkill] = t; labSkill(Save.equippedSkill); } });
-  const skillSel = select([['', '(no Skill)'], ...skillIds.map(id => [id, C.skills[id].name])], Save.equippedSkill || '', id => { skillT.value = String(Save.skills[id] || 0); labSkill(id); });
-  panel.append(row('SHRED', shredT), row('Skill', skillSel, skillT), row('', btn('Charge both', labCharge), el('span', 'lab-hint', 'the Skill switches at once (its badge sits under SHRED’s; tap it or press F); Charge both fills both meters')));
+  // a row per move slot: the move (empty, SHRED or a Skill) and its tier; both switch the run's slots at once (labMove)
+  const moveOpts = [['', '(empty)'], ['shred', 'SHRED'], ...Object.keys(C.skills).map(id => [id, C.skills[id].name])];
+  const maxTier = id => id === 'shred' ? C.shredTiers.length - 1 : 3;
+  const slotRows = [0, 1].map(i => {
+    const tierSel = el('select', 'lab-s');
+    const fillTiers = () => {                                    // the tiers of the move in this slot (none when empty)
+      const id = Save.moves[i]; tierSel.textContent = ''; tierSel.disabled = !id;
+      for (let t = 0; t <= (id ? maxTier(id) : 0); t++) { const o = el('option', '', 'tier ' + t); o.value = t; tierSel.append(o); }
+      tierSel.value = String(id ? Save.skills[id] || 0 : 0);
+    };
+    tierSel.addEventListener('change', () => { const id = Save.moves[i]; if (id) { Save.skills[id] = +tierSel.value; labMove(i, id); } });
+    const moveSel = select(moveOpts, Save.moves[i] || '', id => { labMove(i, id); syncSlots(); });
+    return { moveSel, fillTiers, tierSel };
+  });
+  function syncSlots() { for (let i = 0; i < slotRows.length; i++) { slotRows[i].moveSel.value = Save.moves[i] || ''; slotRows[i].fillTiers(); } }
+  syncSlots();
+  panel.append(row('slot 1', slotRows[0].moveSel, slotRows[0].tierSel), row('slot 2', slotRows[1].moveSel, slotRows[1].tierSel),
+    row('', btn('Charge both', labCharge), el('span', 'lab-hint', 'a move switches at once, uncharged (picking the other slot’s move moves it); E / F or a tap on its badge uses it')));
 
   // --- Pins ---
   panel.append(el('h4', '', 'Pins'));

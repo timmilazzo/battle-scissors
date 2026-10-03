@@ -95,7 +95,7 @@ export const roarGlobe = [0.75, 0.02, 1046, 0.02, 0.6, 0.8, 0, 1, 0, 0, 262, 0.1
 export const roarTwine = [1, 0.03, 60, 0.1, 0.8, 0.6, 3, 2, -0.5, 0, 0, 0, 0, 1.2, 0, 0.05, 0, 0.8, 0.1, 0.7, -500];
 // The Skeleton Key: an iron groan that creaks in steps (repeat), like a lock forced round.
 export const roarKey = [0.9, 0.03, 140, 0.05, 0.7, 0.6, 2, 2, -1.5, 0, 0, 0, 0.09, 1, 0, 0.1, 0.1, 0.7, 0.1, 0.3, -1200];
-// --- the Skills (the second move slot, game.js "Skills") ---
+// --- the Skills (moves for either slot, game.js "moves") ---
 // Tailor's Focus: the world slows: a soft descending whoom (sine sliding down, long release, an echo).
 export const focusIn = [0.6, 0, 620, 0.04, 0.25, 0.7, 0, 1, -3, 0, 0, 0, 0, 0, 0, 0, 0.15, 0.6, 0.1, 0.2, -1800];
 // Thimble Guard: the brass cap goes on, and stops an enemy: a bright metal clink with a ring (higher than the armor clang).

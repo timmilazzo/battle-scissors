@@ -1,34 +1,36 @@
 // The bottom action bar and the Pin spots: "everything besides snipping". DOM only; reads game state, calls game actions.
 // - Bar: the Thread counter chip (the Pin currency; pops on income).
-// - SHRED meter (a round badge in the top-left HUD column, under the wave badge): a ring that fills clockwise with snip kills. Full, it pulses; tapping it arms
-//   SHRED and the next press on the table starts the spin where the scissors land (tap the meter again to cancel). E, or
-//   another finger while holding the scissors, still fires it straight away.
-// - Skill meter (the second move slot, a round badge under SHRED's, same look; game.js "Skills"): its ring fills with the
-//   Skill's own charge (state.skill.charge), pulses gold when full; a tap (or F) uses it: Focus and Thimble go off at
-//   once (the ring then shows the time / stops left, .on), Mark / Pinking / Basting arm (a tip says what to do next; tap
-//   again to cancel). Basting has no meter: its badge shows the Thread price and dims while the balance is short.
+// - Move meters: one round badge per move slot (#move-card-0, #move-card-1, in the top-left HUD column under the wave
+//   badge; game.js "moves"), shown while its slot holds a move, in that move's icon and felt (SHRED: CONFIG.shredBadge; a
+//   Skill: CONFIG.skills). Its ring fills with the slot's charge (state.moves[i].charge: SHRED's snip kills, a Skill's own
+//   events) and pulses gold when full; a tap uses it (game.js useMove; desktop: E slot 1, F slot 2): SHRED arms and the
+//   next press on the table starts the spin where the scissors land (another finger while holding the scissors, or the
+//   key while gripping, spins at once); Focus and Thimble go off at once (the ring then shows the time / stops left, .on);
+//   Mark / Pinking / Basting arm (a tip says what to do next). Tap an armed badge again to cancel; arming one disarms the
+//   other. Basting has no meter: its badge shows the Thread price and dims while the balance is short.
 // - Pin spots: a + button on every empty spot of the level, shown only while some Pin is affordable. Tapping one pauses
 //   the game (a 'build' pause: the board stays, dimmed but for the pad) and fans this level's Pins out from the pad on
 //   an arc toward the wider side of the screen: a round icon each, its name, effect and cost beside it. Tapping an
 //   affordable one builds it there and resumes; the × on the pad or anywhere else closes it and resumes.
 // - Tips: attention for each new Pin type (once a Pin this level offers for the first time is affordable, the + buttons
 //   and the counter pulse plus a tip, until a + tap, which pauses the game on an explainer for just that Pin (the very
-//   first one also shows how building works); GOT IT resumes with that spot's picker open) and SHRED ready (brief, gone on the next snip, in the first CONFIG.shredTipRuns runs until it has been used). Tip flags live in the save (Save.tips). The SHRED meter pulses whenever ready, and
-//   while armed a tip over it says to press where the spin should go.
+//   first one also shows how building works); GOT IT resumes with that spot's picker open) and SHRED ready (brief, gone on the next snip, in the first CONFIG.shredTipRuns runs until it has been used). Tip flags live in the save (Save.tips). A move meter pulses whenever ready, and
+//   while armed a tip under it says what it waits for (where to press for the spin, which enemy to mark...); once per
+//   Skill ever, a tip says it's ready (Save.tips.skills).
 import { CONFIG as C } from './config.js';
 import { view, level } from './core.js';
 import { input } from './input.js';
-import { state, canAfford, pinAllowed, pinIsNew, buildTower, rankUp, armShred, armSkill, skillReady, setPaused } from './game.js';
+import { state, canAfford, pinAllowed, pinIsNew, buildTower, rankUp, useMove, moveReady, setPaused } from './game.js';
 import { Save, persist } from './save.js';
-import { shredDef } from './scissors.js';
 import { pinCost, rankUpCost, rankUpText } from './pins.js';
 
 const tips = Save.tips;                          // pins = Pin types the explainer has introduced, shred = SHRED used once
 const saveTips = persist;
 
 const bar = document.getElementById('tray'), threadEl = document.getElementById('tray-thread'), chip = threadEl.parentElement;
-const shredCard = document.getElementById('shred-card'), skillCard = document.getElementById('skill-card');
-const skillIco = skillCard.querySelector('.ticon'), skillCost = skillCard.querySelector('.mcost');
+// one badge per move slot (state.moves[i]), with its icon and price tag
+const moveCards = [0, 1].map(i => document.getElementById('move-card-' + i));
+const moveIcos = moveCards.map(c => c.querySelector('.ticon')), moveCosts = moveCards.map(c => c.querySelector('.mcost'));
 const tipEl = document.getElementById('tip'), tipText = document.getElementById('tip-text');
 const spotsEl = document.getElementById('spots'), picker = document.getElementById('picker');
 const spotBtns = [], upBtns = [], pickCards = [];           // + per spot, the rank-up button per spot, a picker card per Pin type
@@ -89,11 +91,11 @@ export function initActionBar(opts) {
     list.appendChild(li);
   }
   document.getElementById('pins-intro-ok').addEventListener('click', closePinIntro);
-  // SHRED meter: listen for the touch itself too (a tap while other fingers are down rarely produces a click)
-  shredCard.addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); shredPressed(); }, { passive: false });
-  shredCard.addEventListener('click', e => { e.stopPropagation(); shredPressed(); });
-  skillCard.addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); skillPressed(); }, { passive: false });
-  skillCard.addEventListener('click', e => { e.stopPropagation(); skillPressed(); });
+  // the move meters: listen for the touch itself too (a tap while other fingers are down rarely produces a click)
+  moveCards.forEach((c, i) => {
+    c.addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); movePressed(i); }, { passive: false });
+    c.addEventListener('click', e => { e.stopPropagation(); movePressed(i); });
+  });
 }
 
 // ---- Pin spots + picker ----
@@ -239,23 +241,22 @@ function closePinIntro() {
   introSpot = -1;
 }
 
-// The SHRED meter tapped.
-function shredPressed() {
-  const left = shredDef().charge - state.heli.charge;
-  if (state.heli.active) return;
-  if (left > 0) { toast('SHRED charges with snip kills: ' + left + ' to go'); return; }
-  armShred();
-}
-// The Skill's badge tapped: use it if it can be used (game.js armSkill), else say why not.
-function skillPressed() {
-  const s = state.skill, k = C.skills[s.id];
-  if (!state.skillOn || !k || state.heli.active) return;
-  if (s.id === 'basting') {
-    const cost = s.def.bastingCost;
-    if (!s.armed && state.thread < cost) { toast(k.name + ': ' + cost + ' thread a stitch, ' + (cost - state.thread) + ' to go'); return; }
-  } else if (s.focusT > 0 || state.thimble > 0) { toast(k.name + ' is on'); return; }
-  else if (s.charge < 0.999 && s.marksLeft <= 0) { toast(k.name + ' charges with ' + k.charge + ': ' + Math.round(s.charge * 100) + '%'); return; }
-  armSkill();
+// Slot i's badge tapped: use its move if it can be used (game.js useMove), else say why not.
+function movePressed(i) {
+  const s = state.moves[i];
+  if (!s || !s.id || state.heli.active) return;
+  if (s.id === 'shred') {
+    const left = Math.ceil((1 - s.charge) * s.need - 0.01);
+    if (!s.armed && left > 0) { toast('SHRED charges with snip kills: ' + left + ' to go'); return; }
+  } else {
+    const k = C.skills[s.id];
+    if (s.id === 'basting') {
+      const cost = s.def.bastingCost;
+      if (!s.armed && state.thread < cost) { toast(k.name + ': ' + cost + ' thread a stitch, ' + (cost - state.thread) + ' to go'); return; }
+    } else if (s.focusT > 0 || (s.id === 'thimble' && state.thimble > 0)) { toast(k.name + ' is on'); return; }
+    else if (s.charge < 0.999 && s.marksLeft <= 0) { toast(k.name + ' charges with ' + k.charge + ': ' + Math.round(s.charge * 100) + '%'); return; }
+  }
+  useMove(i);
 }
 
 // On resize: where "+8" pickups fly (the thread counter), where each + button sits, and the open picker/tip.
@@ -278,7 +279,8 @@ export function measureActionBar() {
 }
 
 // ---- per-frame refresh (only touches the DOM when something changed) ----
-const shown = { visible: false, shred: null, thread: -1, charge: -1, ready: null, armed: null, can: null, built: '', ranks: '', skill: null, skillId: '', skillKey: '' };
+const shown = { visible: false, thread: -1, can: null, built: '', ranks: '' };
+const shownMv = [0, 1].map(() => ({ on: null, id: '', key: '' }));   // per move badge: shown, its move, its last look
 const tip = { kind: '', until: 0, anchor: null };
 let runT0 = -1, tipPinsDone = false, tipShredDone = false, tipSnips = 0, specialsSeen = 0, attn = false, attnPin = '';
 function setAttn(on) { attn = on; bar.classList.toggle('pin-attn', on); spotsEl.classList.toggle('attn', on); }
@@ -290,8 +292,7 @@ export function refreshActionBar() {
     if (visible) measureActionBar(); else closePicker();
   }
   if (!visible) { hideTip(); }
-  const shredShown = visible && state.shredOn;                    // no SHRED before its level (CONFIG.shredFrom)
-  if (shredShown !== shown.shred) { shown.shred = shredShown; shredCard.hidden = !shredShown; }
+  for (let i = 0; i < moveCards.length; i++) refreshMove(i, visible);   // an empty slot (or none on this level) shows no badge
   if (!visible) return;
   if (state.run.t0 !== runT0) {                                  // a new run: tips may show once more
     runT0 = state.run.t0; tipPinsDone = tipShredDone = false; specialsSeen = 0;
@@ -341,64 +342,69 @@ export function refreshActionBar() {
     ((state.mode === 'PLAYING' && state.bannerT <= 0) || state.mode === 'WAVE_CLEAR');
   if (nowAttn !== attn) setAttn(nowAttn);
   attnPin = canNew;
-  const h = state.heli, ready = h.charge >= shredDef().charge && !h.active;
-  if (shown.charge !== h.charge || shown.ready !== ready || shown.armed !== h.armed) {
-    shown.charge = h.charge; shown.ready = ready; shown.armed = h.armed;
-    shredCard.style.setProperty('--p', Math.round(h.charge / shredDef().charge * 100));
-    shredCard.classList.toggle('ready', ready && !h.armed);
-    shredCard.classList.toggle('armed', h.armed);
-    shredCard.setAttribute('aria-label', h.armed ? 'SHRED armed: tap to cancel' : ready ? 'SHRED ready: tap to arm' : 'SHRED ' + h.charge + ' of ' + shredDef().charge + ' kills');
-  }
-  refreshSkill(visible);
-  updateTip(ready, built);
+  updateTip(built);
 }
-// The Skill's badge: shown while this run has one; its ring = the charge (Focus: the time left while it runs; Thimble: the
-// stops left; Basting: the Thread toward its price), gold while it can be used, red while armed.
-function refreshSkill(visible) {
-  const s = state.skill, on = visible && state.skillOn;
-  if (on !== shown.skill || s.id !== shown.skillId) {
-    shown.skill = on; shown.skillId = s.id; shown.skillKey = ''; skillCard.hidden = !on;
+// Slot i's badge: shown while its slot holds a move; its ring = the charge (Focus: the time left while it runs; Thimble:
+// the stops left; Basting: the Thread toward its price), gold while it can be used, red while armed.
+function refreshMove(i, visible) {
+  const s = state.moves[i], c = moveCards[i], sh = shownMv[i], on = visible && !!s.id;
+  if (on !== sh.on || s.id !== sh.id) {
+    sh.on = on; sh.id = s.id; sh.key = ''; c.hidden = !on;
     if (on) {
-      const k = C.skills[s.id];
-      skillIco.textContent = k.icon; skillCard.style.setProperty('--sfc', k.felt); skillCard.style.setProperty('--srim', rimOf(k.felt));
-      skillCost.hidden = s.id !== 'basting'; skillCost.textContent = s.id === 'basting' ? s.def.bastingCost : '';
+      const look = s.id === 'shred' ? C.shredBadge : C.skills[s.id];
+      moveIcos[i].textContent = look.icon; c.style.setProperty('--sfc', look.felt); c.style.setProperty('--srim', rimOf(look.felt));
+      c.classList.toggle('skill', s.id !== 'shred');
+      moveCosts[i].hidden = s.id !== 'basting'; moveCosts[i].textContent = s.id === 'basting' ? s.def.bastingCost : '';
     }
   }
   if (!on) return;
-  const basting = s.id === 'basting', cost = basting ? s.def.bastingCost : 0, active = s.focusT > 0 || state.thimble > 0;
-  const p = basting ? Math.min(1, state.thread / cost) : s.focusT > 0 ? s.focusT / s.def.focusSec : state.thimble > 0 ? state.thimble / s.def.thimbleStops : s.marksLeft > 0 ? 1 : s.charge;
-  const ready = !basting && !active && !s.armed && skillReady(), poor = basting && state.thread < cost;
+  const shred = s.id === 'shred', basting = s.id === 'basting', cost = basting ? s.def.bastingCost : 0;
+  const thimbleOn = s.id === 'thimble' && state.thimble > 0, active = s.focusT > 0 || thimbleOn;
+  const p = basting ? Math.min(1, state.thread / cost) : s.focusT > 0 ? s.focusT / s.def.focusSec : thimbleOn ? state.thimble / s.def.thimbleStops : s.marksLeft > 0 ? 1 : s.charge;
+  const ready = !basting && !active && !s.armed && moveReady(s), poor = basting && state.thread < cost;
   const key = Math.round(p * 100) + (ready ? 'r' : '') + (s.armed ? 'a' : '') + (active ? 'o' : '') + (poor ? 'p' : '');
-  if (key === shown.skillKey) return;
-  shown.skillKey = key;
-  const name = C.skills[s.id].name;
-  skillCard.style.setProperty('--p', Math.round(p * 100));
-  skillCard.classList.toggle('ready', ready); skillCard.classList.toggle('armed', s.armed);
-  skillCard.classList.toggle('on', active); skillCard.classList.toggle('poor', poor);
-  skillCard.setAttribute('aria-label', s.armed ? name + ' armed: tap to cancel' : active ? name + ' is on' : ready || (basting && !poor) ? name + ': tap to use' : name + ' ' + Math.round(p * 100) + '%');
+  if (key === sh.key) return;
+  sh.key = key;
+  const name = shred ? 'SHRED' : C.skills[s.id].name, kills = Math.round(s.charge * s.need);
+  c.style.setProperty('--p', Math.round(p * 100));
+  c.classList.toggle('ready', ready); c.classList.toggle('armed', s.armed);
+  c.classList.toggle('on', active); c.classList.toggle('poor', poor);
+  c.setAttribute('aria-label', s.armed ? name + ' armed: tap to cancel' : active ? name + ' is on' : ready || (basting && !poor) ? name + ': tap to ' + (shred ? 'arm' : 'use') :
+    shred ? 'SHRED ' + kills + ' of ' + s.need + ' kills' : name + ' ' + Math.round(p * 100) + '%');
 }
 chip.addEventListener('animationend', () => chip.classList.remove('bump'));
 
-// What an armed Skill waits for, in words (Focus and Thimble never wait).
-const SKILL_ARMED = {
+// What an armed move waits for, in words (Focus and Thimble never wait).
+const ARMED_TIP = {
+  shred: () => (touchy() ? 'Touch' : 'Click') + ' where you want to SHRED.',
   mark: () => (touchy() ? 'Tap' : 'Click') + ' an enemy to chalk-mark it.',
   pinking: () => 'Your next snip cuts a zigzag lane past the tips.',
-  basting: () => 'Drag across the road to sew a stitch (' + state.skill.def.bastingCost + ' thread).',
+  basting: s => 'Drag across the road to sew a stitch (' + s.def.bastingCost + ' thread).',
 };
-function updateTip(ready, built) {
-  const now = performance.now(), sk = state.skill;
-  const skillFull = state.skillOn && sk.id !== 'basting' && !sk.armed && sk.focusT <= 0 && state.thimble <= 0 && sk.charge >= 0.999;
-  if (state.heli.armed) {
-    showTip('armed', shredCard, (touchy() ? 'Touch' : 'Click') + ' where you want to SHRED.', 0);
-  } else if (sk.armed && SKILL_ARMED[sk.id]) {
-    showTip('skillArmed', skillCard, SKILL_ARMED[sk.id](), 0);
-  } else if (skillFull && !tips.skills.includes(sk.id)) {      // once per Skill, ever: it's ready, here's how
-    tips.skills.push(sk.id); saveTips();
-    showTip('skill', skillCard, C.skills[sk.id].name + ' ready! Tap its badge' + (touchy() ? '.' : ' (or press F).'), now + C.skillTipMs);
+const MOVE_KEY = ['E', 'F'];                                // desktop keys of slot 1 and slot 2 (input.js)
+let tipSlot = -1;                                           // the slot the current 'skill' ready tip is about
+// A Skill slot full and waiting (not Basting, not armed, nothing running).
+const skillFull = s => s.id && s.id !== 'shred' && s.id !== 'basting' && !s.armed && s.focusT <= 0 && !(s.id === 'thimble' && state.thimble > 0) && s.charge >= 0.999;
+function updateTip(built) {
+  const now = performance.now(), mv = state.moves;
+  let armed = -1, shredAt = -1, fullNew = -1;
+  for (let i = 0; i < mv.length; i++) {
+    const s = mv[i];
+    if (s.armed && armed < 0) armed = i;
+    if (s.id === 'shred') shredAt = i;
+    if (fullNew < 0 && skillFull(s) && !tips.skills.includes(s.id)) fullNew = i;
+  }
+  const ready = shredAt >= 0 && moveReady(mv[shredAt]);
+  if (armed >= 0 && ARMED_TIP[mv[armed].id]) {
+    showTip('armed', moveCards[armed], ARMED_TIP[mv[armed].id](mv[armed]), 0);
+  } else if (fullNew >= 0) {                                   // once per Skill, ever: it's ready, here's how
+    const s = mv[fullNew];
+    tips.skills.push(s.id); saveTips(); tipSlot = fullNew;
+    showTip('skill', moveCards[fullNew], C.skills[s.id].name + ' ready! Tap its badge' + (touchy() ? '.' : ' (or press ' + MOVE_KEY[fullNew] + ').'), now + C.skillTipMs);
     tipSnips = state.stats.snips;
   } else if (ready && !tips.shred && !tipShredDone && (tips.shredRuns || 0) < C.shredTipRuns) {
     tipShredDone = true; tips.shredRuns = (tips.shredRuns || 0) + 1; saveTips();
-    showTip('shred', shredCard, 'SHRED ready! Tap the meter to use it.', now + C.shredTipMs);
+    showTip('shred', moveCards[shredAt], 'SHRED ready! Tap the meter to use it.', now + C.shredTipMs);
     tipSnips = state.stats.snips;
   } else if (attn && !tipPinsDone && pick.spot < 0) {
     tipPinsDone = true;
@@ -406,10 +412,9 @@ function updateTip(ready, built) {
     showTip('pins', spotBtns[built.indexOf('0')], lead + (touchy() ? 'Tap' : 'Click') + ' a + beside the road.', now + C.tipShowMs);
   }
   if (tip.kind && tip.until && now > tip.until) hideTip();
-  if (tip.kind === 'shred' && (!ready || state.heli.active || state.heli.armed || state.stats.snips !== tipSnips)) hideTip();   // playing on dismisses it
-  if (tip.kind === 'armed' && !state.heli.armed) hideTip();
-  if (tip.kind === 'skillArmed' && !sk.armed) hideTip();
-  if (tip.kind === 'skill' && (!skillFull || state.stats.snips !== tipSnips)) hideTip();
+  if (tip.kind === 'shred' && (!ready || state.heli.active || armed >= 0 || state.stats.snips !== tipSnips)) hideTip();   // playing on dismisses it
+  if (tip.kind === 'armed' && armed < 0) hideTip();
+  if (tip.kind === 'skill' && (tipSlot < 0 || !skillFull(mv[tipSlot]) || state.stats.snips !== tipSnips)) hideTip();
   if (tip.kind === 'pins' && !attn) hideTip();
 }
 function showTip(kind, anchor, text, until) {
@@ -420,7 +425,7 @@ function showTip(kind, anchor, text, until) {
   placeTip();
 }
 // Centred over its anchor, kept on screen, the arrow pointing at the anchor. Anchors in the bar get the tip above
-// the whole bar; a + button gets it just above itself; an anchor in the top half (the SHRED meter) gets it below.
+// the whole bar; a + button gets it just above itself; an anchor in the top half (a move meter) gets it below.
 function placeTip() {
   const r = tip.anchor.getBoundingClientRect(), w = tipEl.offsetWidth, cx = r.left + r.width / 2;
   const left = Math.max(8, Math.min(window.innerWidth - w - 8, cx - w / 2));

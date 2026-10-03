@@ -672,12 +672,15 @@ function drawShredBanner(state) {
   ctx.restore();
 }
 
-// ======================= the Skills (the second move slot, game.js "Skills"; their meter is DOM, actionBar.js) =======================
+// ======================= the Skills (in the move slots state.moves, game.js "moves"; their meters are DOM, actionBar.js) =======================
+// Each draw below looks through both slots (two entries, no allocation) for the Skill it draws.
 // Tailor's Focus: a faint cool tint over the plate while the world runs slow, fading in and out.
 function drawFocusTint(state) {
-  const s = state.skill; if (s.focusT <= 0 || !s.def) return;
-  const a = Math.min(1, s.focusT * 3, (s.def.focusSec - s.focusT) * 5);
-  ctx.globalAlpha = 0.16 * a; ctx.fillStyle = '#5a7fd0'; ctx.fillRect(-40, -40, view.W + 80, view.H + 80); ctx.globalAlpha = 1;
+  for (const s of state.moves) {
+    if (s.focusT <= 0 || !s.def) continue;
+    const a = Math.min(1, s.focusT * 3, (s.def.focusSec - s.focusT) * 5);
+    ctx.globalAlpha = 0.16 * a; ctx.fillStyle = '#5a7fd0'; ctx.fillRect(-40, -40, view.W + 80, view.H + 80); ctx.globalAlpha = 1;
+  }
 }
 // Thimble Guard: a dimpled brass band round the heart pad while it's on (bright for a moment after each stop), and a
 // brass pip over the pad per stop left.
@@ -723,16 +726,18 @@ function drawStitches(state) {
     ctx.beginPath(); ctx.arc(s.bx, s.by, 4.5, 0, TAU); ctx.fill();
   }
   ctx.globalAlpha = 1;
-  const k = state.skill;
-  if (k.sewing) {
+  for (const k of state.moves) {
+    if (!k.sewing) continue;
     ctx.setLineDash(STITCH_DASH); ctx.globalAlpha = 0.75;
     ctx.beginPath(); ctx.moveTo(k.sx, k.sy); ctx.lineTo(k.ex, k.ey); ctx.strokeStyle = '#fff4dc'; ctx.lineWidth = 3; ctx.stroke();
     ctx.setLineDash(NO_DASH); ctx.globalAlpha = 1;
   }
 }
-// Pinking Cut: the lane it just cut flashes as a pinked zigzag, fading (state.skill.laneT 1 -> 0).
+// Pinking Cut: the lane it just cut flashes as a pinked zigzag, fading (its slot's laneT 1 -> 0).
 function drawPinkingLane(state) {
-  const s = state.skill; if (s.laneT <= 0) return;
+  for (const s of state.moves) if (s.laneT > 0) drawLane(s);
+}
+function drawLane(s) {
   const dx = s.lx1 - s.lx0, dy = s.ly1 - s.ly0, len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len, h = s.lw / 2, step = s.lw * 0.5;
   ctx.globalAlpha = s.laneT; ctx.lineJoin = 'miter';
   ctx.beginPath(); ctx.moveTo(s.lx0, s.ly0);
@@ -743,13 +748,16 @@ function drawPinkingLane(state) {
   ctx.strokeStyle = '#ffe1f0'; ctx.lineWidth = 3; ctx.stroke();
   ctx.lineJoin = 'round'; ctx.globalAlpha = 1;
 }
-// A Skill goes off: its word (CONFIG.skills[id].word) pops in above the SHRED banner's place and fades.
+// A Skill goes off: its word (CONFIG.skills[id].word) pops in above the SHRED banner's place and fades (slot 2's a line
+// higher, so two at once don't overlap).
 const SKILL_FONT = '400 46px ' + UI_FONT;
 function drawSkillBanner(state) {
-  const s = state.skill, t = s.bannerT; if (t <= 0 || !s.def) return;
-  const p = 1 - t, sc = p < 0.15 ? 0.6 + p / 0.15 * 0.5 : 1.1 - Math.min(0.1, (p - 0.15) * 0.4);
+  for (const s of state.moves) if (s.bannerT > 0 && s.def && s.def.word) drawSkillWord(s);
+}
+function drawSkillWord(s) {
+  const t = s.bannerT, p = 1 - t, sc = p < 0.15 ? 0.6 + p / 0.15 * 0.5 : 1.1 - Math.min(0.1, (p - 0.15) * 0.4);
   ctx.save();
-  ctx.translate(view.SW / 2, view.SH * 0.22); ctx.scale(sc, sc);
+  ctx.translate(view.SW / 2, view.SH * (0.22 - 0.07 * s.i)); ctx.scale(sc, sc);
   ctx.globalAlpha = Math.min(1, t * 3);
   ctx.font = SKILL_FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
   ctx.lineWidth = 9; ctx.strokeStyle = '#2a170a'; ctx.strokeText(s.def.word, 0, 3);

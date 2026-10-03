@@ -18,7 +18,8 @@
 //   pinTiers: { pinType: tier },                     each Pin type's permanent tier 0..3 (meta.js buyPinTier; src/pins.js)
 //   skills: { shred, focus, thimble, mark, pinking, basting },  SHRED's tier 0..3 (CONFIG.shredTiers; meta.js buyShred) and each
 //                                                    Skill's tier bought 0..3 (CONFIG.skills, 0 = none bought; meta.js buySkillTier)
-//   equippedScissors, equippedSkill, lastLevel,      last weapon, second move (a CONFIG.skills id, '' = none) and level picked
+//   equippedScissors, moves, lastLevel,              last weapon, the two move slots ([id, id]: 'shred', a CONFIG.skills id or
+//                                                    '' = empty; never the same move twice; skills.js setMove) and level picked
 //   settings: { sound, haptics, leftHanded, grip, analytics },  grip = touch controls 'hold' | 'pinch'; leftHanded not used yet;
 //     analytics = share anonymous play data (src/analytics.js); anonId = the random id those events carry (made on first use)
 //   account: { userId, refresh, name }  the leaderboard's Supabase anonymous user (src/leaderboard.js): its id, refresh
@@ -35,12 +36,12 @@
 // }
 import { CONFIG as C } from './config.js';
 
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 const KEY = 'battleScissors.save';
 const defaults = () => ({
   version: SAVE_VERSION, levels: {}, buttons: 0, achievements: [], chests: [], sharpness: {},
   cosmetics: { owned: [], handle: '', glow: '' }, unlocks: { scissors: [], pins: [], levels: [] }, upgrades: {}, pinTiers: {}, skills: { shred: 0 },
-  equippedScissors: '', equippedSkill: '', lastLevel: '', settings: { sound: true, haptics: true, leftHanded: false, grip: 'hold', analytics: true }, anonId: '',
+  equippedScissors: '', moves: ['shred', ''], lastLevel: '', settings: { sound: true, haptics: true, leftHanded: false, grip: 'hold', analytics: true }, anonId: '',
   account: { userId: '', refresh: '', name: '' },
   tutorialDone: false, tips: { pins: [], shred: false, shredRuns: 0, shopSeen: [], rank: false, skills: [] }, reveals: [], critterKills: 0,
 });
@@ -59,6 +60,10 @@ export function migrate(old) {
   if ((s.version | 0) < 5) {                                        // v5: five worlds of ten levels (docs/worlds.md). Level ids
     if (typeof s.equippedSkill !== 'string') s.equippedSkill = '';  // survive, so levels (old L12 whip / L13 lair stay cleared,
   }                                                                 // which clears nothing else), chests and unlocks carry over
+  if ((s.version | 0) < 6) {                                        // v6: two free move slots replace "SHRED + one Skill":
+    const k = typeof s.equippedSkill === 'string' && s.equippedSkill !== 'shred' ? s.equippedSkill : '';
+    s.moves = ['shred', k]; delete s.equippedSkill;                 // SHRED in the first, the old Skill pick in the second
+  }
   s.version = SAVE_VERSION;
   return s;
 }
@@ -72,6 +77,9 @@ function adopt(data) {
   if (!Array.isArray(Save.tips.pins)) Save.tips.pins = [];
   if (!Array.isArray(Save.tips.shopSeen)) Save.tips.shopSeen = [];
   if (!Array.isArray(Save.tips.skills)) Save.tips.skills = [];
+  const mv = Array.isArray(data.moves) ? data.moves : d.moves;     // two slots of strings, never the same move twice
+  Save.moves = [0, 1].map(i => typeof mv[i] === 'string' ? mv[i] : '');
+  if (Save.moves[0] && Save.moves[0] === Save.moves[1]) Save.moves[1] = '';
   Save.levels = Object.assign({}, data.levels);
   Save.reveals = Array.isArray(data.reveals) ? data.reveals : [];
 }

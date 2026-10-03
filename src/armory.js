@@ -3,7 +3,7 @@
 // button, the sharpness meter with its Sharpen button (sharpMeter.js), and the next upgrade tier with its price.
 // Pins = one panel per Pin type: its icon, what it does, its three permanent tiers (meta.js buyPinTier; on sale once
 // its level is cleared). Moves = SHRED as a skill (CONFIG.shredTiers), its next tier bought with Buttons once SHRED's
-// level is cleared, then a panel per Skill (CONFIG.skills, the second move slot: its tiers, meta.js buySkillTier, on sale
+// level is cleared, then a panel per Skill (CONFIG.skills, either move slot's pick: its tiers, meta.js buySkillTier, on sale
 // once its level is cleared). Shop: Pairs = the scissors not held yet, greyed: a
 // Shop pair on sale shows its price (meta.js buyWeapon), the rest say how they're won (a level) or when they go on
 // sale. Prices: CONFIG.meta; the buys themselves are meta.js.
@@ -173,7 +173,7 @@ function shredPanel() {
   return p;
 }
 
-// A Skill's panel (the second move slot): its badge in its felt, name with tier stars, what it does and what charges
+// A Skill's panel (a move for either slot): its badge in its felt, name with tier stars, what it does and what charges
 // it, and its next tier (named) with its price; locked (greyed, "Clear Level n-m") until its level is cleared.
 function skillPanel(id) {
   const k = C.skills[id], tier = skillTier(id), open = skillOpen(id);
@@ -193,7 +193,7 @@ function skillPanel(id) {
 
 export function movesTab(body) {
   body.append(shredPanel());
-  body.append(el('h3', '', 'Skills'), el('p', 'hint', 'Your second move: pick one on the weapon screen before a level. Its badge sits under SHRED; tap it when it’s full (F on a keyboard).'));
+  body.append(el('h3', '', 'Skills'), el('p', 'hint', 'You carry two moves: fill your two slots on the weapon screen before a level, with SHRED or any Skill. Each slot’s badge sits under the wave count; tap it when it’s full (E and F on a keyboard).'));
   for (const id in C.skills) body.append(skillPanel(id));
 }
 

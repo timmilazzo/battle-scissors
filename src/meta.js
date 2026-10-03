@@ -171,7 +171,7 @@ export function buyShred() {
   Save.buttons -= cost; Save.skills.shred = shredTier() + 1; persist();
   return '';
 }
-// A Skill (CONFIG.skills, the second move slot): its tiers go on sale once its level (CONFIG.skillFrom) is cleared; its
+// A Skill (CONFIG.skills, a move for either slot): its tiers go on sale once its level (CONFIG.skillFrom) is cleared; its
 // next tier's price (CONFIG.skillCosts; 0 = maxed). Tier 0 is free: the Skill itself comes with its level.
 export const skillOpen = id => !!(Save.levels[C.skillFrom[id]] && Save.levels[C.skillFrom[id]].cleared);
 export const skillCost = id => { const t = skillTier(id); return t < SKILL_TIERS ? C.skillCosts[t] || 0 : 0; };

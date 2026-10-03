@@ -149,9 +149,13 @@ Build costs stay equal; ranks in play stay as they are.
 
 ### Skills (`CONFIG.skills`, `CONFIG.skillFrom`; the planned `skillIdeas`, now real)
 
-A second move slot beside SHRED, picked on the weapon screen (the last pick remembered in `Save.equippedSkill`), its
-own charge meter under the SHRED badge, fired like SHRED (tap the full meter to arm, the next press fires; the F key
-on desktop). Bought up in tiers in the Sewing Box's Moves tab (`Save.skills[id]`, `CONFIG.skillCosts` 120/240/400).
+The player carries two moves in two free slots (`Save.moves`), picked on the weapon screen before a level: each slot
+holds SHRED or any Skill the level allows, or nothing, and the same move is never in both. SHRED is just the first
+move the player gets (1-3, worlds 1-3 lean on it); each world then adds a Skill on its level 7, and a move's first level
+puts it in an empty slot (else the second) and says NEW HERE. Each slot has its own charge meter under the HUD wave
+badge, fired the same way (tap the full meter to arm or fire, the next press fires an armed one; E for slot 1, F for
+slot 2 on desktop; only one slot armed at a time). Two Skills at once each run on their own meter and effects. Bought
+up in tiers in the Sewing Box's Moves tab (`Save.skills[id]`, `CONFIG.skillCosts` 120/240/400).
 
 | Skill | World, level | Charged by | Effect | Tiers |
 |---|---|---|---|---|
@@ -269,6 +273,7 @@ from level 6 on. `node tools/wavesheet.js` prints every level as built.
 
 Level ids survive, so `Save.levels` carries over. `migrate` v5: a save that cleared the old L12 (`whip`) or L13
 (`lair`) keeps them cleared, which clears nothing else; `Save.equippedSkill` added; the old `unlocks.pins` kept.
+`migrate` v6 (two free move slots): `Save.moves = ['shred', equippedSkill || '']` replaces `Save.equippedSkill`.
 Achievements keyed by world (`clear-meadow` ...) gain `autumn`, `night`, `snow`.
 
 ## Sprites
