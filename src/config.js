@@ -18,7 +18,7 @@ export const SUPABASE_URL = 'https://fkhuzanqyfainkieruxs.supabase.co';
 export const SUPABASE_KEY = 'sb_publishable_rA8Yt-7J1dULTlc-ip4dZw_OkPuahEr';
 
 // Shown small at the bottom of Settings and recorded in every run report. Bump it with each published change.
-export const VERSION = '0.5.3';
+export const VERSION = '0.5.4';
 
 export const CONFIG = {
   // --- pose / control mapping ---

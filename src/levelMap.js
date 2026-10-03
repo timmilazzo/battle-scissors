@@ -111,7 +111,7 @@ export function initLevelMap(opts) {
 }
 
 // Show world i's plate (clamped): its art or felt stand-in, its layer, its name (greyed while locked) and the arrows
-// (hidden at the ends; toward a locked world, the level that opens it).
+// (hidden at the ends; toward a locked world, greyed with a lock badge).
 function showWorld(i) {
   const n = C.map.worlds.length;
   cur = Math.max(0, Math.min(n - 1, i));
@@ -136,9 +136,8 @@ function arrow(btn, i, what) {
   const W = C.map.worlds[i];
   btn.style.visibility = W ? '' : 'hidden';
   if (!W) return;
-  const open = worldOpen(W.id), cap = btn.querySelector('small');
+  const open = worldOpen(W.id);
   btn.classList.toggle('locked', !open);
-  cap.textContent = open ? '' : 'Clear ' + levelNo(worldGate(W.id));
   btn.setAttribute('aria-label', what + ': ' + W.name + (open ? '' : ' (locked: clear Level ' + levelNo(worldGate(W.id)) + ')'));
 }
 

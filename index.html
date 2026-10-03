@@ -74,13 +74,13 @@
     text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45);
     background: var(--felt-fuzz), radial-gradient(130% 110% at 30% 12%, rgba(255, 250, 230, 0.26), rgba(255, 250, 230, 0) 55%),
       linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.18)), var(--fc);
-    border: 3px solid var(--rim);
-    box-shadow: inset 0 2px 1px rgba(255, 255, 255, 0.28), inset 0 -3px 2px rgba(0, 0, 0, 0.3), 0 4px 0 var(--rim), 0 7px 12px rgba(0, 0, 0, 0.45);
-    outline: 2px dashed rgba(255, 240, 205, 0.85); outline-offset: -7px;
+    border: 2px solid #140b06;
+    box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--rim) 55%, transparent), inset 0 2px 2px rgba(255, 255, 255, 0.16), 0 3px 0 #140b06, 0 6px 10px rgba(0, 0, 0, 0.4);
+    outline: 2px dashed rgba(255, 214, 120, 0.85); outline-offset: -6px;
   }
   button.felt { cursor: pointer; touch-action: manipulation; transition: transform 80ms ease-out, filter 80ms ease-out; }
   button.felt:hover { filter: brightness(1.08); }
-  button.felt:active { transform: translateY(3px); box-shadow: inset 0 2px 1px rgba(255, 255, 255, 0.28), inset 0 -3px 2px rgba(0, 0, 0, 0.3), 0 1px 0 var(--rim), 0 3px 6px rgba(0, 0, 0, 0.45); }
+  button.felt:active { transform: translateY(3px); box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--rim) 55%, transparent), inset 0 2px 2px rgba(255, 255, 255, 0.16), 0 0 0 #140b06, 0 3px 6px rgba(0, 0, 0, 0.4); }
   .felt.brown { --fc: #6b3f1d; --rim: #2a170a; }
   .felt.dark { --fc: #4a2a12; --rim: #1f1006; }
   .felt.blue { --fc: #2f5fc0; --rim: #142c62; }
@@ -372,9 +372,14 @@
   /* Buttons (the meta currency): a little gold four-hole button icon, the map's top row, results, shop, trophies */
   .bt { display: inline-block; width: 1.15em; height: 1.15em; flex: none; vertical-align: -0.22em;
     background: url(assets/kit/03_currency/ui_currency_button_01.png) center / contain no-repeat; filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.45)); }
+  /* the map's top row, on one line even on a 360px phone: the balance, then Sewing Box / Shop / Trophies as square felt
+     tiles (an icon over its name, in the title tiles' colours) at the right; the world name on the line under it */
   .map-top { position: absolute; left: calc(10px + env(safe-area-inset-left)); top: calc(10px + env(safe-area-inset-top)); right: calc(10px + env(safe-area-inset-right)); z-index: 1; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; pointer-events: none; }
   .map-top > * { pointer-events: auto; }
-  .map-top .felt-btn { min-width: 0; width: auto; font-size: clamp(13px, 3.6vw, 18px); padding: 9px 10px 10px; }
+  .map-top .bt-chip { margin-right: auto; }
+  .map-top .felt-btn.map-tile { flex-direction: column; gap: 3px; min-width: 62px; width: auto; height: 58px; padding: 6px 8px 7px; border-radius: 14px;
+    font-size: 12px; letter-spacing: 0.4px; white-space: nowrap; --st-off: -6px; }
+  .map-top .map-tile .ico { width: 24px; height: 24px; }
   .bt-chip { display: flex; align-items: center; gap: 6px; height: 38px; padding: 0 14px 0 10px; border-radius: 999px; font: 400 19px var(--ui-font); color: #ffd23f; outline-offset: -6px; }
   .bt-chip .bt { font-size: 22px; }
   .map-chest { position: absolute; padding: 0; margin: 0; border: 0; background: none; cursor: pointer; -webkit-tap-highlight-color: transparent;
@@ -562,7 +567,8 @@
      the bottom or top patch (the plates have patches right at both ends) */
   #map { padding: calc(132px + env(safe-area-inset-top)) 0 calc(62px + env(safe-area-inset-bottom)); gap: 0; overflow: hidden; background: #1c1030; }
   #map::before { content: ""; position: absolute; inset: -40px; background: var(--plate) center / cover; filter: blur(24px) brightness(0.5); }
-  .map-art { position: relative; flex: none; height: 100%; aspect-ratio: 936 / 1681; background: center / 100% 100% no-repeat; touch-action: pan-y; }
+  .map-art { position: relative; flex: none; height: 100%; aspect-ratio: 936 / 1681; background: center / 100% 100% no-repeat; touch-action: pan-y;
+    border-radius: 2.6% / 1.45%; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35), 0 10px 28px rgba(0, 0, 0, 0.6); }
   .map-layer { position: absolute; inset: 0; }
   .map-layer[hidden] { display: none; }
   .map-art.standin { background: var(--felt-fuzz), radial-gradient(90% 60% at 40% 30%, rgba(255, 250, 230, 0.16), rgba(255, 250, 230, 0) 70%), var(--m-ground);
@@ -580,11 +586,13 @@
   .map-world .mw-name b { font-size: clamp(17px, 4.6vw, 23px); font-weight: 400; white-space: nowrap; }
   .map-world .mw-name small[hidden] { display: none; }
   .map-world.locked .mw-name b { color: #a99c9f; }
-  .map-top .map-arrow { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 48px; min-height: 48px; padding: 2px 8px 4px;
-    font-size: 28px; line-height: 1; border-radius: 24px; }
-  .map-arrow small { font-size: 10px; line-height: 1; white-space: nowrap; }
-  .map-arrow small:empty { display: none; }
-  .map-arrow.locked { filter: grayscale(0.7) brightness(0.85); }
+  .map-world.locked #map-world-no { display: none; }   /* the lock line takes its place, so the name stays two lines and clear of the plate */
+  /* ‹ ›: round felt buttons either side of the world name; toward a locked world, greyed with the kit's lock badge
+     on its shoulder (the world's name says what opens it once you turn to it) */
+  .map-top .felt-btn.map-arrow { position: relative; flex: none; min-width: 0; width: 46px; height: 46px; padding: 0 0 3px; border-radius: 50%; font-size: 30px; line-height: 1; --st-off: -6px; }
+  .map-arrow.locked { filter: grayscale(0.8) brightness(0.8); }
+  .map-arrow.locked::after { content: ''; position: absolute; right: -7px; top: -7px; width: 22px; height: 22px;
+    background: url(assets/kit/06_markers/ui_lock_badge_01.png) center / contain no-repeat; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.6)); }
   .map-node {
     position: absolute; padding: 0; margin: 0; border: 0; background: none; cursor: pointer; border-radius: 38%;
     left: calc(var(--x) / var(--cw) * 100%); top: calc(var(--y) / var(--ch) * 100%);
@@ -605,8 +613,9 @@
   .map-node .stars i { width: clamp(12px, 2.4vh, 22px); aspect-ratio: 1; background: url(assets/kit/sewing/sewing_star_empty_01.webp) center / contain no-repeat; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.6)); }
   .map-node .stars i.on { background-image: url(assets/kit/sewing/sewing_star_gold_01.webp); }
   .map-node.cleared .check { display: flex; font-size: 0; background: url(assets/kit/06_markers/ui_check_badge_01.png) center / contain no-repeat; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5)); }
-  .map-node.locked { background: rgba(12, 6, 24, 0.55); }
-  .map-node.locked .lock { display: flex; right: 30%; top: 15%; width: 40%; background: url(assets/kit/06_markers/ui_lock_badge_01.png) center / contain no-repeat; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5)); }
+  .map-node.locked:hover { background: none; }
+  .map-node.locked .lock { display: flex; left: 50%; top: 50%; right: auto; width: 34%; transform: translate(-50%, -50%); opacity: 0.9;
+    background: url(assets/kit/06_markers/ui_lock_badge_01.png) center / contain no-repeat; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.45)); }
   .map-node.disc { --fc: var(--m-felt); --rim: var(--m-rim); border-radius: 50%; border: 3px solid var(--rim); color: #fff4dc; font-family: var(--ui-font);
     background: var(--felt-fuzz), radial-gradient(130% 110% at 30% 12%, rgba(255, 250, 230, 0.3), rgba(255, 250, 230, 0) 55%), var(--fc);
     box-shadow: inset 0 2px 1px rgba(255, 255, 255, 0.28), inset 0 -3px 2px rgba(0, 0, 0, 0.3), 0 4px 0 var(--rim), 0 7px 12px rgba(0, 0, 0, 0.45);
@@ -640,25 +649,34 @@
   /* ---------- modals: felt panels with puffy felt headings, like the title art ---------- */
   /* (every screen but the title blurs the game behind it) */
   .screen:not(#title) { -webkit-backdrop-filter: blur(4px) saturate(0.85); backdrop-filter: blur(4px) saturate(0.85); }
-  /* Big felt buttons (PLAY-style): chunky rounded rectangle of felt, dark rim with a raised edge, cream stitching,
-     cream lettering outlined in the rim colour. --fc felt, --rim rim. */
+  /* Felt buttons, after the painted title tiles (PLAY, SHOP, HOW TO PLAY in assets/title-mock.webp): saturated felt
+     (--fc) with a soft top light, a thin near-black edge with a darker bevel band just inside it (--rim), a gold running
+     stitch close to the edge (--st), cream lettering with a soft drop, and a shallow lip under it. --st-off = how far in
+     the stitch runs (smaller buttons set less). */
   .felt-btn {
-    --fc: #43a332; --rim: #1a4d12;
-    display: inline-flex; align-items: center; justify-content: center; gap: 16px; box-sizing: border-box;
-    min-width: min(300px, 80vw); padding: 16px 34px 18px; border-radius: 24px; cursor: pointer; touch-action: manipulation;
-    font: 400 clamp(30px, 9vw, 44px)/1 var(--ui-font); letter-spacing: 1.5px; color: #fff6dc;
-    text-shadow: 0 -2px 0 var(--rim), 2px 0 0 var(--rim), -2px 0 0 var(--rim), 0 2px 0 var(--rim), 2px 2px 0 var(--rim), -2px 2px 0 var(--rim), 0 5px 0 var(--rim);
-    background: var(--felt-fuzz), radial-gradient(130% 110% at 30% 8%, rgba(255, 250, 230, 0.32), rgba(255, 250, 230, 0) 55%),
-      linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.2)), var(--fc);
-    border: 4px solid var(--rim);
-    box-shadow: inset 0 3px 1px rgba(255, 255, 255, 0.3), inset 0 -4px 2px rgba(0, 0, 0, 0.3), 0 6px 0 var(--rim), 0 12px 22px rgba(0, 0, 0, 0.5);
-    outline: 2.5px dashed rgba(255, 244, 214, 0.85); outline-offset: -11px;
+    --fc: #2f8f2a; --rim: #123d0e; --st: rgba(255, 210, 90, 0.95); --st-off: -9px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 14px; box-sizing: border-box;
+    min-width: min(300px, 80vw); padding: 16px 34px 18px; border-radius: 20px; cursor: pointer; touch-action: manipulation;
+    font: 400 clamp(30px, 9vw, 44px)/1 var(--ui-font); letter-spacing: 1px; color: #fff8ea;
+    text-shadow: 0 2px 0 var(--rim), 0 3px 5px rgba(0, 0, 0, 0.35);
+    background: var(--felt-fuzz), radial-gradient(120% 90% at 50% 0%, rgba(255, 250, 230, 0.2), rgba(255, 250, 230, 0) 60%),
+      linear-gradient(rgba(0, 0, 0, 0) 45%, rgba(0, 0, 0, 0.2)), var(--fc);
+    border: 2.5px solid #140b06;
+    box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--rim) 55%, transparent), inset 0 3px 2px rgba(255, 255, 255, 0.16),
+      0 3px 0 #140b06, 0 7px 12px rgba(0, 0, 0, 0.42);
+    outline: 2px dashed var(--st); outline-offset: var(--st-off);
     transition: transform 80ms ease-out, filter 80ms ease-out;
   }
-  .felt-btn:hover { filter: brightness(1.07); }
-  .felt-btn:active { transform: translateY(4px); box-shadow: inset 0 3px 1px rgba(255, 255, 255, 0.3), inset 0 -4px 2px rgba(0, 0, 0, 0.3), 0 2px 0 var(--rim), 0 6px 12px rgba(0, 0, 0, 0.5); }
+  .felt-btn:hover { filter: brightness(1.08); }
+  .felt-btn:active { transform: translateY(3px); box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--rim) 55%, transparent), inset 0 3px 2px rgba(255, 255, 255, 0.16),
+    0 0 0 #140b06, 0 3px 6px rgba(0, 0, 0, 0.42); }
   .felt-btn .tri { width: 0; height: 0; border-style: solid; border-width: 0.42em 0 0.42em 0.62em; border-color: transparent transparent transparent #ffc93d; filter: drop-shadow(0 3px 0 #8a4f08) drop-shadow(0 -1px 0 #8a4f08); }
-  .felt-btn.small, .felt-btn.back { --fc: #8a5428; --rim: #3a2210; }
+  .felt-btn.small, .felt-btn.back { --fc: #9a4520; --rim: #3a1406; --st-off: -7px; }
+  .felt-btn.small { border-radius: 14px; }
+  .felt-btn.blue { --fc: #24489a; --rim: #0c1d4a; }       /* the title's SHOP */
+  .felt-btn.purple { --fc: #5c2590; --rim: #240a40; }     /* the title's HOW TO PLAY */
+  /* a felt icon in a button (cream felt with a dark drop, like the title tiles' cart and book) */
+  .felt-btn .ico { flex: none; width: 1.25em; height: 1.25em; fill: #f6dca4; filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.4)); }
   /* The panel: brown felt with a fuzzy texture, a soft top light, a thick rim with a raised edge and a stitched border.
      Room at the top for the heading, which sits over the panel's top edge like a sewn-on patch. */
   .card {
@@ -699,8 +717,7 @@
   .card dt { font-size: 17px; color: #ffe4aa; }
   .card dd { font-size: 21px; text-align: right; color: #ffd23f; font-variant-numeric: tabular-nums; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45); }
   .card .felt-btn { font-size: clamp(24px, 7vw, 32px); min-width: 0; width: 100%; padding: 13px 20px 15px; }
-  .card .felt-btn.small { font-size: clamp(15px, 4.2vw, 18px); padding: 11px 8px 12px; letter-spacing: 0.3px; border-radius: 16px; outline-offset: -8px;
-    text-shadow: 0 -1px 0 var(--rim), 1px 0 0 var(--rim), -1px 0 0 var(--rim), 0 3px 0 var(--rim); }
+  .card .felt-btn.small { font-size: clamp(15px, 4.2vw, 18px); padding: 11px 8px 12px; letter-spacing: 0.3px; border-radius: 14px; }
   .over-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
   /* the Pin explainer (a pause card, once per Pin type: the first also shows how to build) */
   /* the Pin explainer (actionBar.js openPinIntro): the new Pin large, Tomato's line on it, the first time the three
@@ -1035,14 +1052,14 @@
   <div id="map-art" class="map-art" role="group" aria-label="Level map"></div>
   <div class="map-top">
     <span class="felt dark bt-chip" aria-label="Buttons"><span class="bt"></span><b id="map-buttons">0</b></span>
-    <button id="map-box" class="felt-btn small" type="button">Sewing Box</button>
-    <button id="map-shop" class="felt-btn small" type="button">Shop</button>
-    <button id="map-trophies" class="felt-btn small" type="button">Trophies</button>
+    <button id="map-box" class="felt-btn small map-tile" type="button"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 6V4.2C8.5 3 9.4 2 10.6 2h2.8c1.2 0 2.1 1 2.1 2.2V6h-1.8V4.4c0-.4-.2-.6-.6-.6h-2.2c-.4 0-.6.2-.6.6V6z"/><path d="M2.5 7h19v4.2h-19z"/><path d="M3.5 12.4h17v7.4c0 .9-.7 1.7-1.6 1.7H5.1c-.9 0-1.6-.8-1.6-1.7z"/><path d="M10.4 10h3.2v4.4h-3.2z" opacity=".5"/></svg><span>Sewing Box</span></button>
+    <button id="map-shop" class="felt-btn small blue map-tile" type="button"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M1.5 3.5h3.3l.7 2.5h16.2l-2.4 8.6H7.9l.5 1.9h11v2.2H6.7L3.2 5.7H1.5z"/><circle cx="9" cy="20.5" r="1.9"/><circle cx="17.5" cy="20.5" r="1.9"/></svg><span>Shop</span></button>
+    <button id="map-trophies" class="felt-btn small purple map-tile" type="button"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2.5h12v2h3.5v2.2c0 3-2 5.3-4.6 5.8A6 6 0 0 1 13.2 16v2.3h3.3v3.2h-9v-3.2h3.3V16a6 6 0 0 1-3.7-3.5C4.5 12 2.5 9.7 2.5 6.7V4.5H6zm0 4.2H4.6c.1 1.7 1 2.9 2 3.4A10 10 0 0 1 6 6.7zm12 0c0 1.2-.2 2.3-.6 3.4 1-.5 1.9-1.7 2-3.4z"/></svg><span>Trophies</span></button>
     <!-- the world on show (levelMap.js showWorld): ‹ › turn between worlds; a locked world's name greys -->
     <div id="map-world" class="map-world">
-      <button id="map-prev" class="felt-btn small map-arrow" type="button" aria-label="Previous world">‹<small></small></button>
+      <button id="map-prev" class="felt-btn small map-arrow" type="button" aria-label="Previous world">‹</button>
       <div class="felt dark mw-name"><small id="map-world-no">WORLD 1</small><b id="map-world-name"></b><small id="map-world-lock" hidden></small></div>
-      <button id="map-next" class="felt-btn small map-arrow" type="button" aria-label="Next world">›<small></small></button>
+      <button id="map-next" class="felt-btn small map-arrow" type="button" aria-label="Next world">›</button>
     </div>
   </div>
   <div class="map-bar">
