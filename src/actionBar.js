@@ -76,13 +76,14 @@ export function initActionBar(opts) {
     '<span class="tsub"></span><span class="tcost"><span class="spool"></span><span></span></span></span>';
   rankCard.addEventListener('click', e => { e.stopPropagation(); pickRank(); });
   row.appendChild(rankCard);
-  // the explainer: a line per Pin (its intro), shown only for the ones it is introducing
+  // the explainer: a row per Pin (its round icon, name and intro), shown only for the extra ones it is introducing (the
+  // first new Pin is the card's hero; see openPinIntro)
   const list = document.getElementById('pins-intro-list');
   for (const type in C.towers) {
     const def = C.towers[type], li = document.createElement('li');
     li.dataset.tower = type;
-    li.innerHTML = '<span class="dot"></span><span><b></b>: </span>';
-    li.querySelector('.dot').style.setProperty('--tc', def.color);
+    li.innerHTML = '<span class="felt ticon"></span><span><b></b>: </span>';
+    pinColours(li.firstChild, def); li.firstChild.innerHTML = PIN_ICON[type] || '';
     li.querySelector('b').textContent = def.name;
     li.lastChild.appendChild(document.createTextNode(def.intro || def.blurb));
     list.appendChild(li);
@@ -218,18 +219,18 @@ function pickRank() {
 // A + tap while this level offers a Pin not introduced yet: pause on the explainer for just the new one(s) (normally
 // the one this level brings; several only off the map or after Unlock all). The very first also explains building
 // ("Pins help you snip", tap a +). GOT IT resumes with that spot's picker open.
+const pinColours = (el, def) => { el.style.setProperty('--tc', def.color); el.style.setProperty('--pfc', def.felt); el.style.setProperty('--prim', rimOf(def.felt)); };
 let introSpot = -1;
 function openPinIntro(i) {
   const fresh = Object.keys(C.towers).filter(pinUnseen), first = !tips.pins.length, def = C.towers[fresh[0]];
   tips.pins.push(...fresh); saveTips();
   introSpot = i; hideTip(); setAttn(false);
-  const title = document.getElementById('pins-intro-title');
+  const title = document.getElementById('pins-intro-title'), g = id => document.getElementById(id);
   title.textContent = title.dataset.text = first ? 'BUILDING PINS' : fresh.length > 1 ? 'NEW PINS' : 'NEW PIN';
-  document.getElementById('pins-intro-lead').textContent = first ? 'Pins help you snip.' : 'A new Pin to build!';
-  document.getElementById('pins-intro-howto').hidden = !first;
-  document.getElementById('pins-intro-dot').setAttribute('fill', def.color);     // the diagram's picker shows the new Pin
-  document.getElementById('pins-intro-name').textContent = def.name;
-  for (const li of document.querySelectorAll('#pins-intro-list li[data-tower]')) li.hidden = !fresh.includes(li.dataset.tower);
+  g('pins-intro-howto').hidden = !first;
+  for (const id of ['pins-intro-icon', 'pins-intro-step-pick']) { const ic = g(id); pinColours(ic, def); ic.innerHTML = PIN_ICON[fresh[0]] || ''; }   // the hero: the first new Pin
+  g('pins-intro-name').textContent = def.name; g('pins-intro-blurb').textContent = def.blurb || ''; g('pins-intro-text').textContent = def.intro || def.blurb || '';
+  for (const li of document.querySelectorAll('#pins-intro-list li[data-tower]')) li.hidden = li.dataset.tower === fresh[0] || !fresh.includes(li.dataset.tower);
   setPaused(true, 'pins');
 }
 function closePinIntro() {
