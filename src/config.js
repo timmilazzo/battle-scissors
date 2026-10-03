@@ -455,7 +455,15 @@ export const CONFIG = {
     spiralRx: 330, spiralRy: 520, // "spiral": the outer ring's half-width and half-height (the heart pad sits in the middle of the plate)
     spiralTurns: 1.25,       // "spiral": turns round the heart (fewer if the road would touch itself)
     // plate painting (src/levelArt.js; which props each zone uses is in src/kit.js). Counts are for a size 1 plate; a
-    // bigger level (shown zoomed out) gets more in proportion to its size, and bigger clusters
+    // bigger level (shown zoomed out) gets more of them, each drawn bigger (propSizeGain), so fewer than its area alone would give
+    propScale: 1.2,          // every prop inside the tray (heroes, clusters, singles, fill, carpet, ponds) is drawn this many times its kit scale
+    propSizeGain: 0.6,       // ...and on a plate of size n, n ^ this times more (1.5: x1.28, 1.8: x1.42), so props lose less when the world zooms out; spreads, spacing and fill / carpet cells grow with it
+    midHeroFrom: 1.2,        // a plate at least this size also gets heroes between the roads, at the centres of its biggest pockets of open ground
+    midHeroes: [2, 3],       // ...this many (a range; fewer where the pockets are too small)
+    midHeroClear: 36,        // ...each keeps this far (plate units) past the road's outer edge on top of its radius (clear of the fence)
+    midHeroSpace: 260,       // ...and this far from another one (so each takes its own pocket)
+    midHeroMin: 0.6,         // ...in a tight pocket it may shrink to this share of its hero-tier scale, no smaller
+    midHeroCell: 16,         // ...the open ground is measured on a grid of cells this big (plate units)
     heroes: [1, 3],          // big focal props per plate (a zone's kit heroes), out in the margins beside the road
     heroFramedShare: 0.6,    // ...times this on a plate with a frame (its tray heroes sit in the compartments; these stay inside the walls)
     heroesTray: [3, 4],      // ...but a sewing-tray world (kit.js `tray`) gets this many big trees, along the walls
@@ -466,13 +474,13 @@ export const CONFIG = {
     heroOpenCost: 160,       // a hero may also stand in a big open stretch away from the margins, scored as if this far (plate units) from its best spot
     heroShrink: 0.85,        // a hero that fits nowhere tries again this much smaller (three times at most)
     clusters: 13,            // prop beds and heaps per plate (flower beds, bush groups, button spills, pin nests...)
-    clusterTries: 14,        // clear centres drawn per cluster; the one farthest from the other clusters and heroes wins
-    clusterAttempts: 5,      // ...and if that one can't hold enough of its pieces, the next farthest, this many in all
+    clusterTries: 30,        // clear centres drawn per cluster; the one farthest from the other clusters and heroes wins
+    clusterAttempts: 12,     // ...and if that one can't hold enough of its pieces, the next farthest, this many in all
     clusterFill: 0.6,        // a cluster needs at least this share of its pieces (and two) to land, or it moves on
     clusterPack: 0.6,        // members of one cluster may overlap: they keep only this share of their radii apart
     clusterShade: 0.26,      // darkness of the soft shadow pooled under a cluster
     singles: 5,              // lone mid-size props per plate
-    fillTries: 1100,         // fill pass: jittered spots tried across the plate (times size squared) for small props on ground still bare
+    fillTries: 1100,         // fill pass: jittered spots tried across the plate (times size squared over the size gain squared) for small props on ground still bare
     fillNearRoad: 0.45,      // ...a fill prop's centre keeps only this share of its radius (plus propGap) off the road's edge
     fillWall: 0.4,           // ...and this share of its radius inside the tray wall (it may lean over the rest)
     fillPack: 0.75,          // ...fill props may overlap each other: they keep only this share of their radii apart
@@ -494,7 +502,7 @@ export const CONFIG = {
     grade: 0.45,             // colour grade over the whole plate: a soft-light wash from the zone's tint (top left) to its shade (bottom right)
     vignette: 0.5,           // darkness of the plate's edges
     // carpet (the zone's props.carpet, kit.js): tiny pieces packed into every patch of ground still bare after the fill pass
-    carpetCell: 12,          // bare ground is found on a grid of cells this big (plate units)
+    carpetCell: 12,          // bare ground is found on a grid of cells this big (plate units, times the prop scale)
     carpetSpace: 1.05,       // a carpet piece keeps the next one this many of its radii away
     carpetCover: 0.75,       // a placed prop, pad or road covers the grid out to this share of its radius (carpet tucks in under the rest)
     carpetRoad: 26,          // carpet keeps this far off the road's outer edge (clear of the fence)
