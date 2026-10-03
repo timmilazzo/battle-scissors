@@ -4,9 +4,11 @@
 // the ground features (a satin river that crosses the road once under a ruler bridge, ponds), the frame, a felt road
 // with a soft contact shadow, a dark suede rim and a running stitch, the road kit (fences, edge strips, decals), the
 // kit's Pin pads, heart-pad workshop (with its flag posts) and big fork buttons, then the zone's props in tiers (a few
-// big heroes, lanterns along the road in the dark world, beds and heaps of related props, a few singles, a fill pass
-// and a carpet of tiny pieces over whatever ground is still bare; all clear of the road, pads and each other), the
-// glow under every lit thing, a colour grade and a vignette. Decoration uses its own seeded stream, so the same level
+// big heroes, on a bigger plate more heroes at the centres of the biggest pockets of ground between the roads, lanterns
+// along the road in the dark world, beds and heaps of related props, a few singles, a fill pass and a carpet of tiny
+// pieces over whatever ground is still bare; all clear of the road, pads and each other, and all drawn propScale x
+// their kit scale, times size ^ propSizeGain on a bigger plate so they don't shrink to a pattern when the world zooms
+// out), the glow under every lit thing, a colour grade and a vignette. Decoration uses its own seeded stream, so the same level
 // always paints the same plate. Called by render.js and the level lab; imports nothing that needs the game's DOM.
 //
 // Missing art: a sprite or texture the kit doesn't have yet (kit.js: still `wanted`) is skipped, or drawn as its
@@ -139,6 +141,10 @@ export function paintLevel(def) {
   const polys = def.paths.map(p => curve(p, 12)), road = roadIndex(polys);
   const roadOuter = G.roadHalf + G.roadBorder;
   const lerp = ([a, b]) => a + rng() * (b - a);
+  // every prop inside the tray (heroes, clusters, singles, fill, carpet, ponds; not the frame, road kit, pads or heart)
+  // is drawn ps x its kit scale: propScale on every plate, and n ^ propSizeGain more on a bigger one, so the props lose
+  // less on screen when the world zooms out. Counts and spacing follow, so a bigger plate gets fewer, bigger things.
+  const gain = n ** G.propSizeGain, ps = G.propScale * gain, many = n * n / (gain * gain);
   // (a zone still on a stand-in ground lays none of its props, only the stand-in carpet: the shared drawer junk alone
   // would fill it with screws; docs/worlds.md "stand-ins")
   const ZP = GZ === Z ? Z.props : { heroes: [], singles: [], clusters: [], ponds: [] };
@@ -219,7 +225,7 @@ export function paintLevel(def) {
   // 2c. ponds (props.ponds): flat on the ground, clear of the road, the pads, the heart, the river and each other
   if (P.ponds.length && G.ponds[zone]) {
     for (let i = 0, m = Math.round(lerp([G.ponds[zone][0], G.ponds[zone][1] + 0.99]) * n); i < m; i++) {
-      const e = pickWeighted(P.ponds, rng), scale = (e[2] + rng() * (e[3] - e[2])) * sn, rad = SPRITES[e[0]][5] * scale, rot = (rng() - 0.5) * 2 * e[4];
+      const e = pickWeighted(P.ponds, rng), scale = (e[2] + rng() * (e[3] - e[2])) * ps, rad = SPRITES[e[0]][5] * scale, rot = (rng() - 0.5) * 2 * e[4];
       for (let t = 0; t < G.pondTries; t++) {
         const x = rng() * W, y = rng() * H;
         if ((frame && !frame.inside(x, y, rad * 0.8)) || !road.clear(x, y, roadOuter + rad * 0.85 + G.pondClear)
@@ -287,7 +293,7 @@ export function paintLevel(def) {
   // carpet. Everything keeps clear of the road, the pads, the heart, the fork buttons and the other props.
   const gap = G.propGap;
   const fits = (x, y, rad, list = taken, share = 0.9, near = 0.92, wall = 1) => (!frame || frame.inside(x, y, rad * wall)) && road.clear(x, y, roadOuter + rad * near + gap) && !list.some(([tx, ty, tr]) => Math.hypot(x - tx, y - ty) < (tr + rad) * share + gap);
-  const make = e => { const scale = e[2] + rng() * (e[3] - e[2]); return { key: e[0], scale, rot: (rng() - 0.5) * 2 * e[4], rad: SPRITES[e[0]][5] * scale, x: null, y: 0 }; };
+  const make = e => { const scale = (e[2] + rng() * (e[3] - e[2])) * ps; return { key: e[0], scale, rot: (rng() - 0.5) * 2 * e[4], rad: SPRITES[e[0]][5] * scale, x: null, y: 0 }; };
   // heroes: alternating sides, each where it's clear, farthest from the other heroes and mostly on the plate. A tray world
   // gets 3 to 4 (its big trees), which may lean in over the wall (heroWall); other framed plates fewer (heroFramedShare).
   const heroes = [], xL = G.xMin * n, xR = W - (G.w - G.xMax) * n, used = new Set();
@@ -299,7 +305,6 @@ export function paintLevel(def) {
     const e = pickWeighted(P.heroes.filter(h => !used.has(h[0])), rng) || pickWeighted(P.heroes, rng);
     if (!e) break;
     const pk = make(e);
-    pk.scale *= sn; pk.rad *= sn;                                                       // a bigger plate is painted smaller: still crisp
     for (let shrink = 0; shrink < 4 && pk.x === null; shrink++) {
       if (shrink) { pk.scale *= G.heroShrink; pk.rad *= G.heroShrink; }
       let best = -Infinity;
@@ -318,14 +323,18 @@ export function paintLevel(def) {
     if (pk.x === null) continue;
     used.add(pk.key); heroes.push(pk); taken.push([pk.x, pk.y, pk.rad]);
   }
+  // heroes between the roads (a plate of size >= midHeroFrom): the biggest pockets of open ground in the road band, each
+  // filled at its centre by a hero of another kind (see midHeroes())
+  if (n >= G.midHeroFrom && P.heroes.length) for (const pk of midHeroes(def, P.heroes, polys, road, roadOuter, frame, taken, G, rng, make, ps)) { heroes.push(pk); taken.push([pk.x, pk.y, pk.rad]); }
   // lanterns along the road (a roadLanterns zone): every lanternEvery along each route, sides taking turns, beside the
   // fence; the lit sprite once it's in, a small drawn lantern with its glow until then
   const lanterns = Z.roadLanterns ? roadLanterns(def, polys, road, G, roadOuter, frame, taken, rng) : [];
   // clusters: a centre far from the other clusters and heroes, a core piece there, members packed around it
   const clusters = [], centres = heroes.map(h => [h.x, h.y]);
-  // (a bigger plate gets more clusters, and bigger ones, rather than n^2 as many: it's shown zoomed out)
-  for (let i = 0, m = P.clusters.length ? Math.round(G.clusters * n) : 0; i < m; i++) {
-    const kind = pickWeighted(P.clusters, rng, 'w'), spread = kind.spread * sn, cands = [];
+  // (a bigger plate gets more clusters, each spread out as much as its pieces are scaled up, rather than n^2 as many:
+  // it's shown zoomed out)
+  for (let i = 0, m = P.clusters.length ? Math.round(G.clusters * many) : 0; i < m; i++) {
+    const kind = pickWeighted(P.clusters, rng, 'w'), spread = kind.spread * ps, cands = [];
     for (let t = 0; t < G.clusterTries * 3 && cands.length < G.clusterTries; t++) {
       const x = -20 + rng() * (W + 40), y = -20 + rng() * (H + 40);
       if ((!frame || frame.inside(x, y, spread * 0.3)) && road.clear(x, y, roadOuter + spread * 0.3 + gap) && !taken.some(([tx, ty, tr]) => Math.hypot(x - tx, y - ty) < tr + spread * 0.25)) cands.push([x, y]);
@@ -334,7 +343,7 @@ export function paintLevel(def) {
     const far = ([x, y]) => centres.reduce((d, [px, py]) => Math.min(d, Math.hypot(px - x, py - y)), 1e9);
     cands.sort((p, q) => far(q) - far(p));
     for (const [cx, cy] of cands.slice(0, G.clusterAttempts)) {
-      const own = [], items = [], count = kind.members.length ? Math.floor(lerp([kind.n[0], kind.n[1] + 0.99]) * n) : 0;
+      const own = [], items = [], count = kind.members.length ? Math.floor(lerp([kind.n[0], kind.n[1] + 0.99])) : 0;
       let core = null;
       if (kind.core) {
         const pk = make(pickWeighted(kind.core, rng));
@@ -358,7 +367,7 @@ export function paintLevel(def) {
   }
   // singles: anywhere clear, biggest first
   const singles = [];
-  for (let i = 0, m = P.singles.length ? Math.round(G.singles * n) : 0; i < m; i++) singles.push(make(pickWeighted(P.singles, rng)));
+  for (let i = 0, m = P.singles.length ? Math.round(G.singles * many) : 0; i < m; i++) singles.push(make(pickWeighted(P.singles, rng)));
   singles.sort((a, b) => b.rad - a.rad);
   for (const pk of singles) {
     for (let t = 0; t < 30; t++) {
@@ -373,7 +382,7 @@ export function paintLevel(def) {
   const fillers = [], fillPool = P.fill || P.clusters.flatMap(cl => cl.members).concat(P.singles), own = [];
   // fill props may tuck up to the fences and lean over the tray wall a little, as on the painted plates
   const fillFits = (x, y, rad) => (!frame || frame.inside(x, y, rad * G.fillWall)) && road.clear(x, y, roadOuter + rad * G.fillNearRoad + gap) && !taken.some(([tx, ty, tr]) => Math.hypot(x - tx, y - ty) < (tr + rad) * 0.9 + gap);
-  const fillCount = fillPool.length ? Math.round(G.fillTries * n * n) : 0, cells = Math.max(1, Math.ceil(Math.sqrt(fillCount * W / H))), cw = W / cells;
+  const fillCount = fillPool.length ? Math.round(G.fillTries * many) : 0, cells = Math.max(1, Math.ceil(Math.sqrt(fillCount * W / H))), cw = W / cells;
   for (let i = 0; i < fillCount; i++) {
     const x = (i % cells + rng()) * cw, y = (Math.floor(i / cells) + rng()) * cw;
     if (y > H + 20) break;
@@ -384,7 +393,7 @@ export function paintLevel(def) {
   taken.push(...own);
   const placed = heroes.concat(fillers, singles.filter(s => s.x !== null), lanterns, ...clusters.map(cl => cl.items));
   // carpet: the tiniest pieces, packed into every bit of ground still bare (see carpet())
-  const carpetItems = P.carpet.length ? carpet(def, P.carpet, polys, roadOuter, frame, fixed, placed, taken.slice(fixed.length), G, rng, make, sn) : [];
+  const carpetItems = P.carpet.length ? carpet(def, P.carpet, polys, roadOuter, frame, fixed, placed, taken.slice(fixed.length), G, rng, make, ps) : [];
 
   // lights: every lit prop (kit.js LIGHTS) and the road lanterns, for the dark world (def.lights, see the header)
   const lights = [];
@@ -408,15 +417,16 @@ export function paintLevel(def) {
     g.fillStyle = gr; g.fillRect(pk.x - r, cy - r, 2 * r, 2 * r);
   }
   for (const cl of clusters) {
-    const r = cl.r + 40, cy = cl.y + 12, gr = g.createRadialGradient(cl.x, cy, 0, cl.x, cy, r);
+    const r = cl.r + 40 * ps, cy = cl.y + 12 * ps, gr = g.createRadialGradient(cl.x, cy, 0, cl.x, cy, r);
     gr.addColorStop(0, 'rgba(0,10,12,' + G.clusterShade + ')'); gr.addColorStop(1, 'rgba(0,10,12,0)');
     g.fillStyle = gr; g.fillRect(cl.x - r, cy - r, 2 * r, 2 * r);
   }
   drawGlows(g, lights, G);
-  for (const h of heroes) kitSprite(g, h.key, h.x, h.y, h.scale, h.rot, 2.2);
+  // (shadows grow with the size gain, so a bigger plate's bigger props cast as much shadow on screen)
+  for (const h of heroes) kitSprite(g, h.key, h.x, h.y, h.scale, h.rot, 2.2 * gain);
   const rest = clusters.concat(singles.concat(fillers, lanterns).filter(s => s.x !== null).map(s => ({ y: s.y, items: [s] })));
   rest.sort((a, b) => a.y - b.y);
-  for (const r of rest) for (const pk of r.items) { if (pk.draw) pk.draw(g); else kitSprite(g, pk.key, pk.x, pk.y, pk.scale, pk.rot, 1); }
+  for (const r of rest) for (const pk of r.items) { if (pk.draw) pk.draw(g); else kitSprite(g, pk.key, pk.x, pk.y, pk.scale, pk.rot, pk.light ? 1 : gain); }   // (a road lantern isn't scaled)
 
   // 6b. the level file's hand-placed dressing (src/levelDress.js), on top of the scatter, under the grade
   drawDressing(g, def);
@@ -443,9 +453,10 @@ export function paintLevel(def) {
 // pad, the heart, a fork button, the river, a pond or outside the tray wall is solid, every placed prop covers the cells
 // out to carpetCover of its radius; then the free cells, in a seeded shuffle, each take one tiny piece (a little off
 // the cell's centre), which covers carpetSpace of its radius for the next. Fast enough for the thousands a big plate takes.
-function carpet(def, pool, polys, roadOuter, frame, fixed, placed, others, G, rng, make, sn) {
-  const W = def.w, H = def.h, cs = G.carpetCell, gw = Math.ceil(W / cs) + 1, gh = Math.ceil(H / cs) + 1, grid = new Uint8Array(gw * gh);
-  const maxR = pool.reduce((m, e) => Math.max(m, SPRITES[e[0]][5] * e[3]), 0) * sn;
+function carpet(def, pool, polys, roadOuter, frame, fixed, placed, others, G, rng, make, ps) {
+  // (make() already scales each piece by ps, the painter's prop scale; the cells grow with it)
+  const W = def.w, H = def.h, cs = G.carpetCell * ps, gw = Math.ceil(W / cs) + 1, gh = Math.ceil(H / cs) + 1, grid = new Uint8Array(gw * gh);
+  const maxR = pool.reduce((m, e) => Math.max(m, SPRITES[e[0]][5] * e[3]), 0) * ps;
   const stamp = (x, y, r) => {
     const i0 = Math.max(0, Math.floor((x - r) / cs)), i1 = Math.min(gw - 1, Math.floor((x + r) / cs)), j0 = Math.max(0, Math.floor((y - r) / cs)), j1 = Math.min(gh - 1, Math.floor((y + r) / cs)), r2 = r * r;
     for (let j = j0; j <= j1; j++) { const dy = (j + 0.5) * cs - y; for (let i = i0; i <= i1; i++) { const dx = (i + 0.5) * cs - x; if (dx * dx + dy * dy <= r2) grid[j * gw + i] = 1; } }
@@ -466,12 +477,89 @@ function carpet(def, pool, polys, roadOuter, frame, fixed, placed, others, G, rn
   for (const idx of free) {
     if (grid[idx]) continue;
     const pk = make(pickWeighted(pool, rng));
-    pk.scale *= sn; pk.rad *= sn;
     pk.x = ((idx % gw) + 0.2 + rng() * 0.6) * cs; pk.y = (Math.floor(idx / gw) + 0.2 + rng() * 0.6) * cs;
     stamp(pk.x, pk.y, Math.max(cs * 0.5, pk.rad * G.carpetSpace));
     out.push(pk);
   }
   out.sort((p, q) => p.y - q.y);
+  return out;
+}
+
+// ======================= heroes between the roads =======================
+// On a bigger plate the open ground between and beside the roads reads as texture once the world zooms out, so its
+// biggest pockets each get a hero, at the pocket's centre. The plate is rasterised (CONFIG.levelGen.midHeroCell) with
+// everything solid stamped in: the road out to midHeroClear past its edge (clear of the fence), and every entry of
+// `taken` (pads with their rings, the heart, fork buttons, the river, ponds, the frame's and the margins' heroes) plus
+// propGap; outside the tray wall counts as solid too. A chamfer distance transform then gives every free cell its
+// clearance. The deepest cell in the road band (the pads' band up and down, so the HUD and the action bar don't hide
+// it) is the biggest pocket's centre; a hero of a family not used here yet (trees, then a big junk piece, ...) is fitted
+// there at the hero tier's scale, shrunk to no less than midHeroMin of it in a tight pocket, checked exactly against
+// the road, `taken` and the wall, and stamped out with midHeroSpace round it so the next one goes to another pocket.
+// Returns the placed props (make() records), up to midHeroes of them.
+const heroFamily = k => k.replace(/\d+$/, '').replace(/(Big|Small|Large|Red|Gold|Orange|Green|Blue|Yellow|Teal|[LMS])$/, '');
+function midHeroes(def, pool, polys, road, roadOuter, frame, taken, G, rng, make, ps) {
+  const W = def.w, H = def.h, n = def.size || 1, cs = G.midHeroCell, gw = Math.ceil(W / cs), gh = Math.ceil(H / cs);
+  const d = new Float32Array(gw * gh).fill(1e9);
+  const stamp = (x, y, r) => {
+    const i0 = Math.max(0, Math.floor((x - r) / cs)), i1 = Math.min(gw - 1, Math.floor((x + r) / cs)), j0 = Math.max(0, Math.floor((y - r) / cs)), j1 = Math.min(gh - 1, Math.floor((y + r) / cs)), r2 = r * r;
+    for (let j = j0; j <= j1; j++) { const dy = (j + 0.5) * cs - y; for (let i = i0; i <= i1; i++) { const dx = (i + 0.5) * cs - x; if (dx * dx + dy * dy <= r2) d[j * gw + i] = 0; } }
+  };
+  const roadR = roadOuter + G.midHeroClear;
+  for (const Pl of polys) for (let i = 0; i < Pl.length; i++) {
+    stamp(Pl[i][0], Pl[i][1], roadR);
+    if (i) { const [ax, ay] = Pl[i - 1], [bx, by] = Pl[i], m = Math.floor(Math.hypot(bx - ax, by - ay) / cs); for (let k = 1; k < m; k++) stamp(ax + (bx - ax) * k / m, ay + (by - ay) * k / m, roadR); }
+  }
+  for (const [x, y, r] of taken) stamp(x, y, r + G.propGap);
+  if (frame) for (let j = 0; j < gh; j++) for (let i = 0; i < gw; i++) if (!frame.inside((i + 0.5) * cs, (j + 0.5) * cs, 0)) d[j * gw + i] = 0;
+  // two chamfer passes (straight steps cs, diagonal ones cs * sqrt 2): run again after new stamps, the values only drop
+  const a = cs, b = cs * Math.SQRT2;
+  const transform = () => {
+    for (let j = 0; j < gh; j++) for (let i = 0; i < gw; i++) {
+      const o = j * gw + i; let v = d[o];
+      if (!v) continue;
+      if (i) v = Math.min(v, d[o - 1] + a);
+      if (j) { v = Math.min(v, d[o - gw] + a); if (i) v = Math.min(v, d[o - gw - 1] + b); if (i < gw - 1) v = Math.min(v, d[o - gw + 1] + b); }
+      d[o] = v;
+    }
+    for (let j = gh - 1; j >= 0; j--) for (let i = gw - 1; i >= 0; i--) {
+      const o = j * gw + i; let v = d[o];
+      if (!v) continue;
+      if (i < gw - 1) v = Math.min(v, d[o + 1] + a);
+      if (j < gh - 1) { v = Math.min(v, d[o + gw] + a); if (i < gw - 1) v = Math.min(v, d[o + gw + 1] + b); if (i) v = Math.min(v, d[o + gw - 1] + b); }
+      d[o] = v;
+    }
+  };
+  transform();
+  const xa = G.xMin * n, xb = W - (G.w - G.xMax) * n, ya = G.spotYMin * n, yb = G.spotYMax * n;
+  const out = [], fams = new Set(), want = Math.floor(G.midHeroes[0] + rng() * (G.midHeroes[1] - G.midHeroes[0] + 0.99));
+  const smallest = pool.reduce((m, e) => Math.min(m, SPRITES[e[0]][5] * e[2]), 1e9) * ps * G.midHeroMin;
+  for (let tries = 0; out.length < want && tries < want * 4; tries++) {
+    // the deepest free cell in the band: its clearance (to the nearest solid cell's edge, and the plate's edge)
+    let best = 0, bx = 0, by = 0;
+    for (let j = Math.floor(ya / cs); j <= Math.min(gh - 1, Math.floor(yb / cs)); j++) for (let i = Math.floor(xa / cs); i <= Math.min(gw - 1, Math.floor(xb / cs)); i++) {
+      const x = (i + 0.5) * cs, y = (j + 0.5) * cs, c = Math.min(d[j * gw + i] - cs / 2, x, W - x, y, H - y);
+      if (c > best) { best = c; bx = x; by = y; }
+    }
+    if (best < smallest) break;
+    // a hero of a family not used here yet, the first that fits the pocket; failing that, another sprite of a used one
+    let cands = pool.filter(e => !fams.has(heroFamily(e[0]))), later = pool.filter(e => fams.has(heroFamily(e[0])) && !out.some(o => o.key === e[0]));
+    let pk = null;
+    while (!pk && (cands.length || later.length)) {
+      if (!cands.length) { cands = later; later = []; }
+      const e = pickWeighted(cands, rng), p = make(e), floor = p.scale * G.midHeroMin * 0.9;   // (a tenth under, for the raster's error)
+      cands = cands.filter(q => q !== e);
+      if (p.rad > best) { const s = best / p.rad; if (s < G.midHeroMin) continue; p.scale *= s; p.rad = best; }
+      while (p.scale >= floor) {
+        if (road.clear(bx, by, roadOuter + p.rad + G.midHeroClear) && (!frame || frame.inside(bx, by, p.rad))
+          && !taken.some(([tx, ty, tr]) => Math.hypot(bx - tx, by - ty) < tr + p.rad + G.propGap)
+          && !out.some(o => Math.hypot(bx - o.x, by - o.y) < o.rad + p.rad + G.midHeroSpace)) { p.x = bx; p.y = by; pk = p; break; }
+        p.scale *= 0.92; p.rad *= 0.92;                                                   // (the raster is coarse: a touch smaller)
+      }
+    }
+    if (!pk) { stamp(bx, by, cs * 2); transform(); continue; }                            // nothing fits here: try the next pocket
+    out.push(pk); fams.add(heroFamily(pk.key));
+    stamp(pk.x, pk.y, pk.rad + G.midHeroSpace); transform();
+  }
   return out;
 }
 
