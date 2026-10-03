@@ -2,7 +2,10 @@
 // short legs, sewn-on patches with stitched borders, cross-stitched seams, glowing red button eyes and a stitched
 // mouth. Soft volume shading and a felt speckle; a soft brown rim keeps them readable on the tan road.
 // Each type is drawn once per resize into a small offscreen canvas (and once more per higher rank, recoloured), plus a ground shadow and a dust-puff sprite
-// drawn under it while it walks. Live overlays on top: the Brute's thimble armor and the Seam Ripper's glowing seam.
+// drawn under it while it walks. Live overlays on top: the Brute's thimble armor and the Seam Ripper's glowing seam, dazed
+// stars (drawDazed) and the wrap / honey over an enemy a captures boss has caught (drawBound). The five worlds add Leaf,
+// Burr, Moth, Snowball and Icicle, the five mini bosses (Bobbin, Zipper, Honey Dipper, Bottle Cap, Snow Globe) and the
+// Twine Ball and Skeleton Key; sprites take a size factor (a grown Snowball, a Moth up in the air).
 import { CONFIG as C } from './config.js';
 import { TAU, DEG } from './core.js';
 
@@ -349,6 +352,331 @@ const ART = {
     mouth(g, r, 0.26, 0.36, true, LIGHT_THREAD);
     arm(g, r, -1, t.color, 0.42); arm(g, r, 1, t.color, 0.42);
   } },
+  // ---------- the five worlds' enemies (docs/worlds.md) ----------
+  // Leaf (autumn): a felt leaf on its stem, a stitched midrib and veins, light enough to drift and blow along.
+  leaf: { extent: 1.55, draw(g, r, t) {
+    g.lineCap = 'round'; g.strokeStyle = shade(t.patch, 0.35); g.lineWidth = Math.max(1.5, r * 0.13);
+    g.beginPath(); g.moveTo(0, r * 0.85); g.quadraticCurveTo(r * 0.2, r * 1.15, r * 0.06, r * 1.38); g.stroke();
+    const body = new Path2D();
+    body.moveTo(0, -r * 1.2); body.bezierCurveTo(r * 1.0, -r * 0.72, r * 0.95, r * 0.5, 0, r * 0.95);
+    body.bezierCurveTo(-r * 0.95, r * 0.5, -r * 1.0, -r * 0.72, 0, -r * 1.2); body.closePath();
+    g.fillStyle = t.color; g.fill(body);
+    plush(g, body, r, t.color, 81);
+    g.save(); g.clip(body);
+    g.strokeStyle = shade(t.color, 0.35); g.lineWidth = Math.max(0.8, r * 0.05); g.beginPath();
+    for (const y of [-0.55, -0.15, 0.25]) { g.moveTo(0, (y + 0.12) * r); g.lineTo(-0.7 * r, (y - 0.25) * r); g.moveTo(0, (y + 0.12) * r); g.lineTo(0.7 * r, (y - 0.25) * r); }
+    g.stroke();
+    patch(g, r, 0.38, 0.42, 0.16, 0.4, t.patch, 83);
+    patch(g, r, -0.42, 0.2, 0.12, -0.3, t.patch2, 85);
+    g.restore();
+    seam(g, r, [[0, -1.1], [0, 0.88]], shade(t.color, 0.55));
+    rim(g, body, r, t.color);
+    buttonEye(g, -0.3 * r, -0.32 * r, 0.17 * r, '#e0252b', 'rgba(255,40,30,0.4)');
+    buttonEye(g, 0.3 * r, -0.34 * r, 0.17 * r, '#e0252b', 'rgba(255,40,30,0.4)');
+    mouth(g, r, 0.02, 0.14, false);
+    arm(g, r, -1, t.color, 0.26); arm(g, r, 1, t.color, 0.26);
+  } },
+
+  // Burr (autumn): a round seed ball bristling with felt spikes, gold-tipped: snip it near the pivot, not the tips.
+  burr: { extent: 1.6, draw(g, r, t) {
+    legs(g, r, t.color);
+    g.lineJoin = 'round'; g.strokeStyle = OUTLINE; g.lineWidth = Math.max(1, r * 0.04);
+    for (let i = 0; i < 14; i++) {
+      const a = i / 14 * TAU + 0.1, w = 0.17;
+      g.beginPath(); g.moveTo(Math.cos(a - w) * r * 0.78, Math.sin(a - w) * r * 0.78); g.lineTo(Math.cos(a) * r * 1.45, Math.sin(a) * r * 1.45);
+      g.lineTo(Math.cos(a + w) * r * 0.78, Math.sin(a + w) * r * 0.78); g.closePath();
+      g.fillStyle = t.patch; g.fill(); g.stroke();
+      g.fillStyle = t.patch2; g.beginPath(); g.arc(Math.cos(a) * r * 1.33, Math.sin(a) * r * 1.33, r * 0.07, 0, TAU); g.fill();
+    }
+    const body = new Path2D(); body.arc(0, 0, r * 0.92, 0, TAU);
+    g.fillStyle = t.color; g.fill(body);
+    plush(g, body, r, t.color, 91);
+    g.save(); g.clip(body);
+    const rand = lcg(93); g.strokeStyle = shade(t.color, 0.45); g.lineWidth = Math.max(0.8, r * 0.04); g.lineCap = 'round'; g.beginPath();
+    for (let i = 0; i < 16; i++) {                                      // little hooked prickles all over
+      const x = (rand() * 2 - 1) * r * 0.8, y = (rand() * 2 - 1) * r * 0.8;
+      g.moveTo(x, y); g.quadraticCurveTo(x + r * 0.08, y - r * 0.1, x + r * 0.13, y - r * 0.03);
+    }
+    g.stroke();
+    g.restore();
+    rim(g, body, r, t.color);
+    brows(g, r, -0.32);
+    buttonEye(g, -0.3 * r, -0.18 * r, 0.17 * r, '#e0252b', 'rgba(255,40,30,0.45)');
+    buttonEye(g, 0.3 * r, -0.2 * r, 0.17 * r, '#e0252b', 'rgba(255,40,30,0.45)');
+    mouth(g, r, 0.22, 0.26, true);
+  } },
+
+  // Moth (night): a fuzzy felt body between four big stitched wings with eye spots, feathery antennae.
+  moth: { extent: 1.75, draw(g, r, t) {
+    for (const s of [-1, 1]) {
+      for (const [x, y, w, h, rot, c] of [[0.78, -0.3, 0.78, 0.5, -0.55, t.patch], [0.6, 0.42, 0.5, 0.36, 0.5, shade(t.patch, 0.2)]]) {
+        g.save(); g.translate(s * x * r, y * r); g.rotate(s * rot);
+        const wing = new Path2D(); wing.ellipse(0, 0, w * r, h * r, 0, 0, TAU);
+        g.fillStyle = c; g.fill(wing);
+        plush(g, wing, r * 0.7, t.patch, 101 + s);
+        g.fillStyle = t.patch2; g.beginPath(); g.arc(s * w * r * 0.25, 0, h * r * 0.42, 0, TAU); g.fill();   // eye spot
+        g.fillStyle = OUTLINE; g.beginPath(); g.arc(s * w * r * 0.25, 0, h * r * 0.16, 0, TAU); g.fill();
+        g.setLineDash([Math.max(1, r * 0.07), Math.max(1, r * 0.05)]); g.strokeStyle = THREAD; g.lineWidth = Math.max(0.9, r * 0.045); g.stroke(wing); g.setLineDash([]);
+        g.restore();
+      }
+    }
+    g.lineCap = 'round'; g.strokeStyle = OUTLINE; g.lineWidth = Math.max(1, r * 0.05);   // antennae
+    g.beginPath(); for (const s of [-1, 1]) { g.moveTo(s * r * 0.15, -r * 0.85); g.quadraticCurveTo(s * r * 0.35, -r * 1.4, s * r * 0.6, -r * 1.45); } g.stroke();
+    g.fillStyle = t.patch2; for (const s of [-1, 1]) { g.beginPath(); g.arc(s * r * 0.6, -r * 1.45, r * 0.09, 0, TAU); g.fill(); }
+    const body = egg(r * 0.92, 0.72);
+    g.fillStyle = t.color; g.fill(body);
+    plush(g, body, r, t.color, 105);
+    g.save(); g.clip(body);
+    g.strokeStyle = shade(t.color, 0.3); g.lineWidth = Math.max(1, r * 0.07); g.beginPath();      // fuzzy bands
+    for (const y of [0.1, 0.4, 0.66]) { g.moveTo(-r, y * r); g.quadraticCurveTo(0, (y + 0.08) * r, r, y * r); }
+    g.stroke();
+    g.restore();
+    rim(g, body, r, t.color);
+    buttonEye(g, -0.22 * r, -0.42 * r, 0.16 * r, '#e0252b', 'rgba(255,40,30,0.4)');
+    buttonEye(g, 0.22 * r, -0.44 * r, 0.16 * r, '#e0252b', 'rgba(255,40,30,0.4)');
+    mouth(g, r, -0.14, 0.1, false);
+  } },
+
+  // Snowball (snow): a lumpy white fleece ball in a knitted scarf, coal-button eyes and a felt carrot nose. It grows.
+  snowball: { extent: 1.45, draw(g, r, t) {
+    const body = blob(r * 0.95, [1, 0.96, 1.03, 0.97, 1.02, 0.95, 1.01, 0.98], 0.2);
+    g.fillStyle = t.color; g.fill(body);
+    plush(g, body, r, t.color, 111);
+    g.save(); g.clip(body);
+    const rand = lcg(113);
+    for (let i = 0; i < 9; i++) {                                         // packed-snow lumps
+      g.fillStyle = i & 1 ? 'rgba(170,200,230,0.28)' : 'rgba(255,255,255,0.55)';
+      g.beginPath(); g.arc((rand() * 2 - 1) * r * 0.75, (rand() * 2 - 1) * r * 0.75, r * (0.12 + rand() * 0.14), 0, TAU); g.fill();
+    }
+    g.fillStyle = t.patch; g.beginPath();                                // the scarf, wrapped round
+    g.moveTo(-r, r * 0.12); g.quadraticCurveTo(0, r * 0.32, r, r * 0.12); g.lineTo(r, r * 0.36); g.quadraticCurveTo(0, r * 0.58, -r, r * 0.36); g.closePath(); g.fill();
+    g.strokeStyle = t.patch2; g.lineWidth = Math.max(1, r * 0.07); g.beginPath();
+    for (let x = -0.8; x <= 0.8; x += 0.32) { g.moveTo(x * r, r * (0.22 + 0.05 * (1 - x * x))); g.lineTo(x * r, r * (0.42 + 0.05 * (1 - x * x))); }
+    g.stroke();
+    g.restore();
+    g.fillStyle = t.patch; g.beginPath();                                // the scarf's tail
+    g.moveTo(r * 0.45, r * 0.4); g.lineTo(r * 0.75, r * 0.95); g.lineTo(r * 0.5, r * 1.0); g.lineTo(r * 0.28, r * 0.45); g.closePath(); g.fill();
+    g.strokeStyle = THREAD; g.lineWidth = Math.max(0.8, r * 0.04); g.stroke();
+    rim(g, body, r, '#9fb4c8');
+    buttonEye(g, -0.3 * r, -0.36 * r, 0.14 * r, '#3a3a44', null);
+    buttonEye(g, 0.3 * r, -0.38 * r, 0.14 * r, '#3a3a44', null);
+    g.fillStyle = '#f08a2a'; g.beginPath(); g.moveTo(-r * 0.08, -r * 0.16); g.lineTo(r * 0.42, -r * 0.08); g.lineTo(-r * 0.06, -r * 0.02); g.closePath(); g.fill();
+    g.strokeStyle = shade('#f08a2a', 0.5); g.lineWidth = Math.max(0.8, r * 0.035); g.stroke();
+    g.fillStyle = '#3a3a44'; for (const x of [-0.18, -0.06, 0.06, 0.18]) { g.beginPath(); g.arc(x * r, r * (0.04 + 0.04 * Math.abs(x) * 3), r * 0.04, 0, TAU); g.fill(); }
+  } },
+
+  // Icicle (snow): a slim ice shard on stubby legs, faceted highlights and a drip: quick, and Ice does nothing to it.
+  icicle: { extent: 1.6, draw(g, r, t) {
+    legs(g, r, shade(t.color, 0.2));
+    const body = new Path2D();
+    body.moveTo(0, -r * 1.35); body.lineTo(r * 0.62, -r * 0.35); body.quadraticCurveTo(r * 0.72, r * 0.5, r * 0.3, r * 0.92);
+    body.lineTo(-r * 0.3, r * 0.92); body.quadraticCurveTo(-r * 0.72, r * 0.5, -r * 0.62, -r * 0.35); body.closePath();
+    g.fillStyle = t.color; g.fill(body);
+    plush(g, body, r, t.color, 121);
+    g.save(); g.clip(body);
+    g.fillStyle = 'rgba(255,255,255,0.45)'; g.beginPath(); g.moveTo(0, -r * 1.35); g.lineTo(-r * 0.62, -r * 0.35); g.lineTo(-r * 0.2, -r * 0.1); g.closePath(); g.fill();
+    g.fillStyle = t.patch; g.globalAlpha = 0.5; g.beginPath(); g.moveTo(0, -r * 1.35); g.lineTo(r * 0.62, -r * 0.35); g.lineTo(r * 0.2, -r * 0.1); g.closePath(); g.fill(); g.globalAlpha = 1;
+    g.strokeStyle = t.patch2; g.lineWidth = Math.max(1, r * 0.05); g.beginPath(); g.moveTo(-r * 0.35, r * 0.5); g.lineTo(-r * 0.15, r * 0.25); g.stroke();
+    g.restore();
+    seam(g, r, [[0, -1.25], [0, -0.75]], LIGHT_THREAD);
+    rim(g, body, r, t.color);
+    g.fillStyle = t.patch2; g.beginPath(); g.ellipse(r * 0.3, r * 1.05, r * 0.08, r * 0.13, 0, 0, TAU); g.fill();   // a drip
+    brows(g, r, -0.3, shade(t.patch, 0.4));
+    buttonEye(g, -0.24 * r, -0.16 * r, 0.15 * r, '#2f63c9', 'rgba(120,200,255,0.45)');
+    buttonEye(g, 0.24 * r, -0.18 * r, 0.15 * r, '#2f63c9', 'rgba(120,200,255,0.45)');
+    mouth(g, r, 0.2, 0.14, false, shade(t.patch, 0.5));
+    arm(g, r, -1, t.color, 0.24); arm(g, r, 1, t.color, 0.24);
+  } },
+
+  // ---------- mini bosses (2.5 x an enemy; one twist each, previewing their world's boss) ----------
+  // The Bobbin (meadow): a wooden spool wound with red thread, a loose end trailing: it spools off Scraps.
+  bobbin: { extent: 1.5, draw(g, r, t) {
+    legs(g, r, t.patch2);
+    const core = new Path2D(); core.rect(-r * 0.64, -r * 0.72, r * 1.28, r * 1.44);
+    g.fillStyle = t.patch; g.fill(core);
+    plush(g, core, r, t.patch, 131);
+    g.save(); g.clip(core);
+    g.lineWidth = Math.max(1, r * 0.05);
+    for (let y = -0.7; y <= 0.7; y += 0.12) {                            // wound thread
+      g.strokeStyle = (Math.round(y * 100) & 1) ? shade(t.patch, 0.3) : tint(t.patch, 0.25);
+      g.beginPath(); g.moveTo(-r * 0.7, y * r); g.quadraticCurveTo(0, (y + 0.06) * r, r * 0.7, y * r); g.stroke();
+    }
+    g.restore();
+    for (const y of [-0.8, 0.8]) {                                       // the wooden flanges
+      const fl = new Path2D(); fl.ellipse(0, y * r, r * 0.98, r * 0.24, 0, 0, TAU);
+      g.fillStyle = t.color; g.fill(fl); plush(g, fl, r, t.color, 133);
+      rim(g, fl, r, t.color);
+    }
+    g.fillStyle = shade(t.color, 0.7); g.beginPath(); g.ellipse(0, -r * 0.8, r * 0.18, r * 0.06, 0, 0, TAU); g.fill();   // the spindle hole
+    g.strokeStyle = t.patch; g.lineCap = 'round'; g.lineWidth = Math.max(1.2, r * 0.05);   // the loose end
+    g.beginPath(); g.moveTo(r * 0.64, r * 0.2); g.bezierCurveTo(r * 1.0, r * 0.3, r * 0.9, r * 0.7, r * 1.15, r * 0.85); g.stroke();
+    buttonEye(g, -0.26 * r, -0.26 * r, 0.17 * r, '#ffd23f', 'rgba(255,210,63,0.4)');
+    buttonEye(g, 0.26 * r, -0.28 * r, 0.17 * r, '#ffd23f', 'rgba(255,210,63,0.4)');
+    brows(g, r, -0.42);
+    mouth(g, r, 0.14, 0.24, true, LIGHT_THREAD);
+    arm(g, r, -1, t.color, 0.3); arm(g, r, 1, t.color, 0.3);
+  } },
+
+  // The Zipper (denim): a steel zip slider with a brass pull tab, teeth along its top: its real teeth are its Scraps.
+  zipper: { extent: 1.6, draw(g, r, t) {
+    const tab = new Path2D(); tab.moveTo(-r * 0.24, r * 0.4); tab.lineTo(r * 0.24, r * 0.4); tab.lineTo(r * 0.3, r * 1.3);
+    tab.quadraticCurveTo(0, r * 1.45, -r * 0.3, r * 1.3); tab.closePath();
+    g.fillStyle = t.patch2; g.fill(tab); plush(g, tab, r * 0.6, t.patch2, 141);
+    g.lineJoin = 'round'; g.strokeStyle = OUTLINE; g.lineWidth = Math.max(1.5, r * 0.05); g.stroke(tab);
+    g.fillStyle = shade(t.patch2, 0.6); g.beginPath(); g.ellipse(0, r * 1.08, r * 0.1, r * 0.14, 0, 0, TAU); g.fill();
+    g.fillStyle = shade(t.color, 0.15);                                   // teeth along the top
+    for (let x = -0.9; x <= 0.91; x += 0.2) { g.fillRect((x - 0.07) * r, -r * 1.02, r * 0.14, r * 0.26); g.strokeRect((x - 0.07) * r, -r * 1.02, r * 0.14, r * 0.26); }
+    const body = new Path2D();
+    body.moveTo(-r * 0.9, -r * 0.8); body.lineTo(r * 0.9, -r * 0.8); body.quadraticCurveTo(r * 0.95, -r * 0.7, r * 0.85, -r * 0.5);
+    body.lineTo(r * 0.5, r * 0.5); body.quadraticCurveTo(0, r * 0.68, -r * 0.5, r * 0.5); body.lineTo(-r * 0.85, -r * 0.5);
+    body.quadraticCurveTo(-r * 0.95, -r * 0.7, -r * 0.9, -r * 0.8); body.closePath();
+    g.fillStyle = t.color; g.fill(body);
+    const gr = g.createLinearGradient(-r, -r, r, r);
+    gr.addColorStop(0, 'rgba(255,255,255,0.45)'); gr.addColorStop(0.45, 'rgba(255,255,255,0)'); gr.addColorStop(1, 'rgba(0,0,0,0.3)');
+    g.fillStyle = gr; g.fill(body);
+    g.save(); g.clip(body); patch(g, r, 0.5, -0.1, 0.16, 0.3, t.patch, 143); g.restore();
+    rim(g, body, r, t.color);
+    brows(g, r, -0.48);
+    buttonEye(g, -0.3 * r, -0.32 * r, 0.15 * r, '#e0252b', 'rgba(255,40,30,0.45)');
+    buttonEye(g, 0.3 * r, -0.34 * r, 0.15 * r, '#e0252b', 'rgba(255,40,30,0.45)');
+    mouth(g, r, 0.06, 0.3, true);
+    arm(g, r, -1, t.color, 0.3); arm(g, r, 1, t.color, 0.3);
+  } },
+
+  // The Honey Dipper (autumn): a ridged wooden dipper head dripping honey, its handle up: everything sticks to it.
+  honeydipper: { extent: 1.75, draw(g, r, t) {
+    g.lineCap = 'round'; g.strokeStyle = OUTLINE; g.lineWidth = r * 0.3;
+    g.beginPath(); g.moveTo(0, -r * 0.7); g.lineTo(r * 0.18, -r * 1.55); g.stroke();
+    g.strokeStyle = shade(t.color, 0.15); g.lineWidth = r * 0.2; g.stroke();
+    g.fillStyle = t.color; g.beginPath(); g.arc(r * 0.19, -r * 1.58, r * 0.16, 0, TAU); g.fill(); g.strokeStyle = OUTLINE; g.lineWidth = Math.max(1.2, r * 0.04); g.stroke();
+    legs(g, r, t.patch2);
+    const body = egg(r, 1.05);
+    g.fillStyle = t.color; g.fill(body);
+    plush(g, body, r, t.color, 151);
+    g.save(); g.clip(body);
+    g.strokeStyle = shade(t.color, 0.45); g.lineWidth = Math.max(1.2, r * 0.07); g.beginPath();   // the dipper's ridges
+    for (let y = -0.75; y <= 0.9; y += 0.27) { g.moveTo(-r, y * r); g.quadraticCurveTo(0, (y + 0.1) * r, r, y * r); }
+    g.stroke();
+    const honey = new Path2D();                                           // honey over its lower half, dripping
+    honey.moveTo(-r, r * 0.15); honey.quadraticCurveTo(-r * 0.5, r * 0.05, -r * 0.3, r * 0.2); honey.quadraticCurveTo(-r * 0.15, r * 0.6, 0, r * 0.25);
+    honey.quadraticCurveTo(r * 0.3, r * 0.05, r * 0.45, r * 0.3); honey.quadraticCurveTo(r * 0.6, r * 0.7, r * 0.75, r * 0.2); honey.quadraticCurveTo(r * 0.9, r * 0.05, r, r * 0.1);
+    honey.lineTo(r, r * 1.2); honey.lineTo(-r, r * 1.2); honey.closePath();
+    g.fillStyle = t.patch; g.globalAlpha = 0.92; g.fill(honey); g.globalAlpha = 1;
+    g.fillStyle = 'rgba(255,250,220,0.5)'; g.beginPath(); g.ellipse(-r * 0.45, r * 0.5, r * 0.18, r * 0.06, -0.3, 0, TAU); g.fill();
+    g.restore();
+    rim(g, body, r, t.color);
+    g.fillStyle = t.patch; g.beginPath(); g.ellipse(r * 0.45, r * 1.0, r * 0.09, r * 0.15, 0, 0, TAU); g.fill();   // a drip falling off
+    buttonEye(g, -0.3 * r, -0.36 * r, 0.16 * r, '#ffb020', 'rgba(255,190,40,0.45)');
+    buttonEye(g, 0.3 * r, -0.38 * r, 0.16 * r, '#ffb020', 'rgba(255,190,40,0.45)');
+    mouth(g, r, -0.08, 0.22, false);
+    arm(g, r, -1, t.color, 0.34); arm(g, r, 1, t.color, 0.34);
+  } },
+
+  // The Bottle Cap (night): a crimped red cap with a star on its face, rolling on its edge: no arms, no legs, no helmet.
+  bottlecap: { extent: 1.4, draw(g, r, t) {
+    const crimp = new Path2D(), n = 21;
+    for (let i = 0; i <= n * 2; i++) { const a = i / (n * 2) * TAU, d = r * (i & 1 ? 0.86 : 1.0); if (i) crimp.lineTo(Math.cos(a) * d, Math.sin(a) * d); else crimp.moveTo(d, 0); }
+    crimp.closePath();
+    g.fillStyle = shade(t.color, 0.2); g.fill(crimp);
+    g.lineJoin = 'round'; g.strokeStyle = shade(t.color, 0.65); g.lineWidth = Math.max(1.2, r * 0.05); g.stroke(crimp);
+    const face = new Path2D(); face.arc(0, 0, r * 0.8, 0, TAU);
+    g.fillStyle = t.color; g.fill(face);
+    plush(g, face, r, t.color, 161);
+    g.strokeStyle = tint(t.color, 0.35); g.lineWidth = Math.max(1, r * 0.05); g.beginPath(); g.arc(0, 0, r * 0.68, 0, TAU); g.stroke();
+    const star = new Path2D();
+    for (let k = 0; k < 10; k++) { const b = -Math.PI / 2 + k * Math.PI / 5, d = (k & 1 ? 0.18 : 0.42) * r; if (k) star.lineTo(Math.cos(b) * d, r * 0.18 + Math.sin(b) * d); else star.moveTo(Math.cos(b) * d, r * 0.18 + Math.sin(b) * d); }
+    star.closePath();
+    g.fillStyle = t.patch; g.fill(star);
+    g.setLineDash([Math.max(1, r * 0.05), Math.max(1, r * 0.04)]); g.strokeStyle = THREAD; g.lineWidth = Math.max(0.8, r * 0.03); g.stroke(star); g.setLineDash([]);
+    brows(g, r, -0.42);
+    buttonEye(g, -0.28 * r, -0.28 * r, 0.14 * r, '#ffd23f', 'rgba(255,210,63,0.4)');
+    buttonEye(g, 0.28 * r, -0.3 * r, 0.14 * r, '#ffd23f', 'rgba(255,210,63,0.4)');
+    mouth(g, r, -0.08, 0.16, true, LIGHT_THREAD);
+  } },
+
+  // The Snow Globe (snow): a glass dome over a tiny snowy pine on a wooden base, eyes in the glass. It shakes.
+  snowglobe: { extent: 1.5, draw(g, r, t) {
+    const base = new Path2D(); base.moveTo(-r * 0.78, r * 0.45); base.lineTo(r * 0.78, r * 0.45); base.lineTo(r * 0.92, r * 1.02); base.lineTo(-r * 0.92, r * 1.02); base.closePath();
+    g.fillStyle = t.patch; g.fill(base); plush(g, base, r, t.patch, 171);
+    g.setLineDash([Math.max(1, r * 0.06), Math.max(1, r * 0.05)]); g.strokeStyle = LIGHT_THREAD; g.lineWidth = Math.max(0.9, r * 0.035);
+    g.beginPath(); g.moveTo(-r * 0.82, r * 0.72); g.lineTo(r * 0.82, r * 0.72); g.stroke(); g.setLineDash([]);
+    rim(g, base, r, t.patch);
+    const glass = new Path2D(); glass.arc(0, -r * 0.18, r * 0.86, 0, TAU);
+    g.save(); g.clip(glass);
+    const gr = g.createRadialGradient(-r * 0.3, -r * 0.5, r * 0.1, 0, -r * 0.18, r * 0.9);
+    gr.addColorStop(0, 'rgba(240,250,255,0.9)'); gr.addColorStop(1, t.color);
+    g.fillStyle = gr; g.fillRect(-r, -r * 1.1, r * 2, r * 1.8);
+    g.fillStyle = '#ffffff'; g.beginPath(); g.ellipse(0, r * 0.5, r * 0.9, r * 0.3, 0, 0, TAU); g.fill();   // the snow inside
+    g.fillStyle = t.patch2; g.beginPath(); g.moveTo(r * 0.38, -r * 0.2); g.lineTo(r * 0.62, r * 0.32); g.lineTo(r * 0.14, r * 0.32); g.closePath(); g.fill();   // a little pine
+    g.fillStyle = '#ffffff'; const rand = lcg(173);
+    for (let i = 0; i < 14; i++) { g.beginPath(); g.arc((rand() * 2 - 1) * r * 0.75, -r * 0.9 + rand() * r * 1.2, r * (0.03 + rand() * 0.03), 0, TAU); g.fill(); }
+    g.restore();
+    g.strokeStyle = 'rgba(255,255,255,0.85)'; g.lineWidth = Math.max(1.5, r * 0.07); g.lineCap = 'round';   // a glint on the glass
+    g.beginPath(); g.arc(0, -r * 0.18, r * 0.7, -2.6, -1.9); g.stroke();
+    g.strokeStyle = shade(t.color, 0.55); g.lineWidth = Math.max(1.2, r * 0.05); g.stroke(glass);
+    buttonEye(g, -0.28 * r, -0.38 * r, 0.15 * r, '#3d7dff', 'rgba(120,180,255,0.45)');
+    buttonEye(g, 0.28 * r, -0.4 * r, 0.15 * r, '#3d7dff', 'rgba(120,180,255,0.45)');
+    mouth(g, r, -0.1, 0.18, true, shade(t.color, 0.6));
+  } },
+
+  // ---------- new bosses ----------
+  // The Twine Ball (autumn boss): a big ball of garden twine wound every which way, a frayed loose end and a red tag.
+  twine: { extent: 1.6, draw(g, r, t) {
+    const body = new Path2D(); body.arc(0, 0, r * 0.95, 0, TAU);
+    g.fillStyle = t.color; g.fill(body);
+    plush(g, body, r, t.color, 181);
+    g.save(); g.clip(body);
+    g.lineWidth = Math.max(1, r * 0.04);
+    for (let k = 0; k < 12; k++) {                                        // windings in every direction
+      g.strokeStyle = k & 1 ? shade(t.color, 0.35) : tint(t.color, 0.3);
+      g.beginPath(); g.ellipse(0, 0, r * (0.5 + (k % 4) * 0.14), r * 0.98, k * 0.55, 0, TAU); g.stroke();
+    }
+    g.restore();
+    rim(g, body, r, t.color);
+    g.strokeStyle = t.patch; g.lineCap = 'round'; g.lineWidth = Math.max(2, r * 0.06);   // the loose end
+    g.beginPath(); g.moveTo(r * 0.8, r * 0.45); g.bezierCurveTo(r * 1.2, r * 0.5, r * 1.1, r * 1.0, r * 1.4, r * 1.05); g.stroke();
+    g.lineWidth = Math.max(1, r * 0.025); g.beginPath();
+    for (const a of [-0.5, 0, 0.5]) { g.moveTo(r * 1.4, r * 1.05); g.lineTo(r * 1.4 + Math.cos(a) * r * 0.12, r * 1.05 + Math.sin(a) * r * 0.12); }
+    g.stroke();
+    patch(g, r, -0.6, 0.5, 0.16, 0.5, t.patch2, 183);                      // a red tag tied on
+    brows(g, r, -0.36);
+    buttonEye(g, -0.32 * r, -0.2 * r, 0.16 * r, '#ff7a1f', 'rgba(255,140,40,0.45)');
+    buttonEye(g, 0.32 * r, -0.22 * r, 0.16 * r, '#ff7a1f', 'rgba(255,140,40,0.45)');
+    mouth(g, r, 0.18, 0.36, true, OUTLINE);
+    arm(g, r, -1, t.color, 0.36); arm(g, r, 1, t.color, 0.36);
+  } },
+
+  // The Skeleton Key (night boss): an old brass key, its scrolled bow the face, a long shaft and its teeth below.
+  skeletonkey: { extent: 1.75, draw(g, r, t) {
+    g.lineCap = 'round'; g.strokeStyle = OUTLINE; g.lineWidth = r * 0.36;   // the shaft
+    g.beginPath(); g.moveTo(0, r * 0.3); g.lineTo(0, r * 1.4); g.stroke();
+    g.strokeStyle = t.color; g.lineWidth = r * 0.26; g.stroke();
+    g.lineJoin = 'round';
+    for (const [y, w] of [[1.0, 0.42], [1.24, 0.3]]) {                  // its teeth
+      g.fillStyle = t.color; g.fillRect(0, y * r, w * r, r * 0.16);
+      g.strokeStyle = OUTLINE; g.lineWidth = Math.max(1.5, r * 0.035); g.strokeRect(0, y * r, w * r, r * 0.16);
+    }
+    const bow = new Path2D(); bow.arc(0, -r * 0.3, r * 0.82, 0, TAU);
+    g.fillStyle = t.color; g.fill(bow);
+    plush(g, bow, r, t.color, 191);
+    g.save(); g.clip(bow);
+    patch(g, r, -0.42, 0.05, 0.16, 0.2, t.patch, 193);
+    g.restore();
+    seam(g, r, [[-0.62, -0.62], [-0.2, -0.95], [0.2, -0.95], [0.62, -0.62]], LIGHT_THREAD);   // scrollwork
+    g.strokeStyle = shade(t.color, 0.6); g.lineWidth = Math.max(1, r * 0.04);
+    g.beginPath(); g.arc(0, -r * 0.3, r * 0.66, 0.4, Math.PI - 0.4); g.stroke();
+    rim(g, bow, r, t.color);
+    brows(g, r, -0.62, t.patch);
+    for (const sx of [-1, 1]) {                                           // keyhole eyes, glowing
+      const x = sx * 0.3 * r, y = -0.42 * r;
+      g.fillStyle = 'rgba(143,232,255,0.4)'; g.beginPath(); g.arc(x, y, r * 0.2, 0, TAU); g.fill();
+      g.fillStyle = t.patch; g.beginPath(); g.arc(x, y, r * 0.11, 0, TAU); g.fill();
+      g.beginPath(); g.moveTo(x - r * 0.05, y); g.lineTo(x + r * 0.05, y); g.lineTo(x + r * 0.08, y + r * 0.2); g.lineTo(x - r * 0.08, y + r * 0.2); g.closePath(); g.fill();
+      g.fillStyle = t.patch2; g.beginPath(); g.arc(x, y, r * 0.05, 0, TAU); g.fill();
+    }
+    mouth(g, r, -0.02, 0.3, true, t.patch);
+    arm(g, r, -1, t.color, 0.36); arm(g, r, 1, t.color, 0.36);
+  } },
 };
 
 function canvasFor(store, name, half, dpr) {
@@ -388,20 +716,49 @@ export function buildEnemySprites(dpr) {
   }
 }
 
-function blit(ctx, s, x, y, rot) {
+function blit(ctx, s, x, y, rot, k) {
   ctx.save(); ctx.translate(x, y); if (rot) ctx.rotate(rot);
-  ctx.drawImage(s.canvas, -s.half, -s.half, s.half * 2, s.half * 2);
+  ctx.drawImage(s.canvas, -s.half * k, -s.half * k, s.half * 2 * k, s.half * 2 * k);
   ctx.restore();
 }
-// rank = 1..3 (CONFIG.enemyRanks): 2 and 3 use their recoloured sprites where the type has them.
-export function drawEnemySprite(ctx, name, x, y, rot, rank = 1) {
-  const s = (rank > 1 && rankSprites[rank - 2][name]) || sprites[name]; if (s) blit(ctx, s, x, y, rot);
+// rank = 1..3 (CONFIG.enemyRanks): 2 and 3 use their recoloured sprites where the type has them. k = size x (a grown
+// Snowball, a Moth up in the air).
+export function drawEnemySprite(ctx, name, x, y, rot, rank = 1, k = 1) {
+  const s = (rank > 1 && rankSprites[rank - 2][name]) || sprites[name]; if (s) blit(ctx, s, x, y, rot, k);
 }
-// Shadow, plus dust puffs (dust = 0..1 opacity, 0 for enemies standing still).
-export function drawEnemyGround(ctx, name, x, y, dust) {
-  const s = grounds[name]; if (s) ctx.drawImage(s.canvas, x - s.half, y - s.half, s.half * 2, s.half * 2);
+// Shadow, plus dust puffs (dust = 0..1 opacity, 0 for enemies standing still), at the canvas's current alpha (the dark), size x k.
+export function drawEnemyGround(ctx, name, x, y, dust, k = 1) {
+  const a = ctx.globalAlpha, s = grounds[name];
+  if (s) ctx.drawImage(s.canvas, x - s.half * k, y - s.half * k, s.half * 2 * k, s.half * 2 * k);
   const d = dusts[name];
-  if (d && dust > 0.01) { ctx.globalAlpha = dust; ctx.drawImage(d.canvas, x - d.half, y - d.half, d.half * 2, d.half * 2); ctx.globalAlpha = 1; }
+  if (d && dust > 0.01) { ctx.globalAlpha = a * dust; ctx.drawImage(d.canvas, x - d.half * k, y - d.half * k, d.half * 2 * k, d.half * 2 * k); ctx.globalAlpha = a; }
+}
+// Dazed stars circling a boss's head (a helmetless armor boss between charges: the Twine Ball, the Bottle Cap).
+export function drawDazed(ctx, e, clock) {
+  const r = e.r;
+  ctx.fillStyle = '#ffd23f'; ctx.strokeStyle = OUTLINE; ctx.lineWidth = Math.max(1.2, r * 0.03);
+  for (let i = 0; i < 3; i++) {
+    const a = clock * 4 + i * TAU / 3, sx = e.x + Math.cos(a) * r * 0.62, sy = e.y - r * 1.05 + Math.sin(a) * r * 0.16;
+    ctx.beginPath();
+    for (let k = 0; k < 10; k++) { const b = -Math.PI / 2 + k * Math.PI / 5, d = (k & 1 ? 0.06 : 0.14) * r; ctx.lineTo(sx + Math.cos(b) * d, sy + Math.sin(b) * d); }
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+  }
+}
+// An enemy caught by a captures boss: strands of twine wrapped round it (the Twine Ball) or honey smeared over it (the
+// Honey Dipper), in `color`.
+export function drawBound(ctx, e, color, clock) {
+  const r = e.r;
+  ctx.save(); ctx.translate(e.x, e.y);
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (const a of [-0.5, 0.1, 0.7]) {
+    const c = Math.cos(a), s = Math.sin(a);
+    ctx.moveTo(-c * r * 1.05, -s * r * 1.05 + r * 0.1); ctx.quadraticCurveTo(0, r * 0.25 + Math.sin(clock * 3 + a) * r * 0.05, c * r * 1.05, s * r * 1.05 + r * 0.1);
+  }
+  ctx.globalAlpha = 0.9; ctx.strokeStyle = OUTLINE; ctx.lineWidth = Math.max(2.5, r * 0.2); ctx.stroke();
+  ctx.strokeStyle = color; ctx.lineWidth = Math.max(1.5, r * 0.12); ctx.stroke();
+  ctx.globalAlpha = 1;
+  ctx.restore();
 }
 
 // Steel thimble cap over the Brute's head while its armor is intact.

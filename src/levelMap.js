@@ -1,12 +1,19 @@
-// The level map screen (TITLE -> MAP -> SELECT): assets/level-map.webp drawn full height like the title plate (narrow
-// screens crop its sides, wide ones get blurred side bars), with a button over each numbered patch (CONFIG.map.nodes).
-// Cleared levels get a gold check and the next level to beat pulses; with CONFIG.map.locks, levels past that are
-// locked (unless the save unlocked them: Save.unlocks.levels). Level 0 (the tutorial) has no patch in the art, so its
-// button is a felt patch itself. Under the art: BACK (Random Quilt and Custom Road are off the map, on the title).
-// Rewards won since the map was last open (Save.reveals: new scissors' card, Shop stock a clear put on sale, the
-// credits, a world chest's contents) play over it, one tap each (revealNow plays one straight away elsewhere). Top left: the Buttons balance, Shop and Trophies (shop.js). A chest per world
-// (CONFIG.meta.worlds) sits on the art: locked until every level of that world has three stars (a tap lists its
-// fixed contents), then it glows; a tap opens it (meta.js openChest). DOM only.
+// The level map screen (TITLE -> MAP -> SELECT): five worlds (CONFIG.map.worlds, docs/worlds.md), one plate at a time,
+// with the world's name over it and ‹ › arrows (or a sideways swipe) between them. A plate is drawn full height like the
+// title plate (narrow screens crop its sides, wide ones get blurred side bars). A world with map art (`img`) gets a
+// transparent button over each numbered patch; a world without art yet gets a felt stand-in drawn with CSS in its
+// `look` colours: a plain felt plate with a stitched road through its patches, each a round felt button numbered 1..10
+// (the 5th, the mini boss, and the 10th, the boss, CONFIG.map.bigNode bigger). Level 0 (the tutorial) is world 1's
+// patch 0. Cleared levels get a gold check and their best stars, the next level to beat pulses, and the map opens on its
+// world (refreshLevelMap(true)). Locks: with CONFIG.map.lockWorlds a world's patches stay locked until the previous
+// world's level 10 is cleared (its name greys and the arrow toward it says what to clear); with CONFIG.map.locks a
+// level also waits for the one before it; Save.unlocks.levels opens a level either way. A map level whose file isn't
+// there yet shows its id and says so when tapped. Under the plate: BACK (Random Quilt and Custom Road are off the map,
+// on the title). Rewards won since the map was last open (Save.reveals: new scissors' card, Shop stock a clear put on
+// sale, the credits, a world chest's contents) play over it, one tap each (revealNow plays one straight away
+// elsewhere). Top left: the Buttons balance, Sewing Box, Shop and Trophies. Each world's chest (CONFIG.map.worlds[].chest
+// for its place, CONFIG.meta.worlds for its cosmetic) sits on its plate: locked until every level of that world has
+// three stars (a tap lists its fixed contents), then it glows; a tap opens it (meta.js openChest). DOM only.
 import { CONFIG as C, VERSION } from './config.js';
 import { clearedLevels } from './levelSelect.js';
 import { levelInfo } from './levels/index.js';
@@ -15,48 +22,86 @@ import { STORY } from './story.js';
 import { PIN_ICON } from './actionBar.js';
 import { pinTierText } from './armory.js';
 import { sfxSequence } from './audio.js';
-import { worldIds, worldLevels, chestState, openChest } from './meta.js';
+import { worldLevels, chestState, openChest, levelPlace, levelNo, mapIds, worldOpen, worldGate } from './meta.js';
 
-const nodes = [], chests = [];
-let toast = () => {}, onOpen = () => {}, onChange = () => {};
+const SVGNS = 'http://www.w3.org/2000/svg';
+const nodes = [], chests = [], layers = [];   // nodes: { id, b, world (index), g (global number) }
+let toast = () => {}, onOpen = () => {}, onChange = () => {}, cur = 0;
+const artEl = document.getElementById('map-art'), mapEl = document.getElementById('map');
+const headEl = document.getElementById('map-world'), prevBtn = document.getElementById('map-prev'), nextBtn = document.getElementById('map-next');
+
+// A smooth path through the patches (Catmull-Rom as cubic Béziers), for a stand-in plate's road.
+function roadPath(pts) {
+  let d = 'M' + pts[0][1] + ' ' + pts[0][2];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(pts.length - 1, i + 2)];
+    d += ' C' + (p1[1] + (p2[1] - p0[1]) / 6) + ' ' + (p1[2] + (p2[2] - p0[2]) / 6) + ' ' + (p2[1] - (p3[1] - p1[1]) / 6) + ' ' +
+      (p2[2] - (p3[2] - p1[2]) / 6) + ' ' + p2[1] + ' ' + p2[2];
+  }
+  return d;
+}
+
+// One world's layer: its patches (buttons), its chest and, for a stand-in, the road under them.
+function buildWorld(W, wi, opts) {
+  const layer = document.createElement('div');
+  layer.className = 'map-layer'; layer.hidden = true;
+  if (!W.img) {
+    const svg = document.createElementNS(SVGNS, 'svg'), d = roadPath(W.nodes);
+    svg.setAttribute('viewBox', '0 0 ' + W.w + ' ' + W.h); svg.setAttribute('preserveAspectRatio', 'none'); svg.setAttribute('class', 'map-road');
+    svg.innerHTML = '<path class="r-edge" d="' + d + '"/><path class="r-felt" d="' + d + '"/><path class="r-stitch" d="' + d + '"/>';
+    layer.appendChild(svg);
+  }
+  for (const [id, x, y] of W.nodes) {
+    const p = levelPlace(id), big = !W.img && (p.n === 5 || p.n === 10), k = big ? C.map.bigNode : 1;
+    const w = W.hitW * k, h = W.hitH * k, b = document.createElement('button');
+    b.type = 'button'; b.className = 'map-node' + (W.img ? '' : ' disc') + (big ? ' big' : '');
+    b.style.setProperty('--x', x - w / 2); b.style.setProperty('--y', y - h / 2);
+    b.style.setProperty('--w', w); b.style.setProperty('--h', h);
+    b.innerHTML = '<span class="sr-only"></span><span class="num" aria-hidden="true"></span>' +
+      '<span class="check" aria-hidden="true">✓</span><span class="lock" aria-hidden="true"></span>' +
+      '<span class="stars" aria-hidden="true"><i></i><i></i><i></i></span>';   // best stars (kit stars, index.html CSS)
+    b.firstChild.textContent = 'Level ' + levelNo(id) + ': ' + (levelInfo(id) ? levelInfo(id).name : id);
+    b.querySelector('.num').textContent = String(p.n);   // the plates' patches are blank: the number is drawn here
+    b.addEventListener('click', () => {
+      if (b.dataset.why) { toast(b.dataset.why); return; }
+      if (!levelInfo(id)) { toast('Level ' + levelNo(id) + ' (' + id + ') is still being sewn'); return; }
+      opts.onPick(id);
+    });
+    layer.appendChild(b); nodes.push({ id, b, world: wi, g: p.global });
+  }
+  const M = C.meta.worlds[W.id];
+  if (M && W.chest && C.meta.cosmetics[M.chest]) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'map-chest';
+    b.style.setProperty('--x', W.chest.x); b.style.setProperty('--y', W.chest.y);
+    b.innerHTML = '<span class="ch" aria-hidden="true"></span><span class="cap"></span>';
+    const contents = C.meta.chestButtons + ' Buttons + ' + C.meta.cosmetics[M.chest].name, w = W.id;
+    b.addEventListener('click', () => {
+      const st = chestState(w);
+      if (st === 'ready') { openChest(w); Save.reveals.push({ chest: w }); persist(); refreshLevelMap(); onChange(); }
+      else if (st === 'opened') toast(M.name + ' chest: opened');
+      else toast(M.name + ' chest: three-star all its levels for ' + contents);
+    });
+    layer.appendChild(b); chests.push({ w, b, contents });
+  }
+  artEl.appendChild(layer); layers.push(layer);
+}
 
 // onPick(id) when a level is chosen, onBack() for BACK, onOpen(screen, tab) for a reveal card's TO THE SHOP / TO THE
 // SEWING BOX ('shop' | 'box'), onChange() after a chest paid out (the Buttons balance changed).
 export function initLevelMap(opts) {
   toast = opts.toast; onOpen = opts.onOpen || onOpen; onChange = opts.onChange || onChange;
-  const art = document.getElementById('map-art'), M = C.map;
-  art.style.setProperty('--cw', M.w); art.style.setProperty('--ch', M.h);
-  art.style.backgroundImage = 'url(' + M.img + ')';
-  document.getElementById('map').style.setProperty('--plate', 'url(' + M.img + ')');
-  M.nodes.forEach(([id, x, y], i) => {
-    const b = document.createElement('button');
-    b.type = 'button'; b.className = 'map-node';
-    b.style.setProperty('--x', x - M.hitW / 2); b.style.setProperty('--y', y - M.hitH / 2);
-    b.style.setProperty('--w', M.hitW); b.style.setProperty('--h', M.hitH);
-    b.innerHTML = '<span class="sr-only"></span><span class="check" aria-hidden="true">✓</span><span class="lock" aria-hidden="true"></span>' +
-      '<span class="stars" aria-hidden="true"><i></i><i></i><i></i></span>';   // best stars (kit stars, index.html CSS)
-    b.firstChild.textContent = 'Level ' + i + ': ' + (levelInfo(id) ? levelInfo(id).name : id);
-    b.addEventListener('click', () => {
-      if (b.classList.contains('locked')) { toast('Clear level ' + (i - 1) + ' first'); return; }
-      opts.onPick(id);
-    });
-    art.appendChild(b); nodes.push(b);
+  C.map.worlds.forEach((W, wi) => buildWorld(W, wi, opts));
+  prevBtn.addEventListener('click', () => showWorld(cur - 1));
+  nextBtn.addEventListener('click', () => showWorld(cur + 1));
+  // a sideways swipe across the plate turns to the next / previous world
+  let sx = 0, sy = 0, down = false;
+  artEl.addEventListener('pointerdown', e => { down = true; sx = e.clientX; sy = e.clientY; });
+  artEl.addEventListener('pointerup', e => {
+    if (!down) return; down = false;
+    const dx = e.clientX - sx, dy = e.clientY - sy;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > 2 * Math.abs(dy)) showWorld(cur + (dx < 0 ? 1 : -1));
   });
-  for (const w of worldIds()) {
-    const W = C.meta.worlds[w]; if (!W) continue;
-    const b = document.createElement('button');
-    b.type = 'button'; b.className = 'map-chest';
-    b.style.setProperty('--x', W.x); b.style.setProperty('--y', W.y);
-    b.innerHTML = '<span class="ch" aria-hidden="true"></span><span class="cap"></span>';
-    const contents = C.meta.chestButtons + ' Buttons + ' + C.meta.cosmetics[W.chest].name;
-    b.addEventListener('click', () => {
-      const st = chestState(w);
-      if (st === 'ready') { openChest(w); Save.reveals.push({ chest: w }); persist(); refreshLevelMap(); onChange(); }
-      else if (st === 'opened') toast(W.name + ' chest: opened');
-      else toast(W.name + ' chest: three-star all its levels for ' + contents);
-    });
-    art.appendChild(b); chests.push({ w, b, contents });
-  }
   document.getElementById('map-back').addEventListener('click', () => opts.onBack());
   revealEl.addEventListener('click', e => {
     if (e.target.closest('[data-send-feedback]')) return;   // the credits' Send feedback: main.js handles it, the card stays
@@ -65,24 +110,66 @@ export function initLevelMap(opts) {
   });
 }
 
-// Called each time the map opens: checks and best stars on cleared levels, a pulse on the next one, locks past it (if
-// on).
-export function refreshLevelMap() {
-  const done = clearedLevels(), ids = C.map.nodes.map(n => n[0]);
+// Show world i's plate (clamped): its art or felt stand-in, its layer, its name (greyed while locked) and the arrows
+// (hidden at the ends; toward a locked world, the level that opens it).
+function showWorld(i) {
+  const n = C.map.worlds.length;
+  cur = Math.max(0, Math.min(n - 1, i));
+  const W = C.map.worlds[cur], look = W.look || {};
+  artEl.style.setProperty('--cw', W.w); artEl.style.setProperty('--ch', W.h);
+  artEl.style.aspectRatio = W.w + ' / ' + W.h;
+  artEl.classList.toggle('standin', !W.img);
+  artEl.style.backgroundImage = W.img ? 'url(' + W.img + ')' : '';
+  for (const k of ['ground', 'edge', 'road', 'felt', 'rim']) artEl.style.setProperty('--m-' + k, look[k] || '');
+  mapEl.style.setProperty('--plate', W.img ? 'url(' + W.img + ')' : 'linear-gradient(' + (look.ground || '#333') + ', ' + (look.edge || '#111') + ')');
+  artEl.setAttribute('aria-label', 'World ' + (cur + 1) + ': ' + W.name);
+  layers.forEach((l, k) => { l.hidden = k !== cur; });
+  const open = worldOpen(W.id);
+  headEl.classList.toggle('locked', !open);
+  document.getElementById('map-world-no').textContent = 'WORLD ' + (cur + 1);
+  document.getElementById('map-world-name').textContent = W.name;
+  const lockEl = document.getElementById('map-world-lock');
+  lockEl.hidden = open; lockEl.textContent = open ? '' : 'Clear Level ' + levelNo(worldGate(W.id)) + ' to open';
+  arrow(prevBtn, cur - 1, 'Previous world'); arrow(nextBtn, cur + 1, 'Next world');
+}
+function arrow(btn, i, what) {
+  const W = C.map.worlds[i];
+  btn.style.visibility = W ? '' : 'hidden';
+  if (!W) return;
+  const open = worldOpen(W.id), cap = btn.querySelector('small');
+  btn.classList.toggle('locked', !open);
+  cap.textContent = open ? '' : 'Clear ' + levelNo(worldGate(W.id));
+  btn.setAttribute('aria-label', what + ': ' + W.name + (open ? '' : ' (locked: clear Level ' + levelNo(worldGate(W.id)) + ')'));
+}
+
+// Called each time the map opens (focusNext: turn to the world of the next level to beat) and after anything that
+// changes it (a chest opened, a purchase): checks and best stars on cleared levels, a pulse on the next one, locks,
+// the chests, the balance, then any waiting reward cards.
+export function refreshLevelMap(focusNext = false) {
+  const done = clearedLevels(), ids = mapIds(), unlocked = Save.unlocks.levels;
   const next = ids.findIndex(id => !done.has(id));
-  nodes.forEach((b, i) => {
-    b.classList.toggle('cleared', done.has(ids[i]));
-    const got = done.has(ids[i]) ? Math.min(3, (Save.levels[ids[i]] || {}).stars || 0) : 0;
+  for (const { id, b, world, g } of nodes) {
+    const W = C.map.worlds[world], cleared = done.has(id);
+    b.classList.toggle('cleared', cleared);
+    const got = cleared ? Math.min(3, (Save.levels[id] || {}).stars || 0) : 0;
     b.querySelectorAll('.stars i').forEach((s, k) => s.classList.toggle('on', k < got));
-    b.classList.toggle('next', i === next);
-    b.classList.toggle('locked', C.map.locks && next >= 0 && i > next && !Save.unlocks.levels.includes(ids[i]));
-  });
+    b.classList.toggle('next', g === next);
+    b.classList.toggle('missing', !levelInfo(id));
+    let why = '';
+    if (!unlocked.includes(id)) {
+      if (!worldOpen(W.id)) why = 'Clear Level ' + levelNo(worldGate(W.id)) + ' first';
+      else if (C.map.locks && next >= 0 && g > next) why = 'Clear Level ' + levelNo(ids[g - 1]) + ' first';
+    }
+    b.dataset.why = why; b.classList.toggle('locked', !!why);
+  }
   for (const { w, b, contents } of chests) {
     const st = chestState(w), lv = worldLevels(w), stars = lv.reduce((s, id) => s + Math.min(3, (Save.levels[id] || {}).stars || 0), 0);
     b.className = 'map-chest ' + w + ' ' + st;
     b.lastChild.textContent = st === 'opened' ? 'Opened' : st === 'ready' ? 'Open me!' : '★ ' + stars + '/' + lv.length * 3;
     b.setAttribute('aria-label', C.meta.worlds[w].name + ' chest (' + st + '): ' + contents);
   }
+  if (focusNext && next >= 0) cur = Math.max(0, levelPlace(ids[next]).world - 1);
+  showWorld(cur);
   document.getElementById('map-buttons').textContent = Save.buttons;
   showReveal();
 }

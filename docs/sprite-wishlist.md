@@ -1,9 +1,9 @@
-# Sprite wishlist, rounds 2 to 4
+# Sprite wishlist, rounds 2 to 5
 
 Round 1 (the level-generator kit: fixed pieces, textures, sewing / meadow / lair props, map stars) is delivered and
 lives in `assets/kit/`. This round covers what the game still fakes in code or with stand-ins, what the playtests
 turned up, and things we'll want later. Round 3 (level dressing: frames, hero props, road and ground dressing) and
-round 4 (the story: drawer-scale junk, Tomato the pincushion, the morning note) are at the end, before the prompts. Level plates are 941 × 1672 px ("plate px") and show at about 1:1 on a phone,
+round 4 (the story: drawer-scale junk, Tomato the pincushion, the morning note) and round 5 (the five worlds: three new looks, their map plates, chests and portraits) are at the end, before the prompts. Level plates are 941 × 1672 px ("plate px") and show at about 1:1 on a phone,
 so anything placed on a level is asked for at **2× its plate size**.
 
 **Priority:** **P1** = needed now (a stand-in or a playtest problem). **P2** = soon (replaces code-drawn art, or
@@ -430,6 +430,107 @@ The two story pieces the UI draws in CSS and type today.
 | A note's paper scrap | 3 | 640 × 400 | The paper the humans' morning notes are shown on, blank, for the game to letter in a handwriting face: a yellow sticky note with one curled corner; a torn-off strip of lined paper; the bottom corner of a shopping list with a few blank ticked lines above the empty space. Front view, flat, a soft felt-paper texture. |
 | A fridge magnet | 1 | 200 × 200 | Front view: a plain round felt magnet (the sticky note is pinned under it on the card). |
 
+## Round 5: the five worlds (delivered 2 October 2026; cut with tools/sheet-cut.js, imported with tools/kit-import.html)
+
+The map becomes **five worlds of ten levels** (`docs/worlds.md`), each a drawer or box in the house with its own look.
+Three of the five are new. Attach the style references in `docs/world-refs/`:
+
+| World | id | Look | Reference |
+|---|---|---|---|
+| 1 The Sewing Tray | `meadow` | wooden tray, green felt meadow, fenced road | `docs/world-refs/meadow-tray.webp` (and `assets/level-bg.webp`) |
+| 2 The Mending Pile | `denim` | quilted denim plate, no tray | `assets/level2-bg.webp` (delivered; nothing new below) |
+| 3 The Kitchen Drawer | `autumn` | wooden tray, leaf litter in red, orange and gold, pine cones, pumpkins, toadstools, a satin river with a ruler bridge, a copper mug spilling warm light | `docs/world-refs/autumn.webp` |
+| 4 The Bedside Drawer | `night` | wooden tray, deep blue and purple knit ground, lavender, keys, a pencil, lit lanterns, a marble, a crescent moon | `docs/world-refs/night.webp` |
+| 5 The Holiday Box | `snow` | wooden tray, white fleece snow, frozen denim ponds, cottages with lit windows, snow-capped fences and trees | `docs/world-refs/snow.webp` |
+
+**What's shared.** Worlds 1, 3, 4 and 5 use the same wooden tray (the meadow frame pieces, delivered), the same fence
+posts and rails (delivered) and the same beige road felt (delivered). So a new world needs its ground, its props, its
+pads and its light, not a whole kit. World 5 adds snow caps on top of the shared pieces. Sizes are plate px as before
+(941 × 1672 for a normal level), delivered at 2×; tiles 1024 × 1024 seamless. The round 3 rules for tiles, strips and
+heroes apply.
+
+### 28. Shared pieces (P1): delivered
+
+| Item | Count | Plate size | Deliver at | Notes |
+|---|---|---|---|---|
+| Flag post for the heart pad: a fence post with a small red felt pennant | 2 (pennant left, pennant right) | 40 × 70 | 80 × 140 | Stands at the heart pad's two front corners in every tray world (see all three refs). |
+| Pad fence ring: a round fence of posts and rails round a Pin pad, open toward the road | 1 | ⌀ 240 | 480 × 480 | One piece; I turn it so the gap faces the road. Matches the fence posts delivered. |
+| Pond: a flat irregular puddle of blue quilted denim with a stitched edge | 3 variants | 300 × 220 | 600 × 440 | Lies flat under props (meadow-tray and snow refs). Soft, thinning edges. |
+| River strip: a satin ribbon of water, straight | 2 variants | 512 × 120 | 1024 × 240 | Tiles end to end. Brown satin for autumn, blue for snow and night; one of each colour. |
+| River bend: a 90° elbow of the same ribbon | 2 (brown, blue) | 300 × 300 | 600 × 600 | |
+| Ruler bridge: a wooden school ruler laid across a gap, two posts at each end | 1 | 200 × 130 | 400 × 260 | Crosses the river where the road does (autumn ref). Tick marks only, no numbers. |
+| Lantern, lit: a small brass lantern seen from above, warm glow | 2 variants | ⌀ 56 | 112 × 112 | The night ref's lanterns, also used in snow. |
+| Lantern glow: a soft round warm light with no lantern in it | 1 | ⌀ 300 | 600 × 600 | A separate additive glow sprite I lay under lit things. Transparent PNG, the glow fading to nothing at the edge. |
+| Fence post, snow-capped | 3 variants | ⌀ 28 | 56 × 56 | The delivered posts with a snow cap. |
+| Fence rail, snow-capped | 2 variants | 64 × 12 | 128 × 24 | |
+| Tray rim, snow-capped | 2 variants | 512 × 56 | 1024 × 112 | The meadow rim strip with snow lying along its top. Tiles end to end. |
+| Tray rim end cap, snow-capped | 1 | 56 × 80 | 112 × 160 | |
+
+### 29. World 3, The Kitchen Drawer (`autumn_*`, P1): delivered
+
+| Item | Count | Plate size | Deliver at | Notes |
+|---|---|---|---|---|
+| Ground tiles: felt leaf litter | 3 | tile | 1024 × 1024 seamless | `_01` the base: a dense carpet of small red, orange and gold felt leaves on rust felt. `_02` more gold, `_03` more red and brown with twigs. Same brightness so cells of them mix. |
+| Pin pad and heart pad | 2 | 340 / 460 | 340 × 340 / 460 × 460 | Like the delivered zone pads: beige felt, a stitched ring, a green felt collar round the heart pad (the ref's pads sit in a ring of green). |
+| Heart pad damage stages | 4 | 460 | 460 × 460 | As section 24: the same pad, worse each time. |
+| Heroes: felt maple tree with stitched leaves (red, gold) | 2 | 360 × 400 | 720 × 800 | Whole object. |
+| Heroes: pumpkin (orange, green) | 2 | 320 × 300 | 640 × 600 | |
+| Heroes: honey dipper, copper mug on its side, bottle opener, ball of twine | 4 | up to 480 × 480 | 960 × 960 | The autumn ref's drawer junk, felt and stitched fabric. |
+| Clusters: berry bunch, pine cone pile, leaf drift, toadstool pair | 4 | 220 × 160 | 440 × 320 | Low and flat, thinning edges. |
+| Singles: pine cone, acorn, toadstool, small pumpkin, gold leaf, red leaf, twig, button (rust) | 8 | 40 to 90 | 2× | |
+| Fill: tiny leaves (3 colours), a seed, a berry | 5 | 20 to 36 | 2× | Scattered by the hundred into bare ground. |
+| World chest: a copper biscuit tin (locked, ready, open) | 3 | 240 × 200 | 480 × 400 | |
+| Map plate: the world's road of ten numbered patches | 1 | 936 × 1681 | 1872 × 3362 | Like `assets/level-map.webp`: a winding road from the bottom up with ten blank felt patches (1 to 10), the fifth and tenth bigger (the mini boss and the boss), in this world's look. Nothing else on the patches. |
+| Boss portrait: The Twine Ball (a rolling ball of twine with button eyes, loose ends like arms) | 1 | 600 × 600 | 600 × 600 | Front view, as section 11. |
+| Mini boss portrait: The Honey Dipper (a wooden honey dipper dripping, sly face) | 1 | 600 × 600 | 600 × 600 | |
+
+### 30. World 4, The Bedside Drawer (`night_*`, P1): delivered
+
+| Item | Count | Plate size | Deliver at | Notes |
+|---|---|---|---|---|
+| Ground tiles: knitted dark ground | 3 | tile | 1024 × 1024 seamless | `_01` deep navy knit with purple and teal patches, `_02` more purple, `_03` darker with tiny stitched stars. Dark, but readable: enemies must stand out on it. |
+| Pin pad and heart pad, plus 4 damage stages | 2 + 4 | 340 / 460 | as above | Beige felt pads with a lavender felt collar. |
+| Heroes: lavender bush (purple felt tufts), two sizes | 2 | 300 × 340 | 600 × 680 | |
+| Heroes: brass key, pencil stub, cookie cutter (star), clothespin, measuring spoon, crescent moon ornament | 6 | up to 480 × 480 | 960 × 960 | The night ref's junk, felt and stitched fabric. |
+| Clusters: lavender bed, berry sprig, pebble pile, lantern pair | 4 | 220 × 160 | 440 × 320 | |
+| Singles: marble (glass, blue), paperclip, bottle cap, pebble, small key, small toadstool (red), button (navy), moth (resting, wings flat) | 8 | 40 to 90 | 2× | |
+| Fill: tiny lavender sprigs, pebbles, stitched stars | 5 | 20 to 36 | 2× | |
+| World chest: a velvet jewellery box with a tiny clasp (locked, ready, open) | 3 | 240 × 200 | 480 × 400 | |
+| Map plate | 1 | 936 × 1681 | 1872 × 3362 | As section 29, in this world's look (lanterns lit along the road). |
+| Boss portrait: The Skeleton Key (a tarnished brass key with a grinning bit, a ring of smaller keys) | 1 | 600 × 600 | 600 × 600 | |
+| Mini boss portrait: The Bottle Cap (a dented bottle cap, teeth bared) | 1 | 600 × 600 | 600 × 600 | |
+
+### 31. World 5, The Holiday Box (`snow_*`, P1): delivered
+
+| Item | Count | Plate size | Deliver at | Notes |
+|---|---|---|---|---|
+| Ground tiles: white fleece snow | 3 | tile | 1024 × 1024 seamless | `_01` plain fleece with soft drifts, `_02` with a few stitched snowflakes, `_03` with glimpses of blue denim showing through. |
+| Pin pad and heart pad, plus 4 damage stages | 2 + 4 | 340 / 460 | as above | Beige felt pads with a snow collar. |
+| Heroes: snowy fir tree (two sizes), snowy bare tree | 3 | 300 × 420 | 600 × 840 | |
+| Heroes: felt cottage with lit windows (two), a cork sled, a star ornament, a white thread spool | 5 | up to 480 × 480 | 960 × 960 | |
+| Clusters: snow-covered pebbles, red berry sprig, a drift with footprints, a tinsel tangle | 4 | 220 × 160 | 440 × 320 | |
+| Singles: snowball, icicle, bauble (red, blue), candy cane, bell, pine sprig, button (white) | 8 | 40 to 90 | 2× | |
+| Fill: snow lumps, berries, tiny stars | 5 | 20 to 36 | 2× | |
+| Window glow: a soft warm rectangle of light | 1 | 120 × 100 | 240 × 200 | Additive, like the lantern glow. |
+| World chest: a cardboard holiday box with a ribbon (locked, ready, open) | 3 | 240 × 200 | 480 × 400 | |
+| Map plate | 1 | 936 × 1681 | 1872 × 3362 | As section 29, in this world's look. |
+| Mini boss portrait: The Snow Globe (a glass globe with a tiny cottage, shaking) | 1 | 600 × 600 | 600 × 600 | The Unstitcher's portrait is delivered. |
+
+### 32. World 1 and 2 map plates and mini bosses (P2): delivered
+
+| Item | Count | Deliver at | Notes |
+|---|---|---|---|
+| Map plate, world 1: eleven patches (0 to 10) | 1 | 1872 × 3362 | The delivered map has fourteen; I use its first eleven until this one comes. |
+| Map plate, world 2: ten patches in the quilt look | 1 | 1872 × 3362 | |
+| Mini boss portraits: The Bobbin (a wooden bobbin trailing thread, grumpy), The Zipper (a zipper pull with a toothy grin) | 2 | 600 × 600 | |
+| World chest, worlds 1 and 2 | delivered | | |
+
+### 33. New enemies and Pins (P3)
+
+The Leaf, Burr, Moth, Snowball and Icicle and the Cork, Lamp and Candle Pins are drawn in code like the others
+(section 12 covers sprites for all of them later). The three new pairs (Kitchen Shears, Stork Snips, Ribbon Shears)
+are SVG, as section 17.
+
 ## Prompt to copy (one sheet per section)
 
 > Sprite sheet, straight top-down orthographic view, felt and fabric craft style matching the attached image, soft
@@ -529,3 +630,54 @@ For Tomato and the note (section 27):
 
 Drop the files in `assets/kit/incoming/` and tell me. I'll cut them out, convert them to WebP, measure them and wire
 them in.
+
+Round 5 (attach the world's reference from `docs/world-refs/` and `assets/level-bg.webp`; one world per session so the
+palette holds):
+
+For a world's ground tiles (section 29 to 31, one tile per image):
+
+> Seamless tiling texture, 1024×1024, straight top-down orthographic view, felt and stitched fabric craft style
+> matching the attached image, soft even light with no shadows and no vignette, the pattern repeating cleanly across
+> all four edges with no visible seam: **[tile description]**
+
+For a world's pads (attach the delivered `meadow_pin_pad_01.png` as well):
+
+> Redraw the attached round pad in the style of the attached world reference: the same size, position and stitched
+> ring, with **[the collar: a ring of green felt leaves / lavender felt tufts / soft white snow]** round its outside
+> edge. Straight top-down, no shadows, flat #FF00FF magenta background, no magenta in the object.
+
+For a world's heroes (one object per image):
+
+> One large object, straight top-down orthographic view, made entirely of felt and stitched fabric in the craft style
+> of the attached images (no real wood, metal, glass or paper textures), soft light from the top-left, no shadows,
+> the whole object uncropped and filling most of the canvas, bold simple silhouette, no lettering, centred on a flat
+> #FF00FF magenta background, no magenta in the object: **[item]**
+
+For a world's clusters, singles and fill (one sheet each):
+
+> Sprite sheet, straight top-down orthographic view, felt and stitched fabric craft style matching the attached
+> images, soft light from the top-left, no shadows, objects spaced well apart on a flat #FF00FF magenta background,
+> no magenta in the objects: **[the section's list]**. The clusters lie low and flat with edges that thin out.
+
+For a map plate (attach `assets/level-map.webp` and the world reference):
+
+> A game level map, portrait 1872×3362, straight top-down view, in the felt and stitched fabric craft style of the
+> attached world image: a winding felt road from the bottom of the picture to the top, with ten round blank felt
+> patches sitting on it at even spacing, numbered nowhere (I add the numbers), the fifth and tenth patches larger
+> than the rest. The ground, props and lighting of the attached world image fill the rest. No lettering, no
+> characters, no scissors.
+
+For a boss or mini boss portrait (attach `assets/title-bg.webp` and a delivered portrait):
+
+> Game character portrait, front view, 600×600, a felt and stitched fabric creature in the craft style of the attached
+> images, soft light from the top-left, no shadows, centred with space around it on a flat #FF00FF magenta background,
+> no magenta in the character: **[description from the section]**
+
+### Round 5 notes (what came back, 2 October 2026)
+
+Delivered as sheets (one PNG per section) rather than single files, at about a quarter of the asked 2× size (a
+pumpkin hero 181 px, a cottage 217 px, the maple crowns 636 px). `tools/sheet-cut.js` cut them (connected blobs,
+magenta keying for the snow sheets, fixed canvases for the pads and portraits) into `assets/kit/incoming/` and
+`tools/kit-import.html` measured and converted them; the painter's scale ranges make up the size. Still wanted from
+this round: the river and snow rim strips with seamless ends (the delivered ones have rounded ends), heroes at full
+size for the three new worlds, and the night fill pieces at fill size (the lavender sprigs came at single size).

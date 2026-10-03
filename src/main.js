@@ -2,18 +2,19 @@
 // coach, pause, mute, run report) to the game, size the canvas, load weapon art, then run the loop: update then draw every frame.
 import { CONFIG as C, FEEDBACK_URL, ANALYTICS_KEY, VERSION } from './config.js';
 import { track, sendFeedback } from './analytics.js';
+import { initLeaderboardScreens, showSelectLeaderboard, endlessRunEnded, hideRunLine } from './leaderboardScreen.js';
 import { input, initInput, setControls } from './input.js';
 import { state, gameHooks, goTitle, goMap, goSelect, goSettings, startGame, selectWeapon, setLevel, setLevelHook, setTutorialDoneHook, setRunEndHook, nextLevelId, layout, update, lastReport,
-  tutSkip, setPaused, togglePause } from './game.js';
+  tutSkip, setPaused, togglePause, shredAllowed, shredIsNew, skillAllowed, skillIsNew } from './game.js';
 import { weapon, setWeapon } from './scissors.js';
 import { view } from './core.js';
 import { draw, sizeCanvas, prerender } from './render.js';
 import { art, preloadWeapons, rasterizeArt } from './weaponArt.js';
 import { applySavedOverrides, initDebug } from './debug.js';
-import { savedWeapon, initWeaponSelect, refreshWeaponSelect } from './weaponSelect.js';
+import { savedWeapon, initWeaponSelect, refreshWeaponSelect, renderMoves } from './weaponSelect.js';
 import { savedLevel, rememberLevel, levelLabel, onMap } from './levelSelect.js';
-import { levelIds, levelInfo, hasLevel } from './levels/index.js';
-import { Save, persist, wipeSave, unlockAll } from './save.js';
+import { levelIds, levelInfo, hasLevel, addCustomLevel } from './levels/index.js';
+import { Save, persist, wipeSave, unlockAll, setSandbox } from './save.js';
 import { initLevelMap, refreshLevelMap } from './levelMap.js';
 import { isMuted, setMuted, unlockAudio, sfx } from './audio.js';
 import { loadRuns, downloadJson } from './runlog.js';
@@ -28,6 +29,9 @@ import { buySharpen, newDeals } from './meta.js';
 applySavedOverrides();
 // The canvas draws banners and labels in the felt font (Lilita One, index.html); ask for it now so it's ready.
 if (document.fonts) document.fonts.load('400 32px "Lilita One"').catch(() => {});
+// ?lab=1: the playtest workbench (src/lab.js, loaded at the end), in a sandbox where the save is never written
+const LAB = new URLSearchParams(location.search).has('lab');
+if (LAB) setSandbox(true);
 setWeapon(savedWeapon());
 setLevel(savedLevel());
 initInput(gameHooks);
@@ -71,7 +75,9 @@ showControls();
 // The quick Sharpen on the weapon screen (a failed one says why).
 const sharpenFail = { buttons: 'Not enough Buttons', sharp: 'Already sharp', locked: 'Not yours yet' };
 initWeaponSelect({ onPick: id => { selectWeapon(id); rasterizeArt(); }, onStart: play, onBack: () => backOut(),
-  onSharpen: id => { unlockAudio(); const why = buySharpen(id); if (why) showToast(sharpenFail[why] || why); else sfx('pinPop', 0); return why; } });
+  onSharpen: id => { unlockAudio(); const why = buySharpen(id); if (why) showToast(sharpenFail[why] || why); else sfx('pinPop', 0); return why; },
+  // the Moves row: what the level about to start allows (game.js: SHRED from CONFIG.shredFrom, a Skill from CONFIG.skillFrom)
+  getMoves: () => ({ shred: shredAllowed(), shredNew: shredIsNew(), skills: Object.keys(C.skills).filter(skillAllowed).map(id => ({ id, isNew: skillIsNew(id) })) }) });
 // Level picker (same screen): switch the plate, road(s) and Pin spots, then re-run the resize chain for the new plate.
 // The pause card's Back to map only shows for a map level (Random Quilt / Custom Road have Title screen beside it).
 const pauseMap = document.getElementById('pause-map');
@@ -89,21 +95,28 @@ function playTutorial() {
 setTutorialDoneHook(() => { useWeapon(savedWeapon()); showQuilt(); openMap(); });
 // Level map (PLAY on the title): a level opens the shears screen (named there); BACK returns to the title.
 const selectLevel = document.getElementById('select-level'), selectNew = document.getElementById('select-new');
-// What level id brings for the first time: its new Pins and SHRED (CONFIG.pinFrom / shredFrom), on the weapon screen.
+// What level id brings for the first time: its new Pins, SHRED and Skill (CONFIG.pinFrom / shredFrom / skillFrom), on the
+// weapon screen. A Skill's first level also picks that Skill for the second move slot (the Moves row shows it, NEW).
 function showLevelName(id) {
   selectLevel.textContent = levelLabel(id);
   const news = Object.keys(C.pinFrom).filter(t => C.pinFrom[t] === id && C.towers[t]).map(t => C.towers[t].name);
   if (C.shredFrom === id) news.push('SHRED');
+  for (const k in C.skillFrom) {
+    if (C.skillFrom[k] !== id || !C.skills[k]) continue;
+    news.push(C.skills[k].name);
+    if (Save.equippedSkill !== k) { Save.equippedSkill = k; persist(); }
+  }
   selectNew.hidden = !news.length; selectNew.textContent = 'NEW HERE: ' + news.join(', ');
+  renderMoves();
   return news.length > 0;
 }
 function chooseLevel(id) {
   if (id === C.tutLevel) { playTutorial(); return; }
   rememberLevel(id); if (id !== view.levelId || levelInfo(id).random) switchLevel(id);
   useWeapon(savedWeapon()); refreshWeaponSelect();
-  showLevelName(id); goSelect();
+  showLevelName(id); showSelectLeaderboard(!!levelInfo(id).endless); goSelect();
 }
-function openMap() { refreshNews(); refreshLevelMap(); goMap(); }
+function openMap() { refreshNews(); refreshLevelMap(true); goMap(); }   // opens on the world of the next level to beat
 // The gold dot on the Shop's entrances (title tile, map button) and the Sewing Box's (map button, weapon screen link):
 // something on that screen the balance covers that the player hasn't seen on its tab yet. Re-checked whenever Buttons
 // or the seen list can have changed: a run settled, a chest opened, a screen closed, the map opened.
@@ -130,18 +143,33 @@ const metaChanged = () => { selectWeapon(weapon.id); resize(); refreshWeaponSele
 const metaClosed = () => { refreshNews(); if (state.mode === 'MAP') refreshLevelMap(); if (state.mode === 'GAME_OVER') refreshResultsShop(); if (state.mode === 'SELECT') refreshWeaponSelect(); };
 initShop({ onChange: metaChanged, onClose: metaClosed });
 initBox({ onClose: metaClosed });
+initLeaderboardScreens();
 initArmory({ toast: showToast, onChange: metaChanged, refresh: () => { refreshShop(); refreshBox(); },
-  onEquip: id => { Save.equippedScissors = id; persist(); useWeapon(id); refreshWeaponSelect(); }, onFeedback: skillFeedback });
+  onEquip: id => { Save.equippedScissors = id; persist(); useWeapon(id); refreshWeaponSelect(); } });
 // The run is over: the results card plays its Button tally.
-setRunEndHook(() => { showResults(state.tally); refreshNews(); });
+setRunEndHook(() => {
+  showResults(state.tally); refreshNews();
+  if (lastReport && lastReport.endless) endlessRunEnded(lastReport); else hideRunLine();   // Random Quilt: post to the leaderboard
+});
 // The results card's Shop line: its button opens the Shop on the deal's tab (the card's tap-to-skip must not fire).
 on('res-shop-btn', e => { e.stopPropagation(); openMeta(e.currentTarget.dataset.screen, e.currentTarget.dataset.tab); });
 showLevelName(view.levelId);
-// Run-end card: one big button (endGame sets its act): TO THE MAP after a win (the map plays the reward cards and
-// shows what's next: the next patch pulses, the Sewing Box / Shop buttons carry a dot when something new is
-// affordable), TRY AGAIN after a loss. The small Map / Title and Play again buttons cover the rest.
+// Run-end card: one big button (endGame sets its act): NEXT LEVEL after a win with a next level and no rewards waiting
+// on the map; TO THE MAP after a win that queued reward cards (the map plays them and shows what's next: the next patch
+// pulses, the Sewing Box / Shop buttons carry a dot when something new is affordable) or the last level; TRY AGAIN
+// after a loss. The small Map / Title and Play again buttons cover the rest.
 const toMap = () => { unlockAudio(); toast.hidden = true; backOut(); };
-on('over-select', () => { const act = document.getElementById('over-select').dataset.act; if (act === 'again') play(); else toMap(); });
+// NEXT LEVEL: the same weapon, straight in; through the weapon screen when that level brings something new (a Pin,
+// SHRED or a Skill: it says NEW HERE there, and the player may want another pair for it).
+function playNext() {
+  const id = nextLevelId();
+  if (!id) { toMap(); return; }
+  unlockAudio(); toast.hidden = true;
+  rememberLevel(id); switchLevel(id); useWeapon(savedWeapon());
+  if (showLevelName(id)) { refreshWeaponSelect(); showSelectLeaderboard(!!levelInfo(id).endless); goSelect(); }
+  else play();
+}
+on('over-select', () => { const act = document.getElementById('over-select').dataset.act; if (act === 'again') play(); else if (act === 'next') playNext(); else toMap(); });
 on('over-map', toMap);
 // Pressing anywhere on the title is a gesture that unlocks audio.
 document.getElementById('title').addEventListener('pointerdown', () => unlockAudio());
@@ -186,8 +214,8 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) setPa
 
 // (Outbound: the feedback card and play events go to PostHog, analytics.js; Email instead opens FEEDBACK_URL.)
 // Send feedback: a card with a note (and an optional contact) that posts to PostHog (analytics.js) along with the last
-// run's stats, if any. It opens from Settings, the credits card (`ask` = the button's data-send-feedback value: 'demo'
-// = that card's question) and a skill idea (the Shop's Moves tab, about that skill). Email instead (FEEDBACK_URL, a mailto:) is the fallback when
+// run's stats, if any. It opens from Settings and the credits card (`ask` = the button's data-send-feedback value: 'demo'
+// = that card's question). Email instead (FEEDBACK_URL, a mailto:) is the fallback when
 // sending fails or there's no analytics key; the card keeps the note if sending fails.
 const fb = { screen: document.getElementById('feedback'), prompt: document.getElementById('fb-prompt'), text: document.getElementById('fb-text'),
   contact: document.getElementById('fb-contact'), send: document.getElementById('fb-send'), email: document.getElementById('fb-email') };
@@ -212,10 +240,6 @@ function openRunFeedback(ask) {
   openFeedback({ kind: ask === 'demo' ? 'demo' : 'general', what, report,
     prompt: ask === 'demo' ? 'The least fun thing, and what should change? Anything that felt good?' : "What's fun, what isn't, and what should change?" });
 }
-// The Shop's Moves tab: Want this on a skill to come.
-function skillFeedback(k) {
-  openFeedback({ kind: 'skill', skill: k.id || k.name, what: 'skill idea: ' + k.name, report: null, prompt: "You'd want " + k.name + ' (' + k.blurb + "). Why, or how would you change it?" });
-}
 fb.send.addEventListener('click', () => {
   const text = fb.text.value.trim(), ctx = fbCtx;
   if (!ctx) return;
@@ -223,7 +247,7 @@ fb.send.addEventListener('click', () => {
   if (!ANALYTICS_KEY) { emailFeedback(ctx, text); return; }
   fb.send.disabled = true;
   const { config, device, ...slim } = ctx.report || {};         // the report's tuning snapshot and user agent aren't needed here
-  sendFeedback({ kind: ctx.kind, skill: ctx.skill, message: text, contact: fb.contact.value.trim(), prompt: ctx.prompt, report: ctx.report ? slim : undefined,
+  sendFeedback({ kind: ctx.kind, message: text, contact: fb.contact.value.trim(), prompt: ctx.prompt, report: ctx.report ? slim : undefined,
     level: view.levelId }).then(ok => {
     if (ok) { fb.text.value = ''; closeFeedback(); showToast('Thanks! Sent.'); }
     else { fb.send.disabled = false; showToast('Could not send. Check your connection.'); }
@@ -282,3 +306,11 @@ preloadWeapons();
 refreshNews();
 goTitle();
 requestAnimationFrame(frame);
+
+// The playtest workbench (?lab=1): a drawer over the game to build a road in any world's look, pick any pair, Skill and
+// Pin tiers, and spawn enemies on demand. Loaded only then, so the normal game never pays for it.
+if (LAB) import('./lab.js').then(m => m.initLab({
+  playLevel: id => { unlockAudio(); toast.hidden = true; if (id !== view.levelId || levelInfo(id).random) switchLevel(id); useWeapon(savedWeapon()); startGame(); },
+  playCustom: (recipe, seed, world) => { unlockAudio(); toast.hidden = true; addCustomLevel(recipe, seed, world); switchLevel('custom'); useWeapon(savedWeapon()); startGame(); },
+  applyWeapon: id => { selectWeapon(id); rasterizeArt(); resize(); refreshWeaponSelect(); },
+}));

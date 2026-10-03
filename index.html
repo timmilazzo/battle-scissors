@@ -20,6 +20,7 @@
     - Hold left button ...... blades open (per weapon, ~0.4-0.65s); release = snap shut (release early = weaker strike)
     - Space ................. instant snip at the current pose (tests cut-zone logic directly)
     - E ..................... SHRED (Helicopter special) when charged; on touch: tap a second (HOLD) or third (PINCH) finger while gripping
+    - F ..................... the Skill (the second move, under SHRED): same as tapping its badge
     - Pins (towers) ......... tap (click) a + on an empty spot beside the road, then pick a Pin
     - R ..................... back to the title screen (same as the Reset button)
     - P or Esc .............. pause / resume (same as the ⏸ button)
@@ -101,7 +102,7 @@
   #hint b { color: #ffd23f; }
 
   /* HUD (top-left, one compact column, out of the top of the road where enemies enter): wave badge, the SHRED meter, the
-     DULL badge. Filled by src/hud.js. The workshop's HP is on the heart pad at the end of the road (render.js drawHeart);
+     Skill's meter, the DULL badge. Filled by src/hud.js. The workshop's HP is on the heart pad at the end of the road (render.js drawHeart);
      score lives on the pause and game-over cards. */
   #hud {
     position: fixed; top: calc(10px + env(safe-area-inset-top)); left: calc(10px + env(safe-area-inset-left)); z-index: 9;
@@ -114,6 +115,10 @@
   .hud-wave .hud-level { font-size: 12px; letter-spacing: 1px; color: #fff1c2; margin-bottom: 3px; }   /* the map level's number, above WAVE */
   .hud-wave .hud-level[hidden] { display: none; }
   .hud-wave b { font-size: 22px; letter-spacing: 0.5px; font-variant-numeric: tabular-nums; }
+  /* endless (Random Quilt): the run's kill count under the wave */
+  .hud-kills { display: flex; flex-direction: column; align-items: center; margin-top: 4px; padding-top: 4px; border-top: 1px dashed rgba(207, 224, 255, 0.45); }
+  .hud-kills[hidden] { display: none; }
+  .hud-kills b { font-size: 18px; }
   .bump { animation: tbump 260ms ease-out; }
   @keyframes tbump { 40% { transform: scale(1.18); } }
 
@@ -144,24 +149,32 @@
   /* SHRED: a small round felt badge in the HUD column, under the wave badge (clear of the hand, which covers the bottom
      right, and narrow so it stays off the road); a ring round the scissors fills clockwise with snip kills (--p, set by
      actionBar.js). Full: it pulses gold, tap it to arm; armed: the next press on the table starts the spin there (tap
-     it again to cancel). */
-  #shred-card {
+     it again to cancel). The Skill's badge (#skill-card, the second move slot) sits under it and shares the look:
+     .on while its effect runs (Focus, Thimble), .poor while Basting's Thread is short, its price in .mcost. */
+  .move-card {
     pointer-events: auto; z-index: 15; position: relative;
     width: 48px; height: 48px; padding: 0; border-radius: 50%; outline-offset: -5px;
     display: flex; align-items: center; justify-content: center;
   }
-  #shred-card[hidden] { display: none; }
-  #shred-card .ring { position: absolute; inset: 3px; border-radius: 50%;
+  .move-card[hidden] { display: none; }
+  .move-card .ring { position: absolute; inset: 3px; border-radius: 50%;
     background: conic-gradient(var(--ringc, #e6cfff) calc(var(--p, 0) * 1%), rgba(20, 5, 40, 0.6) 0);
     -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px));
             mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px)); }
-  #shred-card .ticon { position: relative; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  .move-card .ticon { position: relative; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
     font-size: 15px; color: #3b1060; text-shadow: none; background: radial-gradient(circle at 35% 30%, #efdcff, #b88af0); border: 2px solid #331560; }
-  #shred-card.ready { --fc: #d98a12; --rim: #6a3a04; animation: tready 0.9s ease-in-out infinite; }
-  #shred-card.ready .ticon, #shred-card.armed .ticon { background: radial-gradient(circle at 35% 30%, #fff6c8, #ffc93d); border-color: #6a3a04; }
-  #shred-card.ready, #shred-card.armed { --ringc: #ffe07a; }
-  #shred-card.armed { --fc: #c0392b; --rim: #5a1208; animation: tarmed 0.5s ease-in-out infinite; }
+  .move-card.ready { --fc: #d98a12; --rim: #6a3a04; animation: tready 0.9s ease-in-out infinite; }
+  .move-card.ready .ticon, .move-card.armed .ticon { background: radial-gradient(circle at 35% 30%, #fff6c8, #ffc93d); border-color: #6a3a04; }
+  .move-card.ready, .move-card.armed { --ringc: #ffe07a; }
+  .move-card.armed { --fc: #c0392b; --rim: #5a1208; animation: tarmed 0.5s ease-in-out infinite; }
   @keyframes tarmed { 50% { transform: scale(1.06); box-shadow: inset 0 2px 1px rgba(255, 255, 255, 0.28), 0 4px 0 var(--rim), 0 0 0 3px #fff1c2, 0 0 26px rgba(255, 120, 60, 0.95); } }
+  .move-card .mcost { position: absolute; left: 50%; bottom: -7px; transform: translateX(-50%); padding: 1px 5px 2px; border-radius: 7px; font: 400 10px/1 var(--ui-font);
+    color: #fff1c2; background: #2a170a; white-space: nowrap; }
+  .move-card .mcost[hidden] { display: none; }
+  .move-card.on { --ringc: #bfe8ff; animation: tready 1.4s ease-in-out infinite; }
+  .move-card.poor { filter: grayscale(0.7) brightness(0.7); }
+  #skill-card .ticon { font-size: 16px; color: #2a170a; }
+  #skill-card:not(.ready):not(.armed) { --fc: var(--sfc, #4a2a12); --rim: var(--srim, #1f1006); }   /* the Skill's own felt (actionBar.js sets --sfc / --srim) */
   @keyframes tready { 50% { filter: brightness(1.18); box-shadow: inset 0 2px 1px rgba(255, 255, 255, 0.28), 0 4px 0 var(--rim), 0 0 22px rgba(255, 210, 63, 0.9); } }
 
   /* Pin spots: a green felt + button on each empty pad of the level (positioned by actionBar.js) */
@@ -372,9 +385,19 @@
   .map-chest.denim.locked .ch { background-image: url(assets/kit/04_chests/denim_chest_locked.png); }
   .map-chest.denim.ready .ch { background-image: url(assets/kit/04_chests/denim_chest_ready.png); }
   .map-chest.denim.opened .ch { background-image: url(assets/kit/04_chests/denim_chest_open.png); }
-  .map-chest.lair.locked .ch { background-image: url(assets/kit/04_chests/lair_chest_locked.png); }
-  .map-chest.lair.ready .ch { background-image: url(assets/kit/04_chests/lair_chest_ready.png); }
-  .map-chest.lair.opened .ch { background-image: url(assets/kit/04_chests/lair_chest_open.png); }
+  .map-chest.autumn.locked .ch { background-image: url(assets/kit/04_chests/autumn_chest_locked.webp); }
+  .map-chest.autumn.ready .ch { background-image: url(assets/kit/04_chests/autumn_chest_ready.webp); }
+  .map-chest.autumn.opened .ch { background-image: url(assets/kit/04_chests/autumn_chest_open.webp); }
+  .map-chest.night.locked .ch { background-image: url(assets/kit/04_chests/night_chest_locked.webp); }
+  .map-chest.night.ready .ch { background-image: url(assets/kit/04_chests/night_chest_ready.webp); }
+  .map-chest.night.opened .ch { background-image: url(assets/kit/04_chests/night_chest_open.webp); }
+  .map-chest.snow.locked .ch { background-image: url(assets/kit/04_chests/snow_chest_locked.webp); }
+  .map-chest.snow.ready .ch { background-image: url(assets/kit/04_chests/snow_chest_ready.webp); }
+  .map-chest.snow.opened .ch { background-image: url(assets/kit/04_chests/snow_chest_open.webp); }
+  /* a world without chest art of its own borrows the old Lair's */
+  .map-chest.locked .ch { background-image: url(assets/kit/04_chests/lair_chest_locked.png); }
+  .map-chest.ready .ch { background-image: url(assets/kit/04_chests/lair_chest_ready.png); }
+  .map-chest.opened .ch { background-image: url(assets/kit/04_chests/lair_chest_open.png); }
   .map-chest .cap { margin-top: 2px; padding: 1px 7px 2px; border-radius: 8px; background: rgba(30, 14, 4, 0.8); font: 400 clamp(10px, 1.6vh, 14px) var(--ui-font); color: #ffe4aa; white-space: nowrap; }
     .map-chest.ready .ch { animation: mnext 1.2s ease-in-out infinite; }
   .map-chest:active { transform: translate(-50%, -50%) scale(0.94); }
@@ -529,11 +552,37 @@
   .title-tile.locked { filter: grayscale(0.85) brightness(0.8); }
   #title-custom { position: absolute; left: calc(10px + env(safe-area-inset-left)); top: calc(10px + env(safe-area-inset-top)); z-index: 1; min-width: 0; width: auto; font-size: 17px; padding: 9px 12px 10px; }
   #title-custom[hidden] { display: none; }
-  /* MAP: the level map art (CONFIG.map), full height like the title plate; a transparent button over each numbered patch
-     (levelMap.js sets --x/--y/--w/--h in art px). Cleared = gold check, next = a pulsing glow, locked = dimmed. */
-  #map { padding: 0; gap: 0; overflow: hidden; background: #1c1030; }
+  /* MAP: one world's plate at a time (CONFIG.map.worlds), full height like the title plate; a transparent button over
+     each numbered patch (levelMap.js sets --x/--y/--w/--h in plate px, --cw/--ch = the plate). Cleared = gold check,
+     next = a pulsing glow, locked = dimmed. A world without art is a felt stand-in (.standin, its look colours in
+     --m-ground/edge/road/felt/rim): felt ground in a stitched frame, a felt road (.map-road) and round numbered patches (.disc). */
+  /* the plate sits between the top bar (balance, Sewing Box / Shop / Trophies, the world name) and BACK, so neither covers
+     the bottom or top patch (the plates have patches right at both ends) */
+  #map { padding: calc(132px + env(safe-area-inset-top)) 0 calc(62px + env(safe-area-inset-bottom)); gap: 0; overflow: hidden; background: #1c1030; }
   #map::before { content: ""; position: absolute; inset: -40px; background: var(--plate) center / cover; filter: blur(24px) brightness(0.5); }
-  .map-art { position: relative; flex: none; height: 100%; aspect-ratio: 936 / 1681; background: center / 100% 100% no-repeat; }
+  .map-art { position: relative; flex: none; height: 100%; aspect-ratio: 936 / 1681; background: center / 100% 100% no-repeat; touch-action: pan-y; }
+  .map-layer { position: absolute; inset: 0; }
+  .map-layer[hidden] { display: none; }
+  .map-art.standin { background: var(--felt-fuzz), radial-gradient(90% 60% at 40% 30%, rgba(255, 250, 230, 0.16), rgba(255, 250, 230, 0) 70%), var(--m-ground);
+    box-shadow: inset 0 0 0 16px var(--m-edge), inset 0 0 50px 30px rgba(0, 0, 0, 0.35); }
+  .map-art.standin::before { content: ""; position: absolute; inset: 26px; border-radius: 10px; outline: 3px dashed rgba(255, 244, 214, 0.5); pointer-events: none; }
+  .map-road { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .map-road path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .map-road .r-edge { stroke: rgba(20, 10, 4, 0.4); stroke-width: 100; }
+  .map-road .r-felt { stroke: var(--m-road); stroke-width: 84; }
+  .map-road .r-stitch { stroke: rgba(255, 250, 235, 0.75); stroke-width: 5; stroke-dasharray: 16 14; }
+  .map-world { flex-basis: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; pointer-events: none; }
+  .map-world > * { pointer-events: auto; }
+  .map-world .mw-name { display: flex; flex-direction: column; align-items: center; min-width: 0; padding: 5px 16px 7px; border-radius: 16px; text-align: center; }
+  .map-world .mw-name small { font-size: 12px; letter-spacing: 1.5px; color: #ffe4aa; opacity: 0.9; }
+  .map-world .mw-name b { font-size: clamp(17px, 4.6vw, 23px); font-weight: 400; white-space: nowrap; }
+  .map-world .mw-name small[hidden] { display: none; }
+  .map-world.locked .mw-name b { color: #a99c9f; }
+  .map-top .map-arrow { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 48px; min-height: 48px; padding: 2px 8px 4px;
+    font-size: 28px; line-height: 1; border-radius: 24px; }
+  .map-arrow small { font-size: 10px; line-height: 1; white-space: nowrap; }
+  .map-arrow small:empty { display: none; }
+  .map-arrow.locked { filter: grayscale(0.7) brightness(0.85); }
   .map-node {
     position: absolute; padding: 0; margin: 0; border: 0; background: none; cursor: pointer; border-radius: 38%;
     left: calc(var(--x) / var(--cw) * 100%); top: calc(var(--y) / var(--ch) * 100%);
@@ -556,6 +605,21 @@
   .map-node.cleared .check { display: flex; font-size: 0; background: url(assets/kit/06_markers/ui_check_badge_01.png) center / contain no-repeat; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5)); }
   .map-node.locked { background: rgba(12, 6, 24, 0.55); }
   .map-node.locked .lock { display: flex; right: 30%; top: 15%; width: 40%; background: url(assets/kit/06_markers/ui_lock_badge_01.png) center / contain no-repeat; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5)); }
+  .map-node.disc { --fc: var(--m-felt); --rim: var(--m-rim); border-radius: 50%; border: 3px solid var(--rim); color: #fff4dc; font-family: var(--ui-font);
+    background: var(--felt-fuzz), radial-gradient(130% 110% at 30% 12%, rgba(255, 250, 230, 0.3), rgba(255, 250, 230, 0) 55%), var(--fc);
+    box-shadow: inset 0 2px 1px rgba(255, 255, 255, 0.28), inset 0 -3px 2px rgba(0, 0, 0, 0.3), 0 4px 0 var(--rim), 0 7px 12px rgba(0, 0, 0, 0.45);
+    outline: 2px dashed rgba(255, 240, 205, 0.85); outline-offset: -8px; }
+  /* the level number on a patch (the plates' patches are blank); on art it is stitched brown lettering, on a stand-in disc cream */
+  .map-node .num { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--ui-font); color: #6b4a2a;
+    text-shadow: 0 1px 0 rgba(255, 250, 235, 0.7); font-size: calc(var(--h) / var(--ch) * 38vh); font-size: calc(var(--h) / var(--ch) * 38dvh); pointer-events: none; }
+  .map-node.cleared .num { top: -14%; }
+  .map-node.locked .num { display: none; }
+  .map-node.disc .num { color: #fff4dc; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45); top: 0;
+    font-size: calc(var(--h) / var(--ch) * 45vh); font-size: calc(var(--h) / var(--ch) * 45dvh); }
+  .map-node.disc .stars { top: 84%; }
+  .map-node.disc.locked { filter: grayscale(0.85) brightness(0.65); }
+  .map-node.disc.locked .num { opacity: 0.35; }
+  .map-node.missing { opacity: 0.7; }
   .map-bar { position: absolute; left: 50%; bottom: calc(12px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 1;
     display: flex; gap: 10px; align-items: center; }
   .map-bar .felt-btn { min-width: 0; width: auto; font-size: clamp(16px, 4.5vw, 22px); padding: 11px 18px 12px; }
@@ -680,6 +744,18 @@
   .sel-box .sb-txt::before { content: '·'; margin-right: 5px; opacity: 0.7; }
   .sel-hero.honed .sm-track { animation: hone 800ms ease-out; }
   @keyframes hone { 0% { box-shadow: 0 0 0 0 rgba(255, 255, 220, 0.9), inset 0 2px 3px rgba(0, 0, 0, 0.6); filter: brightness(1.8); } 100% { box-shadow: 0 0 0 10px rgba(255, 255, 220, 0), inset 0 2px 3px rgba(0, 0, 0, 0.6); } }
+  /* the Moves row under the pair: SHRED (always on, not a choice) and the Skills, one picked (gold rim), NEW on its first level */
+  .sel-moves { width: 100%; flex-shrink: 0; display: flex; align-items: center; gap: 8px; }
+  .sel-moves[hidden] { display: none; }
+  .sm-cap { font: 400 12px var(--ui-font); letter-spacing: 1px; color: #ffe4aa; }
+  .sm-list { display: flex; gap: 6px; min-width: 0; overflow-x: auto; scrollbar-width: none; padding: 3px 2px; }   /* one row; it scrolls sideways when the moves don't fit */
+  .sm-list::-webkit-scrollbar { display: none; }
+  .move-chip { position: relative; display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px 5px 5px; border-radius: 999px; font: 400 13px/1 var(--ui-font);
+    color: #fff1c2; background: rgba(0, 0, 0, 0.28); border: 2px solid rgba(255, 228, 170, 0.25); cursor: pointer; flex: none; white-space: nowrap; }
+  .move-chip .mc-ico { width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; background: var(--fc, #6d3fa8); }
+  .move-chip[aria-pressed="true"] { border-color: #ffd23f; background: rgba(255, 210, 63, 0.18); box-shadow: 0 0 10px rgba(255, 210, 63, 0.4); }
+  .move-chip.fixed { cursor: default; }
+  .move-chip .mc-new { margin-left: 2px; padding: 1px 4px 2px; border-radius: 5px; font-size: 10px; color: #2a170a; background: #ffd23f; }
   @media (max-height: 740px) { .sel-hero .wc-blurb { display: none; } .sel-hero > img { height: clamp(80px, 15vh, 230px); } }   /* short phones: keep Sharpen in view */
   /* wide screens (and a phone on its side): the sharpness column sits beside the stats instead of under them */
   @media (min-width: 700px) { #select .card { width: min(800px, 100%); } .sel-hero { grid-template-columns: minmax(90px, 22%) minmax(0, 1fr) minmax(0, 1fr); }
@@ -741,15 +817,11 @@
   .arm-up .pips { display: block; letter-spacing: 2px; color: #ffd23f; }
   .arm-up .pips i { font-style: normal; color: rgba(255, 228, 170, 0.3); }
   .arm-up .tag, .arm-head .tag { font: 400 13px var(--ui-font); color: #ffc93d; }
-  /* Moves: SHRED's panel (its round purple badge, as in the HUD) */
+  /* Moves: SHRED's panel (its round purple badge, as in the HUD), then a panel per Skill (its badge in its felt) */
   .arm-skill-ico { width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px; outline-offset: -6px; }
   .arm-skill-ico.pin svg, #reveal .rv-ico.pin svg { width: 60%; height: 60%; }   /* a Pin's picker icon (actionBar.js PIN_ICON) in its felt */
   .arm-skill-now { color: #ffe4aa; }
-  /* skills to come (CONFIG.skillIdeas): dimmer, a SOON tag, a Want this button */
-  .arm-card.idea { background: var(--felt-fuzz), rgba(30, 14, 4, 0.3); outline: 2px dashed rgba(255, 228, 170, 0.25); outline-offset: -4px; }
-  .arm-soon { font: 400 11px var(--ui-font); letter-spacing: 0.8px; padding: 3px 7px 4px; border-radius: 8px; color: #2a170a; background: #c79bff; white-space: nowrap; }
-  .arm-idea-meta { font-size: 11.5px; color: rgba(255, 241, 194, 0.7); }
-  .card .arm-card.idea .felt-btn.small { justify-self: start; }
+  .arm-skill-meta { font-size: 11.5px; color: rgba(255, 241, 194, 0.7); }   /* a Skill's panel: what charges it */
   .arm-card.lockd { opacity: 0.65; }
   @media (max-width: 400px) { .arm-card { grid-template-columns: 44px minmax(0, 1fr); gap: 10px; padding: 10px; } .arm-card > img { width: 44px; height: 60px; } .arm-skill-ico { width: 44px; height: 44px; font-size: 22px; }
     .arm-sharp, .arm-up { grid-template-columns: 1fr; } .card .arm-card :is(.arm-sharp, .arm-up) .felt-btn.small { justify-content: center; } }
@@ -795,6 +867,25 @@
   .ctl-tag { font: 400 13px var(--ui-font); letter-spacing: 0.4px; padding: 3px 9px 4px; border-radius: 9px; color: #2a170a; background: #ffd23f; }
   .ctl-tag.pro { background: #c79bff; }
   #settings .felt-btn.small { width: 100%; }
+  /* leaderboard name card and list (src/leaderboardScreen.js); they open over the results / weapon screens */
+  .lb-screen { z-index: 20; overflow-y: auto; justify-content: safe center; }
+  .lb-screen .card { width: min(440px, 100%); gap: 10px; }
+  .lb-name-row { display: flex; gap: 8px; width: 100%; }
+  .lb-name-row input { flex: 1 1 auto; min-width: 0; box-sizing: border-box; padding: 10px 12px; border-radius: 12px; border: 3px solid #1f1006;
+    font: 400 22px var(--ui-font); letter-spacing: 0.4px; text-align: center; color: #ffd23f; background: rgba(20, 10, 4, 0.55); box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.5); }
+  .lb-name-row input:focus { outline: 2px solid #ffd23f; }
+  .card .lb-name-row .felt-btn.small { flex: 0 0 auto; width: auto; font-size: 24px; padding: 0 14px; }
+  .lb-err { margin: 0; font: 600 14px system-ui, sans-serif; color: #ffb4a8; text-align: center; }
+  .lb-err[hidden], .lb-me[hidden], .select-lb[hidden] { display: none; }
+  .lb-list { margin: 0; padding: 0; list-style: none; width: 100%; max-height: 52vh; overflow-y: auto; display: grid; gap: 3px; }
+  .lb-list li { display: grid; grid-template-columns: 34px 1fr auto; gap: 8px; align-items: center; padding: 5px 10px; border-radius: 10px;
+    font: 400 15px var(--ui-font); color: #fff1c2; background: rgba(0, 0, 0, 0.18); text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5); }
+  .lb-list li .rk { color: #ffd23f; text-align: right; }
+  .lb-list li .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lb-list li .st { text-align: right; font-size: 13px; color: #e8d6b0; }
+  .lb-list li .st b { font-size: 15px; color: #fff1c2; }
+  .lb-list li.me { background: rgba(255, 201, 61, 0.2); box-shadow: inset 0 0 0 2px rgba(255, 201, 61, 0.6); }
+  .lb-me { margin: 0; font: 400 15px var(--ui-font); color: #ffd23f; text-align: center; }
   .set-note { margin: -4px 0 0; font: 600 12px system-ui, sans-serif; color: rgba(255, 228, 170, 0.7); text-align: center; }
   /* feedback card: sits over the pause / game-over card; the fields are sunken felt like the weapon cards' slots */
   #feedback { z-index: 20; overflow-y: auto; justify-content: safe center; }
@@ -807,6 +898,22 @@
   @media (max-height: 520px) { #select .card { padding: 22px 14px 14px; gap: 8px; } .wc-blurb { display: none; } #select .card h2 { font-size: 28px; margin-top: -50px; } .sel-hero > img { height: 80px; } }
 
   /* debug panel (built by src/debug.js) */
+  /* the playtest workbench (src/lab.js, ?lab=1): a drawer at the right with a LAB tab */
+  #lab { position: fixed; right: 0; top: 56px; z-index: 60; width: min(320px, 92vw); max-height: calc(100% - 70px); overflow: auto; padding: 10px 12px 14px;
+    background: rgba(22, 14, 30, 0.95); color: #eee; font: 12px/1.4 system-ui, sans-serif; border-radius: 10px 0 0 10px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5); }
+  #lab[hidden] { display: none; }
+  #lab h3 { margin: 0 0 4px; font: 400 18px var(--ui-font); color: #ffe27a; }
+  #lab h4 { margin: 10px 0 4px; font: 400 14px var(--ui-font); color: #ffd98a; border-bottom: 1px solid rgba(255, 255, 255, 0.15); }
+  #lab .lab-note, #lab .lab-hint { margin: 2px 0; color: #bbb; font-size: 11px; }
+  #lab .lab-row { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin: 3px 0; }
+  #lab .lab-l { min-width: 46px; color: #ddd; }
+  #lab .lab-s, #lab .lab-n, #lab .lab-t { font: inherit; padding: 2px 4px; background: #2a2038; color: #fff; border: 1px solid #665; border-radius: 4px; }
+  #lab .lab-t { flex: 1; min-width: 120px; }
+  #lab .lab-b { font: inherit; padding: 3px 8px; background: #6a4a2a; color: #ffe4aa; border: 1px solid #a07040; border-radius: 6px; cursor: pointer; }
+  #lab .lab-b:active { background: #8a6a3a; }
+  #lab .lab-c { display: inline-flex; align-items: center; gap: 2px; }
+  #lab-tab { position: fixed; right: 0; top: 50%; z-index: 61; transform: translateY(-50%); padding: 10px 6px; writing-mode: vertical-rl; background: #ffd24a; color: #3a2210;
+    font: 400 13px var(--ui-font); letter-spacing: 2px; border: 2px solid #8a5a1a; border-right: 0; border-radius: 8px 0 0 8px; cursor: pointer; }
   #debug {
     position: fixed; top: calc(56px + env(safe-area-inset-top)); right: calc(10px + env(safe-area-inset-right));
     width: min(300px, calc(100vw - 20px)); box-sizing: border-box; padding: 10px 12px 12px;
@@ -847,8 +954,9 @@
   </button>
 </div>
 <div id="hud" hidden>
-  <div class="felt blue hud-wave"><small class="hud-level" id="hud-level" hidden>LEVEL 1</small><small>WAVE</small><b id="hud-wave">1/6</b></div>
-  <button id="shred-card" class="felt purple" type="button" aria-label="SHRED" hidden><span class="ring"></span><span class="ticon">✂</span></button>
+  <div class="felt blue hud-wave"><small class="hud-level" id="hud-level" hidden>LEVEL 1</small><small>WAVE</small><b id="hud-wave">1/6</b><span class="hud-kills" id="hud-kills-row" hidden><small>KILLS</small><b id="hud-kills">0</b></span></div>
+  <button id="shred-card" class="felt purple move-card" type="button" aria-label="SHRED" hidden><span class="ring"></span><span class="ticon">✂</span></button>
+  <button id="skill-card" class="felt move-card" type="button" aria-label="Skill" hidden><span class="ring"></span><span class="ticon"></span><span class="mcost" hidden></span></button>
   <div class="felt red hud-dull" id="hud-dull" hidden title="Dull blades: less snip damage. Sharpen them before a level.">DULL</div>
 </div>
 <div id="spots" hidden></div>
@@ -891,6 +999,12 @@
     <button id="map-box" class="felt-btn small" type="button">Sewing Box</button>
     <button id="map-shop" class="felt-btn small" type="button">Shop</button>
     <button id="map-trophies" class="felt-btn small" type="button">Trophies</button>
+    <!-- the world on show (levelMap.js showWorld): ‹ › turn between worlds; a locked world's name greys -->
+    <div id="map-world" class="map-world">
+      <button id="map-prev" class="felt-btn small map-arrow" type="button" aria-label="Previous world">‹<small></small></button>
+      <div class="felt dark mw-name"><small id="map-world-no">WORLD 1</small><b id="map-world-name"></b><small id="map-world-lock" hidden></small></div>
+      <button id="map-next" class="felt-btn small map-arrow" type="button" aria-label="Next world">›<small></small></button>
+    </div>
   </div>
   <div class="map-bar">
     <button id="map-back" class="felt-btn back" type="button">BACK</button>
@@ -940,12 +1054,15 @@
     <p id="select-level" class="select-level"></p>
     <p id="select-new" class="select-new" hidden></p>
     <ul id="select-goals" class="goal-list" aria-label="Star goals" hidden></ul>
+    <button id="select-lb" class="felt-btn small select-lb" type="button" hidden>Leaderboard</button>
     <!-- the chosen pair, large (src/weaponSelect.js fills it); the Sharpen quick action sits under its stats -->
     <div id="sel-hero" class="sel-hero">
       <img alt="">
       <div class="sel-info"><span class="wc-name"></span><span id="sel-lock" class="sel-lock"></span><span class="wc-blurb"></span><span class="wc-stats"></span></div>
       <div id="sel-sharp" class="sel-sharp"><button id="sel-box" class="felt-btn small sel-box" type="button" title="Your Buttons: open the Sewing Box"><span class="bt"></span><b id="sel-buttons">0</b><span class="sb-txt">Sewing Box</span></button></div>
     </div>
+    <!-- the moves this level allows (src/weaponSelect.js): SHRED, and the Skills to pick one from (a tap toggles) -->
+    <div id="sel-moves" class="sel-moves" hidden><span class="sm-cap">MOVES</span><div id="sel-moves-list" class="sm-list" role="group" aria-label="Moves"></div></div>
     <div id="weapon-cards" class="weapon-strip" role="group" aria-label="Your scissors"></div>
     <div class="select-actions">
       <button id="select-back" class="felt-btn back" type="button">BACK</button>
@@ -1016,7 +1133,7 @@
       <button id="pause-sound" class="felt-btn small" type="button" aria-pressed="false">Sound: on</button>
       <button id="pause-home" class="felt-btn small" type="button">Title screen</button>
     </div>
-    <p id="hint"><b>Desktop controls:</b> move = aim point · hold left button to open, release to snip (wider = stronger) · wheel = open/close (flick fast to snip) · A/D or Shift+wheel = rotate · Space = instant snip · E = SHRED · P/Esc = pause · R = title</p>
+    <p id="hint"><b>Desktop controls:</b> move = aim point · hold left button to open, release to snip (wider = stronger) · wheel = open/close (flick fast to snip) · A/D or Shift+wheel = rotate · Space = instant snip · E = SHRED · F = Skill · P/Esc = pause · R = title</p>
   </div>
 </div>
 
@@ -1032,11 +1149,14 @@
       <div id="res-unlock" class="res-unlock" hidden></div>
       <!-- the first Shop deal the balance covers that the player hasn't seen (results.js refreshResultsShop); the button opens the Shop on its tab -->
       <div id="res-shop" class="res-unlock res-shop" hidden><span></span><button id="res-shop-btn" class="felt-btn small" type="button">Shop</button></div>
+      <!-- an endless run's leaderboard line (src/leaderboardScreen.js): post it (first time: pick a name), then the rank -->
+      <div id="res-lb" class="res-unlock res-shop" hidden><span></span><button id="res-lb-btn" class="felt-btn small" type="button">Leaderboard</button></div>
     </div>
     <dl>
       <dt>Level</dt><dd id="over-level">—</dd>
       <dt>Score</dt><dd id="over-score">0</dd>
       <dt>Waves survived</dt><dd id="over-waves">0 / 6</dd>
+      <dt>Kills</dt><dd id="over-kills">0</dd>
       <dt>Snip accuracy</dt><dd id="over-acc">—</dd>
       <dt>Seed</dt><dd id="over-seed">—</dd>
     </dl>
@@ -1048,6 +1168,32 @@
       <button id="again" class="felt-btn small" type="button">Play again</button>
     </div>
     </div>
+  </div>
+</div>
+<!-- Leaderboard name (src/leaderboardScreen.js): picked once, a made-up one to start; typed ones are checked on the server -->
+<div id="lb-name" class="screen lb-screen" role="dialog" aria-labelledby="lb-name-title" hidden>
+  <div class="card">
+    <h2 id="lb-name-title" data-text="YOUR NAME">YOUR NAME</h2>
+    <p class="lead">How you'll show on the Random Quilt leaderboard. You pick it once.</p>
+    <div class="lb-name-row">
+      <input id="lb-name-input" type="text" maxlength="20" autocomplete="off" spellcheck="false" aria-label="Leaderboard name">
+      <button id="lb-name-dice" class="felt-btn small" type="button" aria-label="Random name" title="Random name">🎲</button>
+    </div>
+    <p class="set-note">Type your own or roll a new one. Keep it friendly: typed names are checked.</p>
+    <p id="lb-name-err" class="lb-err" hidden></p>
+    <button id="lb-name-ok" class="felt-btn" type="button">THAT'S ME</button>
+    <button id="lb-name-cancel" class="felt-btn small" type="button">Not now</button>
+  </div>
+</div>
+<!-- Leaderboard (src/leaderboardScreen.js): every player's best Random Quilt run -->
+<div id="lb" class="screen lb-screen" role="dialog" aria-labelledby="lb-title" hidden>
+  <div class="card">
+    <h2 id="lb-title" data-text="LEADERBOARD">LEADERBOARD</h2>
+    <p class="lead">Random Quilt: each player's best run.</p>
+    <p id="lb-status" class="set-note"></p>
+    <ol id="lb-list" class="lb-list"></ol>
+    <p id="lb-me" class="lb-me" hidden></p>
+    <button id="lb-back" class="felt-btn back" type="button">BACK</button>
   </div>
 </div>
 <!-- Send feedback (main.js): the player's note goes to PostHog with the run's stats; Email instead is the fallback -->

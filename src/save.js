@@ -16,14 +16,18 @@
 //   unlocks: { scissors: [], pins: [], levels: [] }, extra unlocks (levels: opened early, e.g. by "Unlock all")
 //   upgrades: { scissorsId: tier },                  scissors upgrade tier 0..3 (meta.js)
 //   pinTiers: { pinType: tier },                     each Pin type's permanent tier 0..3 (meta.js buyPinTier; src/pins.js)
-//   skills: { shred },                               SHRED's tier 0..3 (CONFIG.shredTiers; meta.js buyShred)
-//   equippedScissors, lastLevel,                     last weapon and level picked
+//   skills: { shred, focus, thimble, mark, pinking, basting },  SHRED's tier 0..3 (CONFIG.shredTiers; meta.js buyShred) and each
+//                                                    Skill's tier bought 0..3 (CONFIG.skills, 0 = none bought; meta.js buySkillTier)
+//   equippedScissors, equippedSkill, lastLevel,      last weapon, second move (a CONFIG.skills id, '' = none) and level picked
 //   settings: { sound, haptics, leftHanded, grip, analytics },  grip = touch controls 'hold' | 'pinch'; leftHanded not used yet;
 //     analytics = share anonymous play data (src/analytics.js); anonId = the random id those events carry (made on first use)
-//   tutorialDone, tips: { pins, shred, shredRuns, shopSeen, rank },  one-time onboarding flags (tutorialDone = level 0 cleared; pins = Pin
+//   account: { userId, refresh, name }  the leaderboard's Supabase anonymous user (src/leaderboard.js): its id, refresh
+//     token and the name it posts under ('' until the player picks one)
+//   tutorialDone, tips: { pins, shred, shredRuns, shopSeen, rank, skills },  one-time onboarding flags (tutorialDone = level 0 cleared; pins = Pin
 //                                                    types the explainer has introduced; shredRuns = runs the SHRED ready tip showed
 //                                                    in; shopSeen = Shop / Sewing Box deals (meta.js deals() ids) the player has had
-//                                                    on screen; rank = the Pin rank-up tip has shown)
+//                                                    on screen; rank = the Pin rank-up tip has shown; skills = Skills whose
+//                                                    "ready" tip has shown, once each)
 //   reveals: [{ morning } | { scissors } | { shop } | { credits } | { chest }],  rewards won but not yet shown (the level map plays
 //                                                    them in order; morning = a boss level id whose morning-after note (story.js)
 //                                                    is due; shop = 'shred' or a weapon id: stock a level clear put on sale)
@@ -31,13 +35,14 @@
 // }
 import { CONFIG as C } from './config.js';
 
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 const KEY = 'battleScissors.save';
 const defaults = () => ({
   version: SAVE_VERSION, levels: {}, buttons: 0, achievements: [], chests: [], sharpness: {},
   cosmetics: { owned: [], handle: '', glow: '' }, unlocks: { scissors: [], pins: [], levels: [] }, upgrades: {}, pinTiers: {}, skills: { shred: 0 },
-  equippedScissors: '', lastLevel: '', settings: { sound: true, haptics: true, leftHanded: false, grip: 'hold', analytics: true }, anonId: '',
-  tutorialDone: false, tips: { pins: [], shred: false, shredRuns: 0, shopSeen: [], rank: false }, reveals: [], critterKills: 0,
+  equippedScissors: '', equippedSkill: '', lastLevel: '', settings: { sound: true, haptics: true, leftHanded: false, grip: 'hold', analytics: true }, anonId: '',
+  account: { userId: '', refresh: '', name: '' },
+  tutorialDone: false, tips: { pins: [], shred: false, shredRuns: 0, shopSeen: [], rank: false, skills: [] }, reveals: [], critterKills: 0,
 });
 export const Save = defaults();
 
@@ -51,6 +56,9 @@ export function migrate(old) {
   if ((s.version | 0) < 4 && s.tips) {                              // v4: one explainer per Pin type replaces the single
     s.tips.pins = s.tips.pinIntro ? ['needle'] : []; delete s.tips.pinIntro;   // one-time one (which always led with the Needle)
   }
+  if ((s.version | 0) < 5) {                                        // v5: five worlds of ten levels (docs/worlds.md). Level ids
+    if (typeof s.equippedSkill !== 'string') s.equippedSkill = '';  // survive, so levels (old L12 whip / L13 lair stay cleared,
+  }                                                                 // which clears nothing else), chests and unlocks carry over
   s.version = SAVE_VERSION;
   return s;
 }
@@ -59,10 +67,11 @@ export function migrate(old) {
 function adopt(data) {
   const d = defaults();
   Object.assign(Save, d, data);
-  for (const k of ['unlocks', 'settings', 'tips', 'cosmetics', 'sharpness', 'skills', 'upgrades', 'pinTiers']) Save[k] = Object.assign(d[k], data[k]);
+  for (const k of ['unlocks', 'settings', 'tips', 'cosmetics', 'sharpness', 'skills', 'upgrades', 'pinTiers', 'account']) Save[k] = Object.assign(d[k], data[k]);
   for (const k of ['achievements', 'chests']) Save[k] = Array.isArray(data[k]) ? data[k] : [];
   if (!Array.isArray(Save.tips.pins)) Save.tips.pins = [];
   if (!Array.isArray(Save.tips.shopSeen)) Save.tips.shopSeen = [];
+  if (!Array.isArray(Save.tips.skills)) Save.tips.skills = [];
   Save.levels = Object.assign({}, data.levels);
   Save.reveals = Array.isArray(data.reveals) ? data.reveals : [];
 }
@@ -95,8 +104,13 @@ function load() {
 }
 
 let timer = 0;
+// Sandbox (the playtest workbench, ?lab=1): the save is read as usual but never written, so trying things there leaves
+// the real save alone.
+export let sandbox = false;
+export function setSandbox(on) { sandbox = !!on; }
 function writeNow() {
   clearTimeout(timer); timer = 0;
+  if (sandbox) return;
   try { localStorage.setItem(KEY, JSON.stringify(Save)); } catch (e) { /* storage full or blocked */ }
 }
 // Call after changing Save: writes it CONFIG.saveDebounceMs later (one write for a burst of changes).

@@ -1,7 +1,7 @@
 // The Sewing Box screen (DOM only): what the player holds and the Buttons spent on making it better. Opens from the
 // level map's top row and the weapon select screen; closes back to whichever screen opened it. Three tabs (the last
 // one picked stays picked), all built by armory.js: Scissors (every pair held: equip, Sharpen, its three upgrade tiers),
-// Pins (each Pin type's permanent tiers, on sale once its level is cleared) and Moves (SHRED's tiers, skills to come).
+// Pins (each Pin type's permanent tiers, on sale once its level is cleared) and Moves (SHRED's tiers and the Skills' tiers).
 // A gold dot on a tab = something there the balance covers (meta.js deals(), screen 'box'); rendering a tab marks its
 // deals seen (markDealsSeen), which puts out the dot on the Sewing Box's entrances (main.js refreshNews). Buying new
 // things (pairs on sale, cosmetics) is the Shop's job (shop.js).

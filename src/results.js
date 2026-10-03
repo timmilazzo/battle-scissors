@@ -70,7 +70,12 @@ export function showResults(t) {
   });
   steps.push(() => {
     if (!t.earns) { noteEl.textContent = 'This road earns no Buttons: play the numbered levels on the map.'; return; }
-    if (!t.stars.some(s => s !== 'none') && t.wage && !t.scoreButtons) noteEl.textContent = 'A win here pays up to ' + t.scoreCap + ' Buttons for its score, every time.';
+    const e = t.endless;
+    if (e) {                                                      // endless: the personal records, then the wage as usual
+      const best = [e.newWaves && 'waves', e.newKills && 'kills', e.newScore && 'score'].filter(Boolean);
+      noteEl.textContent = best.length ? 'New personal best: ' + best.join(', ') + '!' : 'Your best: ' + e.bestWaves + ' waves, ' + e.bestKills + ' kills, ' + e.bestScore + ' points.';
+      if (best.length) sfxSequence('waveClear');
+    } else if (!t.stars.some(s => s !== 'none') && t.wage && !t.scoreButtons) noteEl.textContent = 'A win here pays up to ' + t.scoreCap + ' Buttons for its score, every time.';
     else if (t.wage && t.earns && !earnsStars(view.levelId)) noteEl.textContent = 'Random Quilt pays the wage of a mid level; stars and trophies are earned on the map.';
     else if (t.stars.includes('old')) noteEl.textContent = 'Grey stars were earned before and pay nothing again. The score bonus pays every win.';
     if (t.starButtons) tallyEl.appendChild(row('Stars', t.starButtons));

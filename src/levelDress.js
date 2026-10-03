@@ -10,8 +10,9 @@
 //     s    scale against the sprite file (delivered at 2x), so 0.5 = the size it was drawn for on the plate
 //     rot  turn in radians (clockwise, about the visible centre)
 // Drawn in list order (later ones on top), each with the same soft shadow as the scattered props (levelArt's
-// kitSprite: blur 12, offset 3,6 in plate units).
-import { KIT_DIR, SPRITES } from './kit.js';
+// kitSprite: blur 12, offset 3,6 in plate units). A key whose art is still wanted (src/kit.js) draws its stand-in, or is
+// skipped until the file arrives.
+import { KIT_DIR, SPRITES, artKey } from './kit.js';
 
 const images = {}, loading = {}, settled = {};
 function loadSprite(key) {
@@ -24,10 +25,10 @@ function loadSprite(key) {
   return loading[key];
 }
 
-// The sprite keys a level's dressing uses (each once; unknown keys left out).
+// The sprite keys a level's dressing draws (each once, stand-ins resolved; unknown and not-yet-delivered keys left out).
 export function dressingKeys(def) {
   const keys = new Set();
-  for (const d of (def && def.dressing) || []) if (SPRITES[d.key]) keys.add(d.key);
+  for (const d of (def && def.dressing) || []) { const k = artKey(d.key); if (k) keys.add(k); }
   return [...keys];
 }
 
@@ -45,7 +46,7 @@ export function dressingReady(def) {
 // Placements whose image hasn't loaded yet are skipped.
 export function drawDressing(g, def) {
   for (const d of (def && def.dressing) || []) {
-    const S = SPRITES[d.key], img = images[d.key];
+    const key = artKey(d.key), S = key && SPRITES[key], img = key && images[key];
     if (!S || !img) continue;
     const s = d.s ?? 0.5, t = g.getTransform(), px = Math.hypot(t.a, t.b);   // canvas shadows ignore the transform,
     g.save();                                                                 // so they're scaled to plate units here

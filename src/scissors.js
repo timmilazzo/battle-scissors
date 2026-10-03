@@ -42,6 +42,9 @@ export function weaponDef(id, tier = upgradeTier(id)) {
     else if (base.signature === 'crit') d.critMult *= k;
     else if (base.signature === 'hold') d.holdSec *= k;
     else if (base.signature === 'ring') d.ringScale *= k;
+    else if (base.signature === 'notch') d.pivotZone *= k;       // Kitchen Shears: a wider pivot kill zone
+    else if (base.signature === 'nick') d.critZone *= k;         // Stork Snips: a wider crit zone
+    else if (base.signature === 'curl') d.curlSec *= k;          // Ribbon Shears: longer curls
     else if (base.signature === 'all') { d.reachFrac *= a; d.openMs /= a; d.maxOpenDeg *= a; d.damageMult *= a; }
   }
   return d;

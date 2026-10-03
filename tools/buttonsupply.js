@@ -5,20 +5,31 @@
 //
 // One-time supply = stars (every star of every Button-earning level, first time only) + achievements
 // (src/achievements.js) + world chests. On top of that every win pays the wage: floor(score / scorePerButton), capped
-// per level at scoreCapBase + scoreCapPerLevel x the level number (src/meta.js scoreCap), replays included, and Random
-// Quilt pays it as level hpOffMapLevel. So income never runs out; the tool prints how many replay wins the whole tree
-// takes. It then estimates what a full playthrough averaging 2.2 stars per level earns.
-// Needs Node 22+ (it imports the game's ES modules directly; they touch no DOM).
+// per level at scoreCapBase + scoreCapPerLevel x the global level number 1..50 (src/meta.js scoreCap / levelPlace),
+// replays included, and Random Quilt pays it as world hpOffMapWorld, level hpOffMapLevel. So income never runs out; the
+// tool prints how many replay wins the whole tree takes. It then estimates what a full playthrough averaging 2.2 stars
+// per level earns. Sinks: every pair's upgrades, every Pin type's tiers (CONFIG.towers x pinTierCosts), SHRED's tiers,
+// the Skills' tiers (CONFIG.skills x skillCosts, once they exist), the Shop pairs and cosmetics.
+// Needs Node 22+ (it imports the game's ES modules directly; they touch no DOM). meta.js itself can't be imported here
+// (it pulls in weaponSelect.js, which builds DOM), so levelPlace's numbering is repeated below: keep the two in step.
 import { CONFIG as C } from '../src/config.js';
 import { ACHIEVEMENTS } from '../src/achievements.js';
-import { levelInfo, loadLevel } from '../src/levels/index.js';
+import { loadLevel } from '../src/levels/index.js';
 
 const M = C.meta;
-const levels = C.map.nodes.map(n => n[0]).filter(id => id !== C.tutLevel);   // as meta.js earningLevels()
-const worlds = [...new Set(levels.map(id => levelInfo(id).world))];
+// as meta.js levelPlace: the worlds' patches counted in play order (level 0 = 0), off the map world hpOffMapWorld's level hpOffMapLevel
+const places = new Map();
+{
+  let g = 0;
+  C.map.worlds.forEach((w, wi) => { let n = 0; for (const [id] of w.nodes) { if (id === C.tutLevel) continue; places.set(id, { world: wi + 1, worldId: w.id, n: ++n, global: ++g }); } });
+}
+const offMapGlobal = C.map.worlds.slice(0, C.hpOffMapWorld - 1).reduce((s, w) => s + w.nodes.filter(nd => nd[0] !== C.tutLevel).length, 0) + C.hpOffMapLevel;
+const levels = [...places.keys()];                                                     // as meta.js earningLevels()
+const worlds = C.map.worlds.map(w => w.id);
 const sum = a => a.reduce((s, x) => s + x, 0);
-const levelNum = id => { const i = C.map.nodes.findIndex(n => n[0] === id); return i >= 0 ? i : C.hpOffMapLevel; };   // as meta.js mapLevelNum
-const cap = id => M.scoreCapBase + M.scoreCapPerLevel * levelNum(id);                                             // as meta.js scoreCap
+const levelNum = id => places.has(id) ? places.get(id).global : offMapGlobal;         // as meta.js levelPlace(id).global
+const levelNo = id => places.has(id) ? places.get(id).world + '-' + places.get(id).n : 'off map';
+const cap = id => M.scoreCapBase + M.scoreCapPerLevel * levelNum(id);                  // as meta.js scoreCap
 
 const perLevelStars = sum(M.starButtons);
 const stars = levels.length * perLevelStars;
@@ -29,9 +40,13 @@ const supply = stars + achievements + chests;
 const upgrades = Object.keys(C.weapons).length * sum(M.upgradeCosts);
 const pinTiers = Object.keys(C.towers).length * sum(M.pinTierCosts);
 const shred = sum(M.shredCosts);
+// the Skills (docs/worlds.md): each one's tiers at skillCosts, once CONFIG.skills exists (an object or a list of them)
+const skillCosts = C.skillCosts || M.skillCosts || null;
+const skillIds = C.skills ? (Array.isArray(C.skills) ? C.skills.map(k => k.id) : Object.keys(C.skills)) : [];
+const skills = skillCosts && skillIds.length ? skillIds.length * sum(skillCosts) : 0;
 const cosmetics = sum(Object.values(M.cosmetics).map(c => c.price || 0));
 const shopScissors = sum(Object.values(C.weapons).map(w => w.shop || 0));
-const tree = upgrades + pinTiers + shred + shopScissors + cosmetics;
+const tree = upgrades + pinTiers + shred + skills + shopScissors + cosmetics;
 
 console.log('One-time Button supply (' + levels.length + ' levels, ' + worlds.length + ' worlds, ' + ACHIEVEMENTS.length + ' achievements)');
 console.log('  stars         ' + String(stars).padStart(5) + '  (' + levels.length + ' x ' + perLevelStars + ')');
@@ -39,12 +54,16 @@ console.log('  achievements  ' + String(achievements).padStart(5));
 console.log('  world chests  ' + String(chests).padStart(5));
 console.log('  TOTAL         ' + String(supply).padStart(5));
 console.log('');
-console.log('The wage, per win (floor(score / ' + M.scorePerButton + '), capped by level): L1 ' + cap(levels[0]) + ' .. L' + levels.length + ' ' + cap(levels[levels.length - 1]) +
-  ', Random Quilt ' + cap('random') + '. Replays pay it every time.');
+console.log('The wage, per win (floor(score / ' + M.scorePerButton + '), capped by level): ' + levelNo(levels[0]) + ' ' + cap(levels[0]) + ' .. ' +
+  levelNo(levels[levels.length - 1]) + ' ' + cap(levels[levels.length - 1]) + ', Random Quilt (as ' + C.hpOffMapWorld + '-' + C.hpOffMapLevel + ') ' + cap('random') + '. Replays pay it every time.');
+console.log('  by world: ' + worlds.map((w, i) => (i + 1) + ': ' + cap(levels[i * 10]) + '..' + cap(levels[i * 10 + 9])).join(', '));
 console.log('');
 console.log('Spending: scissors upgrades ' + upgrades + ' (' + Object.keys(C.weapons).length + ' x ' + sum(M.upgradeCosts) + '), Pin tiers ' + pinTiers +
-  ' (' + Object.keys(C.towers).length + ' x ' + sum(M.pinTierCosts) + '), SHRED tiers ' + shred + ', Shop scissors ' + shopScissors + ', cosmetics ' + cosmetics +
+  ' (' + Object.keys(C.towers).length + ' x ' + sum(M.pinTierCosts) + '), SHRED tiers ' + shred +
+  (skills ? ', Skill tiers ' + skills + ' (' + skillIds.length + ' x ' + sum(skillCosts) + ')' : '') +
+  ', Shop scissors ' + shopScissors + ' (' + Object.values(C.weapons).filter(w => w.shop).length + ' pairs), cosmetics ' + cosmetics +
   ' = ' + tree + '; Sharpen ' + M.sharpenCost + ' a time');
+if (!skills) console.log('  (Skills not counted: no CONFIG.skills' + (skillCosts ? '' : ' / skillCosts') + ' yet; docs/worlds.md plans five at 120/240/400 = ' + 5 * 760 + ')');
 
 // A full playthrough averaging 2.2 stars per level: 40% of levels three-starred, 40% two, 20% one. Three-starring
 // is spread evenly, so a world's chest and its "three-star a world" achievement only come if a whole world is

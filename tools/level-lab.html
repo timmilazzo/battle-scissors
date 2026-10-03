@@ -8,7 +8,9 @@
      (node tools/serve.js), open /tools/level-lab.html. Not part of the deployed site.
      Export PNG downloads the plate (with any dressing) and a copy with the routes/pads overlay, as an artist reference.
      Dress mode places kit sprites by hand (src/levelDress.js): click to place, drag to move, wheel to scale, shift+wheel
-     to rotate, Delete/Backspace removes; the textarea holds the `dressing: [...]` to paste into the level file. -->
+     to rotate, Delete/Backspace removes; the textarea holds the `dressing: [...]` to paste into the level file.
+     The zone picker paints the recipe in any world's look (a world whose own art hasn't arrived shows its stand-in, marked
+     so); the overlay also shows the light sources (yellow: the dark world reads them) and where the river crosses (cyan). -->
 <style>
   body { margin: 0; font: 14px system-ui, sans-serif; background: #1b1512; color: #f3e6c8; }
   header { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px; background: #2c1e14; position: sticky; top: 0; z-index: 2; }
@@ -37,11 +39,11 @@
 <header>
   <input id="recipe" type="text" value="zigzag 2, fork pin, s" spellcheck="false" aria-label="Recipe">
   <label>seed <input id="seed" type="number" value="1"></label>
-  <label>zone <select id="zone"><option>meadow</option><option selected>denim</option><option>lair</option></select></label>
+  <label>zone <select id="zone"></select></label>
   <button id="build">Build</button>
   <button id="random">Random recipe</button>
   <button id="six">6 seeds</button>
-  <label><input id="overlay" type="checkbox" checked> routes + pads</label>
+  <label><input id="overlay" type="checkbox" checked> routes + pads + lights + river</label>
   <label><input id="dress" type="checkbox"> Dress</label>
   <button id="export" title="Downloads the plate as painted (with dressing), then a copy with the routes + pads overlay">Export PNG</button>
   <a id="play" class="btn" target="_blank">Play it ›</a>
@@ -62,10 +64,13 @@ paste a dressing (JSON array, or the whole `dressing: [...]` line) below to load
   import { CONFIG as C } from '../src/config.js';
   import { buildLevel, randomRecipe, curve } from '../src/levelGen.js';
   import { loadKit, paintLevel } from '../src/levelArt.js';
-  import { SPRITES } from '../src/kit.js';
+  import { SPRITES, ZONES, zoneReady, isWanted } from '../src/kit.js';
   import { loadDressing, drawDressing } from '../src/levelDress.js';
 
   const $ = id => document.getElementById(id), out = $('out');
+  // the zones; a world whose own art hasn't arrived yet is marked as a stand-in
+  $('zone').replaceChildren(...Object.keys(ZONES).map(z => new Option(z + (zoneReady(z) ? '' : ' (stand-in)'), z)));
+  $('zone').value = 'denim';
   const zoneOf = def => def.world;
 
   // ---------- drawing: the plate at its own resolution, in plate units under a 1 / size scale ----------
@@ -78,6 +83,21 @@ paste a dressing (JSON array, or the whole `dressing: [...]` line) below to load
     for (const [x, y] of def.spots) { g.beginPath(); g.arc(x, y, C.towers.needle.radius, 0, Math.PI * 2); g.stroke(); }
     g.setLineDash([]); g.strokeStyle = 'rgba(255,0,255,0.5)';                  // narrow-phone crop (360 x 780)
     const crop = (def.w - 360 * def.h / 780) / 2; g.strokeRect(crop, 0, def.w - 2 * crop, def.h);
+    // light sources (def.lights, set by the painter): the light's reach dashed, its centre a dot
+    for (const L of def.lights || []) {
+      g.strokeStyle = 'rgba(255,214,64,0.9)'; g.setLineDash([6, 6]); g.lineWidth = 2; g.beginPath(); g.arc(L.x, L.y, L.r, 0, Math.PI * 2); g.stroke();
+      g.setLineDash([]); g.fillStyle = '#ffd640'; g.beginPath(); g.arc(L.x, L.y, 6, 0, Math.PI * 2); g.fill();
+    }
+    // the river (a deco entry the painter adds): its centreline (dashed while its art is missing), the crossing as a ring
+    // round the bridge and a bar along the road
+    for (const d of def.deco || []) if (d.kind === 'river') {
+      g.strokeStyle = 'rgba(60,220,255,0.9)'; g.lineWidth = 4; g.setLineDash(d.drawn ? [] : [12, 8]);
+      // (the path is the two halves one after the other, each from the crossing outward)
+      g.beginPath(); d.path.forEach(([x, y], i) => (i && Math.hypot(x - d.x, y - d.y) > 12 ? g.lineTo(x, y) : g.moveTo(x, y))); g.stroke(); g.setLineDash([]);
+      if (d.pond) { g.lineWidth = 3; g.beginPath(); g.arc(d.pond.x, d.pond.y, d.pond.r, 0, Math.PI * 2); g.stroke(); }
+      g.lineWidth = 3; g.beginPath(); g.arc(d.x, d.y, d.r, 0, Math.PI * 2); g.stroke();
+      g.lineWidth = 8; g.beginPath(); g.moveTo(d.x - Math.cos(d.ang) * d.r, d.y - Math.sin(d.ang) * d.r); g.lineTo(d.x + Math.cos(d.ang) * d.r, d.y + Math.sin(d.ang) * d.r); g.stroke();
+    }
   }
   // opts: { overlay, dressing (placements), sel (selected placement) }; draws onto canvas c (resized to the plate)
   function compose(c, def, plate, opts) {
@@ -97,8 +117,17 @@ paste a dressing (JSON array, or the whole `dressing: [...]` line) below to load
   }
   function metaText(def) {
     return '<b>' + def.recipe + '</b>  seed ' + def.seed + '\nsize ' + def.size + ' (the game zooms out to fit), entrances ' + def.entries + ', paths ' + def.paths.length + ', pads ' + def.spots.length +
+      '\nzone ' + def.world + (zoneReady(def.world) ? '' : ' (stand-in: its own art hasn\'t arrived)') + ', lights ' + (def.lights ? def.lights.length : 0) + riverText(def) +
+      (def.paintMs ? ', painted in ' + def.paintMs + ' ms' : '') +
       (def.warnings.length ? '\n<span class="warn">' + def.warnings.join('\n') + '</span>' : '');
   }
+  function riverText(def) {
+    const r = (def.deco || []).find(d => d.kind === 'river');
+    if (!r) return ZONES[def.world] && ZONES[def.world].river ? ', river: no crossing fits' : '';
+    return ', river crosses at ' + Math.round(r.x) + ',' + Math.round(r.y) + (r.drawn ? '' : ' (not drawn: its art is missing)');
+  }
+  // paints the level and notes how long it took (shown under the plate)
+  function paint(def) { const t0 = performance.now(), p = paintLevel(def); def.paintMs = Math.round(performance.now() - t0); return p; }
   function view(def, plate, opts) {
     const c = compose(document.createElement('canvas'), def, plate, opts);
     const cell = document.createElement('div'); cell.className = 'cell';
@@ -122,13 +151,13 @@ paste a dressing (JSON array, or the whole `dressing: [...]` line) below to load
   }
   function build() {
     const recipe = $('recipe').value, seed = +$('seed').value || 1;
-    const def = lvl(recipe, seed), plate = paintLevel(def), v = view(def, plate, { overlay: $('overlay').checked, dressing: dress });
+    const def = lvl(recipe, seed), plate = paint(def), v = view(def, plate, { overlay: $('overlay').checked, dressing: dress });
     cur = { def, plate, c: v.c, dmeta: v.dmeta };
     out.className = $('dress').checked ? 'dressing' : ''; out.replaceChildren(v.cell);
     hookCanvas(v.c);
     dressChanged();
     playLink(recipe, seed);
-    history.replaceState(null, '', '?recipe=' + encodeURIComponent(recipe) + '&seed=' + seed);
+    history.replaceState(null, '', '?recipe=' + encodeURIComponent(recipe) + '&seed=' + seed + '&zone=' + $('zone').value);
   }
   $('build').onclick = build;
   $('recipe').onkeydown = e => { if (e.key === 'Enter') build(); };
@@ -139,7 +168,7 @@ paste a dressing (JSON array, or the whole `dressing: [...]` line) below to load
     cur = null;
     out.className = 'grid'; out.replaceChildren(...[0, 1, 2, 3, 4, 5].map(i => {
       const def = lvl(recipe, s0 + i);
-      return view(def, paintLevel(def), { overlay: $('overlay').checked }).cell;
+      return view(def, paint(def), { overlay: $('overlay').checked }).cell;
     }));
   };
 
@@ -170,10 +199,10 @@ paste a dressing (JSON array, or the whole `dressing: [...]` line) below to load
       for (const line of body.split('\n')) {
         const cm = line.match(/^\s*\/\/\s*(.+)$/), km = line.match(/^\s*(\w+)\s*:\s*\[/);
         if (cm) groups.push(g = { label: cm[1].replace(/\s*\(.*\)\s*$/, ''), keys: [] });
-        else if (km && SPRITES[km[1]]) { if (!g) groups.push(g = { label: 'sprites', keys: [] }); g.keys.push(km[1]); }
+        else if (km && SPRITES[km[1]] && !isWanted(km[1])) { if (!g) groups.push(g = { label: 'sprites', keys: [] }); g.keys.push(km[1]); }
       }
     } catch (e) { /* flat list below */ }
-    const listed = new Set(groups.flatMap(g => g.keys)), rest = Object.keys(SPRITES).filter(k => !listed.has(k));
+    const listed = new Set(groups.flatMap(g => g.keys)), rest = Object.keys(SPRITES).filter(k => !listed.has(k) && !isWanted(k));   // (art still wanted can't be placed yet)
     if (rest.length) groups.push({ label: groups.length ? 'other' : 'sprites', keys: rest });
     $('sprite').replaceChildren(...groups.filter(g => g.keys.length).map(g => {
       const og = document.createElement('optgroup'); og.label = g.label;
@@ -297,6 +326,7 @@ paste a dressing (JSON array, or the whole `dressing: [...]` line) below to load
   const q = new URLSearchParams(location.search);
   if (q.get('recipe')) $('recipe').value = q.get('recipe');
   if (q.get('seed')) $('seed').value = q.get('seed');
+  if (q.get('zone') && ZONES[q.get('zone')]) $('zone').value = q.get('zone');
   $('dresspanel').hidden = !$('dress').checked;          // a reload may keep the checkbox ticked
   fillSprites();
   loadKit().then(build);

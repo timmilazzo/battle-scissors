@@ -8,10 +8,10 @@ import { CONFIG as C } from './config.js';
 import { view, level, TAU, DEG } from './core.js';
 import { input, holdTouch } from './input.js';
 import { cut, weapon } from './scissors.js';
-import { live, visOpen, bladeTheta, levelWaves, bossMode } from './game.js';
+import { live, visOpen, bladeTheta, levelWaves, bossMode, isLit } from './game.js';
 import { towerReachOf } from './pins.js';
-import { buildEnemySprites, drawEnemySprite, drawEnemyGround, drawBruteArmor, drawLooseHelmet, drawSeam, drawArmorSeams, drawChargeWarn } from './enemyArt.js';
-import { buildTowerSprites, drawTower, drawNeedle, towerUnit } from './towerArt.js';
+import { buildEnemySprites, drawEnemySprite, drawEnemyGround, drawBruteArmor, drawLooseHelmet, drawSeam, drawArmorSeams, drawChargeWarn, drawDazed, drawBound } from './enemyArt.js';
+import { buildTowerSprites, drawTower, drawNeedle, towerUnit, drawCorkTrap } from './towerArt.js';
 import { drawWeapon, rasterizeArt, setHandleTint } from './weaponArt.js';
 import { cosmeticColor } from './meta.js';
 import { plateFor, ensureSprites, kitSprite } from './levelArt.js';
@@ -34,9 +34,10 @@ const BANNER_SUB_FONT = '400 19px ' + UI_FONT;
 const HEART_FONT = '400 40px ' + UI_FONT;                       // the HP on the heart pad (scaled to the pad)
 
 const PART_COLORS = ['#ffffff', '#8ff7ff', '', '#ffd23f', '#ff8a3d'];   // particle c: 0 white, 1 cyan, 3 gold, 4 ember (2 = alternating 0/1)
-// big floating words, indexed by label kind (LABEL_SNIP / LABEL_NICK / LABEL_CLANG / LABEL_SHIELD in game.js)
-const LABEL_TEXT = ['SNIP!', 'nick', 'CLANG!', 'SHIELDED!'], LABEL_SCALE = [1, 0.6, 0.8, 0.75];
-const LABEL_FILL = ['#ffffff', '#ffffff', '#e3e9ee', '#bff4ff'], LABEL_STROKE = ['rgba(0,70,100,0.8)', 'rgba(0,70,100,0.8)', '#39424a', '#1d2a4a'];
+// big floating words, indexed by label kind (LABEL_SNIP / LABEL_NICK / LABEL_CLANG / LABEL_SHIELD / LABEL_SPIKES /
+// LABEL_LIT (a Lamp Pin's lit enemy, gold) / LABEL_CRACK (the Kitchen Shears' pivot execute) in game.js)
+const LABEL_TEXT = ['SNIP!', 'nick', 'CLANG!', 'SHIELDED!', 'SPIKES!', 'LIT!', 'CRACK!'], LABEL_SCALE = [1, 0.6, 0.8, 0.75, 0.75, 0.7, 0.9];
+const LABEL_FILL = ['#ffffff', '#ffffff', '#e3e9ee', '#bff4ff', '#e8f0a0', '#ffe27a', '#ffd23f'], LABEL_STROKE = ['rgba(0,70,100,0.8)', 'rgba(0,70,100,0.8)', '#39424a', '#1d2a4a', '#3a3a14', '#6a4200', '#5a1a0a'];
 // damage number colour by strike grade: gold = strong (near pivot / seam), white = mid, grey-blue = graze (near tips),
 // orange = a Fire Pin burn tick (g = -1), silver = a Needle Pin hit (g = -2)
 const numColor = g => g <= -2 ? '#dfe9f2' : g < 0 ? '#ff9a4a' : g < 0.35 ? '#ffe27a' : g < 0.7 ? '#ffffff' : '#9fc7d6';
@@ -63,19 +64,24 @@ export function prerender() {
 // art: a painted image, or for a generated level the plate levelArt.js paints), full height and centred. Wider screens get the plate blurred and darkened as side bars; narrower
 // ones crop its sides. Until the plate loads, a plain felt green.
 const bgCanvas = document.createElement('canvas');
+// A generated level with a `bg` (a painted-over plate, docs/paint-over.md) shows that image; if it fails to load, the
+// generated plate instead.
 const plate = new Image();
+let plateFailed = '';
 plate.onload = () => { if (view.W > 0) renderBackground(); };
+plate.onerror = () => { plateFailed = plate.getAttribute('src'); console.warn('level plate failed to load:', plateFailed); if (view.W > 0) renderBackground(); };
+const paintedPlate = lv => !!lv.bg && (!lv.gen || plateFailed !== lv.bg);
 function renderBackground() {
-  const lv = level(), gen = lv.gen ? plateFor(lv, () => { if (view.W > 0) renderBackground(); }) : null;
-  if (!lv.gen && plate.getAttribute('src') !== lv.bg) plate.src = lv.bg;   // a level switch: onload redraws once it arrives
-  const img = lv.gen ? gen : plate;
+  const lv = level(), painted = paintedPlate(lv), gen = painted ? null : plateFor(lv, () => { if (view.W > 0) renderBackground(); });
+  if (painted && plate.getAttribute('src') !== lv.bg) plate.src = lv.bg;   // a level switch: onload redraws once it arrives
+  const img = painted ? plate : gen;
   const W = view.W, H = view.H, dpr = view.dpr, L = view.L, LX = view.LX, pw = lv.w * L, ph = lv.h * L;
   bgCanvas.width = Math.max(1, Math.round(view.SW * dpr)); bgCanvas.height = Math.max(1, Math.round(view.SH * dpr));
   const g = bgCanvas.getContext('2d');
   g.setTransform(dpr * view.Z, 0, 0, dpr * view.Z, 0, 0);        // world px (W x H) onto the screen-sized backdrop
   g.fillStyle = '#2f5a1c'; g.fillRect(0, 0, W, H);
   view.bgReady = false;
-  if (lv.gen ? !gen : !plate.complete || !plate.naturalWidth || plate.getAttribute('src') !== lv.bg) return;
+  if (!painted ? !gen : !plate.complete || !plate.naturalWidth || plate.getAttribute('src') !== lv.bg) return;
   view.bgReady = true;
   if (LX > 0) {                                                  // side bars: the plate stretched to cover, blurred
     const cover = Math.max(W / lv.w, H / lv.h), cw = lv.w * cover, ch = lv.h * cover;
@@ -110,7 +116,7 @@ function drawHeart(state) {
   heartHp = state.hp;
   let stage = 0;
   while (stage < C.heartStageAt.length && f <= C.heartStageAt[stage]) stage++;
-  if (stage || !lv.gen) kitSprite(ctx, heartPadKey(zone, stage), x, y, R / SPRITES[heartPadKey(zone, 0)][5] * 1.04, 0, 0);
+  if (stage || paintedPlate(lv)) kitSprite(ctx, heartPadKey(zone, stage), x, y, R / SPRITES[heartPadKey(zone, 0)][5] * 1.04, 0, 0);
   if (state.workshopHitT > 0) {
     ctx.globalAlpha = state.workshopHitT * 0.55; ctx.fillStyle = '#ff3b3b';
     ctx.beginPath(); ctx.arc(x, y, R * (0.8 + (1 - state.workshopHitT) * 0.3), 0, TAU); ctx.fill();
@@ -192,9 +198,12 @@ function drawCutZone(cutT) {
 }
 
 // Hit flash: any enemy whose hp dropped since the last frame shows solid white for 2 frames.
+// The dark (night, state.dark): an enemy whose centre is outside every pool of light (game.js isLit) is drawn at the night
+// rule's darkAlpha, with no weak spot (seam, glowing seams) or hp bar showing. A Moth in the air (e.airH) is drawn small
+// and high over its shadow; a grown Snowball bigger (e.r / its type's r); a rolling boss turned by e.spin.
 let lastHp = null, wasOn = null, flashFrames = null;
 function drawEnemies(state) {
-  const wad = C.waddleDeg * DEG, enemies = state.enemies;
+  const wad = C.waddleDeg * DEG, enemies = state.enemies, rule = state.dark ? C.worldRules[level().world] : null;
   if (!lastHp || lastHp.length !== enemies.length) {
     lastHp = new Float32Array(enemies.length); wasOn = new Uint8Array(enemies.length); flashFrames = new Uint8Array(enemies.length);
   }
@@ -203,44 +212,134 @@ function drawEnemies(state) {
     if (e.on && wasOn[i] && e.hp < lastHp[i] - 1e-6) flashFrames[i] = 2;
     lastHp[i] = e.hp; wasOn[i] = e.on ? 1 : 0;
     if (!e.on) { flashFrames[i] = 0; continue; }
-    const t = e.type, step = Math.sin(e.age * 7 + e.phase), rot = t.boss ? 0 : step * wad;
-    drawEnemyGround(ctx, e.name, e.x, e.y, (e.pinned && !e.walking) || e.armorDownT > 0 ? 0 : 0.55 + 0.35 * Math.abs(step));   // no dust standing still (a dazed boss too)
-    const shake = e.windup ? C.bossTremblePx * Math.sin(state.clock * 70) : 0;   // winding up for a charge: it trembles
+    const t = e.type, bd = e.bdef, step = Math.sin(e.age * 7 + e.phase), rot = t.boss ? e.spin : step * wad;
+    const lit = !rule || isLit(e.x, e.y), k = e.r / t.r, air = e.airH, sy = air > 0 ? e.y - t.hopPx * air : e.y;
+    if (!lit) ctx.globalAlpha = rule.darkAlpha;
+    const still = (e.pinned && !e.walking) || e.armorDownT > 0 || e.air || (bd && bd.rolling);   // no dust standing still (a dazed boss), flying or rolling
+    drawEnemyGround(ctx, e.name, e.x, e.y, still ? 0 : 0.55 + 0.35 * Math.abs(step), air > 0 ? k * (1 - 0.45 * air) : k);
+    // winding up for a charge: it trembles; a Snow Globe shimmies before and while it shakes
+    const shake = e.windup ? C.bossTremblePx * Math.sin(state.clock * 70) :
+      bd && bd.shake && (e.seamOpen || e.seamWarn) ? (e.seamOpen ? 2 : 0.7) * C.bossTremblePx * Math.sin(state.clock * 60) : 0;
     if (shake) ctx.translate(shake, 0);
-    drawEnemySprite(ctx, e.name, e.x, e.y, rot, e.rank);
-    if (e.armored) drawBruteArmor(ctx, e, rot);
+    drawEnemySprite(ctx, e.name, e.x, sy, air > 0 ? rot + Math.sin(state.clock * 30 + e.phase) * 0.1 : rot, e.rank, air > 0 ? k * (1 - 0.25 * air) : k);
+    if (e.armored && (!bd || bd.helmet !== false)) drawBruteArmor(ctx, e, rot);
     else if (t.boss && e.helmPh > 0) drawLooseHelmet(ctx, e, state.clock);   // knocked off by its charge, then picked back up
     if (shake) ctx.translate(-shake, 0);
-    if (t.boss) {                                               // its rules, shown: the opening seam, or glowing seams while armor is down
+    ctx.globalAlpha = 1;
+    if (e.escortOf && e.escortOf.on && e.escortOf.bdef && e.escortOf.bdef.captures) drawBound(ctx, e, e.escortOf.type.patch, state.clock);   // wrapped / stuck
+    if (t.boss) {                                               // its rules, shown: the opening seam, glowing seams while armor is down, ...
       const m = bossMode(e);
-      if (e.windup) { const d = C.bosses[e.name]; drawChargeWarn(ctx, e, (e.chargeT - d.chargeEverySec + d.windupSec) / d.windupSec, state.clock); }
-      if (m === 'seam') drawSeam(ctx, e, state.clock);
-      else if ((m === 'armor' && !e.armored && !e.charging) || (m === 'swarm' && e.shieldDownT > 0)) drawArmorSeams(ctx, e, state.clock);
-      else if (m === 'swarm' && e.shieldDownT <= 0) {          // a shimmering thread shield, held up by its Scraps
+      if (e.windup) { const d = bd; drawChargeWarn(ctx, e, (e.chargeT - d.chargeEverySec + d.windupSec) / d.windupSec, state.clock); }
+      if (m === 'armor' && !e.armored && !e.charging && bd && bd.helmet === false) drawDazed(ctx, e, state.clock);
+      if (!lit) { /* in the dark: no weak spot shows */ }
+      else if (m === 'seam') {
+        if (!bd || !bd.shake) drawSeam(ctx, e, state.clock);
+        else if (e.seamOpen || e.seamWarn) {                     // the Snow Globe shaking: a flurry ring round the glass
+          ctx.beginPath(); ctx.arc(e.x, e.y - e.r * 0.18, e.r * (0.98 + 0.04 * Math.sin(state.clock * 30)), 0, TAU);
+          ctx.globalAlpha = e.seamOpen ? 0.85 : 0.35; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(2, e.r * (e.seamOpen ? 0.12 : 0.06)); ctx.stroke(); ctx.globalAlpha = 1;
+        }
+      } else if ((m === 'armor' && !e.armored && !e.charging && !e.captives) || (m === 'swarm' && e.shieldDownT > 0)) drawArmorSeams(ctx, e, state.clock);
+      else if (m === 'swarm' && e.shieldDownT <= 0) {          // a shimmering shield, held up by its escorts (honey-gold round the Dipper)
         ctx.beginPath(); ctx.arc(e.x, e.y, e.r * 1.18, 0, TAU);
-        ctx.setLineDash(DASH); ctx.lineDashOffset = -state.clock * 30; ctx.globalAlpha = 0.7; ctx.strokeStyle = '#8fe8ff'; ctx.lineWidth = 3; ctx.stroke();
+        ctx.setLineDash(DASH); ctx.lineDashOffset = -state.clock * 30; ctx.globalAlpha = 0.7; ctx.strokeStyle = bd && bd.captures ? '#ffc93d' : '#8fe8ff'; ctx.lineWidth = 3; ctx.stroke();
         ctx.setLineDash(NO_DASH); ctx.lineDashOffset = 0; ctx.globalAlpha = 1;
+      } else if (m === 'trail' && e.spoolWarn) {                 // the Bobbin about to spool a Scrap: a gold ring tightening (snip now)
+        const f = clamp01(1 - (bd.spoolEverySec - e.swarmT) / bd.spoolWarnSec);
+        ctx.beginPath(); ctx.arc(e.x, e.y, e.r * (1.6 - 0.5 * f), 0, TAU);
+        ctx.globalAlpha = 0.4 + 0.5 * f; ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = Math.max(3, e.r * 0.1); ctx.stroke(); ctx.globalAlpha = 1;
       }
     }
     if (flashFrames[i] > 0) {
       flashFrames[i]--;
-      ctx.beginPath(); ctx.arc(e.x, e.y, e.r * 1.02, 0, TAU);
+      ctx.beginPath(); ctx.arc(e.x, sy, e.r * 1.02, 0, TAU);
       ctx.globalAlpha = 0.95; ctx.fillStyle = '#ffffff'; ctx.fill(); ctx.globalAlpha = 1;
     } else if (e.hitT > 0) {
-      ctx.beginPath(); ctx.arc(e.x, e.y, e.r * 0.95, 0, TAU);
+      ctx.beginPath(); ctx.arc(e.x, sy, e.r * 0.95, 0, TAU);
       ctx.globalAlpha = e.hitT * 0.6; ctx.fillStyle = '#ffffff'; ctx.fill(); ctx.globalAlpha = 1;
     }
+    if (e.marked) drawChalkMark(e, sy, state.clock);           // Seam Mark: a chalk cross (the next snip on it hits hard)
     if (e.slowed) {                                            // frosted rim while slowed (Ice Pin / Helicopter)
       ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 3, 0, TAU);
       ctx.globalAlpha = 0.7; ctx.strokeStyle = '#bff4ff'; ctx.lineWidth = 2; ctx.stroke(); ctx.globalAlpha = 1;
     }
-    if (e.burning) drawFlames(e, state.clock);                 // on fire (Fire Pin)
-    if (!t.boss && e.maxHp >= 3) {                             // Bolster and Brute; the boss gets the big bar in the HUD
-      const bw = e.r * 1.6, bx = e.x - bw / 2, by = e.y - e.r * 1.2 - 8;
+    if (e.lit && lit) {                                        // in a Lamp Pin's ring: a warm halo (snips land as weak-spot hits)
+      ctx.beginPath(); ctx.arc(e.x, sy, e.r + 5, 0, TAU);
+      ctx.globalAlpha = 0.45 + 0.15 * Math.sin(state.clock * 6 + e.phase); ctx.strokeStyle = '#ffe27a'; ctx.lineWidth = 2.5; ctx.stroke(); ctx.globalAlpha = 1;
+    }
+    if (e.soft) {                                              // softened by a Candle Pin: a dripping wax rim
+      ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 1.5, 0.15 * Math.PI, 0.85 * Math.PI);
+      ctx.globalAlpha = 0.75; ctx.strokeStyle = '#fff3d6'; ctx.lineWidth = 3; ctx.stroke();
+      ctx.fillStyle = '#fff3d6';
+      for (let d = 0; d < 3; d++) { const a = (0.3 + d * 0.2) * Math.PI, dl = (0.3 + 0.2 * Math.sin(state.clock * 3 + d + e.phase)) * e.r; ctx.beginPath(); ctx.arc(e.x + Math.cos(a) * (e.r + 1.5), e.y + Math.sin(a) * (e.r + 1.5) + dl * 0.4, 1.8, 0, TAU); ctx.fill(); }
+      ctx.globalAlpha = 1;
+    }
+    if (e.curled) {                                            // tangled in a Ribbon Shears curl
+      ctx.beginPath(); ctx.ellipse(e.x, e.y + e.r * 0.6, e.r * 0.9, e.r * 0.35, 0, 0, TAU);
+      ctx.globalAlpha = 0.7; ctx.strokeStyle = '#ff7ab8'; ctx.lineWidth = 2; ctx.stroke(); ctx.globalAlpha = 1;
+    }
+    if (e.burning) drawFlames(e, state.clock);                 // on fire (Fire Pin): flames show in the dark too
+    if (!t.boss && e.maxHp >= 3 && lit) {                      // Bolster and up; the boss gets the big bar in the HUD
+      const bw = e.r * 1.6, bx = e.x - bw / 2, by = sy - e.r * 1.2 - 8;
       ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(bx - 1, by - 1, bw + 2, 7);
       ctx.fillStyle = '#7dffb0'; ctx.fillRect(bx, by, bw * Math.max(0, e.hp / e.maxHp), 5);
     }
   }
+}
+const clamp01 = v => (v < 0 ? 0 : v > 1 ? 1 : v);
+
+// The dark (night): the world dimmed outside pools of light (state.lights from game.js: the level's lanterns, the heart
+// pad, every Pin, a Lamp Pin's whole ring), drawn over the world after the enemies and before the weapon and the UI.
+// The mask (a dim fill with soft holes and a faint warm glow in each) is painted only when the lights or the screen
+// change (state.lightsVer), in world px under the zoom, a little past the screen's edges so screen shake shows no seam.
+const darkCv = document.createElement('canvas');
+const DARK_PAD = 30;                                             // world px of mask past each screen edge
+let darkVer = -1, darkW = 0, darkH = 0, darkDpr = 0, darkZ = 0, darkDim = -1;
+function drawDark(state) {
+  if (!state.dark) return;
+  const rule = C.worldRules[level().world]; if (!rule) return;
+  const W = view.W, H = view.H, dpr = view.dpr, Z = view.Z, P = DARK_PAD;
+  if (darkVer !== state.lightsVer || darkW !== W || darkH !== H || darkDpr !== dpr || darkZ !== Z || darkDim !== rule.dim) {
+    darkVer = state.lightsVer; darkW = W; darkH = H; darkDpr = dpr; darkZ = Z; darkDim = rule.dim;
+    darkCv.width = Math.max(1, Math.round((W + 2 * P) * Z * dpr)); darkCv.height = Math.max(1, Math.round((H + 2 * P) * Z * dpr));
+    const g = darkCv.getContext('2d');
+    g.setTransform(dpr * Z, 0, 0, dpr * Z, P * dpr * Z, P * dpr * Z);
+    g.globalCompositeOperation = 'source-over';
+    g.fillStyle = 'rgba(10,8,40,' + rule.dim + ')'; g.fillRect(-P, -P, W + 2 * P, H + 2 * P);
+    g.globalCompositeOperation = 'destination-out';
+    for (let i = 0; i < state.lightN; i++) {
+      const o = state.lights[i], gr = g.createRadialGradient(o.x, o.y, 0, o.x, o.y, o.r);
+      gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(0.55, 'rgba(0,0,0,0.85)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = gr; g.beginPath(); g.arc(o.x, o.y, o.r, 0, TAU); g.fill();
+    }
+    g.globalCompositeOperation = 'source-over';                  // a faint warm glow in each pool
+    for (let i = 0; i < state.lightN; i++) {
+      const o = state.lights[i], gr = g.createRadialGradient(o.x, o.y, 0, o.x, o.y, o.r);
+      gr.addColorStop(0, 'rgba(255,200,120,0.12)'); gr.addColorStop(1, 'rgba(255,200,120,0)');
+      g.fillStyle = gr; g.beginPath(); g.arc(o.x, o.y, o.r, 0, TAU); g.fill();
+    }
+  }
+  ctx.drawImage(darkCv, -P, -P, W + 2 * P, H + 2 * P);
+}
+
+// A Pin snowed under by the Snow Globe's shake (t.snowedT > 0: it does nothing): a mound of snow over its cushion,
+// melting away over the last half second.
+function drawSnowCap(t, clock) {
+  const R = level().spotR * view.L, a = Math.min(1, t.snowedT / 0.5), x = t.x, y = t.y - R * 0.2;
+  ctx.globalAlpha = 0.95 * a;
+  ctx.fillStyle = '#f4f8ff'; ctx.strokeStyle = '#9fb4c8'; ctx.lineWidth = Math.max(1.5, R * 0.06);
+  ctx.beginPath();
+  ctx.ellipse(x, y + R * 0.25, R * 0.95, R * 0.45, 0, 0, TAU);
+  ctx.moveTo(x - R * 0.2 + R * 0.42, y - R * 0.1); ctx.arc(x - R * 0.2, y - R * 0.1, R * 0.42, 0, TAU);
+  ctx.moveTo(x + R * 0.35 + R * 0.36, y); ctx.arc(x + R * 0.35, y, R * 0.36, 0, TAU);
+  ctx.moveTo(x + R * 0.05 + R * 0.3, y - R * 0.45); ctx.arc(x + R * 0.05, y - R * 0.45, R * 0.3, 0, TAU);
+  ctx.stroke(); ctx.fill();
+  ctx.fillStyle = '#ffffff';                                       // a glitter of frost
+  for (let k = 0; k < 3; k++) {
+    const f = clock * 2 + k * 2.1;
+    ctx.globalAlpha = a * (0.5 + 0.5 * Math.sin(f * 3));
+    ctx.beginPath(); ctx.arc(x + Math.cos(f) * R * 0.5, y - R * 0.2 + Math.sin(f * 1.3) * R * 0.25, Math.max(1.5, R * 0.05), 0, TAU); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
 }
 
 // Flames on a burning enemy: an orange glow over its body plus three flickering flame tongues rising from it.
@@ -278,6 +377,31 @@ function drawFlames(e, clock) {
 // A squish: one of the kit's two splats, fading over splatSec.
 const SF_IMG_W = 170, SF_FPS = 9, SF_FPS_FAST = 18;                // visible body width in the 240x120 frames; frames per second
 const SPLAT_PX = 62;                                              // on-screen width of a splat's 200px art
+// The Ribbon Shears' curls on the road (game.js state.curls): a pink gift-wrap loop of ribbon with two tails, fading
+// out over its last half second. Kind 'pinking' (a Pinking Cut's trail mark) is a short zigzag instead.
+function drawCurls(state) {
+  const R = C.curlPx;
+  ctx.lineCap = 'round';
+  for (const c of state.curls) {
+    if (!c.on) continue;
+    ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(c.rot);
+    ctx.globalAlpha = Math.min(1, c.t / 0.5) * 0.9;
+    if (c.kind === 'pinking') {                                  // a tier-3 Pinking Cut's trail: a short pinked zigzag across the lane
+      ctx.beginPath(); ctx.moveTo(-R * 0.6, 0);
+      for (let k = 1; k <= 6; k++) ctx.lineTo(-R * 0.6 + k * R * 0.2, k & 1 ? -R * 0.22 : R * 0.22);
+      ctx.strokeStyle = '#7a1d4a'; ctx.lineWidth = 5; ctx.stroke(); ctx.strokeStyle = '#ffb3d6'; ctx.lineWidth = 2.5; ctx.stroke();
+      ctx.restore(); continue;
+    }
+    ctx.strokeStyle = '#c2357a'; ctx.lineWidth = 6;              // a dark edge under the ribbon
+    ctx.beginPath(); ctx.ellipse(-R * 0.35, 0, R * 0.42, R * 0.24, -0.5, 0, TAU); ctx.moveTo(R * 0.77, 0); ctx.ellipse(R * 0.35, 0, R * 0.42, R * 0.24, 0.5, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = '#ff7ab8'; ctx.lineWidth = 3.5;
+    ctx.beginPath(); ctx.ellipse(-R * 0.35, 0, R * 0.42, R * 0.24, -0.5, 0, TAU); ctx.moveTo(R * 0.77, 0); ctx.ellipse(R * 0.35, 0, R * 0.42, R * 0.24, 0.5, 0, TAU); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(-R * 0.2, R * 0.5, -R * 0.55, R * 0.7); ctx.moveTo(0, 0); ctx.quadraticCurveTo(R * 0.25, R * 0.45, R * 0.5, R * 0.8); ctx.stroke();
+    ctx.fillStyle = '#ffd1e6'; ctx.beginPath(); ctx.arc(0, 0, 3.5, 0, TAU); ctx.fill();
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+}
 function drawCritters(state) {
   for (const c of state.critters) if (c.on) drawSilverfish(c.x, c.y, c.ang, c.age, c.skT > 0);
 }
@@ -404,19 +528,26 @@ function drawTowers(state) {
   for (let i = 0; i < state.towers.length; i++) {
     const t = state.towers[i];
     if (!t.on) continue;
-    const def = C.towers[t.type], R = towerReachOf(t);               // the ring at its rank and tier (pins.js)
-    ctx.beginPath(); ctx.arc(t.x, t.y, R, 0, TAU);
-    if (t.type === 'magnet') { ctx.globalAlpha = 0.28; ctx.fillStyle = magnetGrad(i, t, R, def.color); }
-    else { ctx.globalAlpha = 0.07; ctx.fillStyle = def.color; }
+    const def = C.towers[t.type], R = towerReachOf(t), sk = t.snowedT > 0 ? 0.3 : 1;   // the ring at its rank and tier (pins.js); faint while snowed under
+    const cork = t.type === 'cork', rx = cork ? t.fx : t.x, ry = cork ? t.fy : t.y;     // the Cork's ring is round its trap on the road
+    ctx.beginPath(); ctx.arc(rx, ry, R, 0, TAU);
+    if (t.type === 'magnet') { ctx.globalAlpha = 0.28 * sk; ctx.fillStyle = magnetGrad(i, t, R, def.color); }
+    else { ctx.globalAlpha = (t.type === 'lamp' ? 0.12 : 0.07) * sk; ctx.fillStyle = def.color; }   // the Lamp's ring a little brighter: it's light
     ctx.fill();
-    ctx.setLineDash(DASH); ctx.globalAlpha = 0.65; ctx.lineWidth = 2; ctx.strokeStyle = def.color; ctx.stroke(); ctx.setLineDash(NO_DASH);
-    if (t.pulse > 0) {                                           // magnet pull: a ring collapsing onto its road point
+    ctx.setLineDash(DASH); ctx.globalAlpha = 0.65 * sk; ctx.lineWidth = 2; ctx.strokeStyle = def.color; ctx.stroke(); ctx.setLineDash(NO_DASH);
+    if (cork) {
+      ctx.globalAlpha = 1; drawCorkTrap(ctx, t, state.clock);
+      if (t.pulse > 0) {                                         // the pop: a ring bursting out from the trap
+        ctx.beginPath(); ctx.arc(t.fx, t.fy, R * (1.05 - 0.75 * t.pulse), 0, TAU);
+        ctx.globalAlpha = 0.8 * t.pulse; ctx.lineWidth = 4; ctx.strokeStyle = '#fff1c2'; ctx.stroke();
+      }
+    } else if (t.pulse > 0) {                                    // magnet pull: a ring collapsing onto its road point
       ctx.beginPath(); ctx.arc(t.fx, t.fy, 14 + R * 0.6 * t.pulse, 0, TAU);
       ctx.globalAlpha = 0.7 * t.pulse; ctx.lineWidth = 3; ctx.stroke();
     }
   }
   ctx.globalAlpha = 1;
-  for (const t of state.towers) if (t.on) drawTower(ctx, t, state.clock);
+  for (const t of state.towers) if (t.on) { drawTower(ctx, t, state.clock); if (t.snowedT > 0) drawSnowCap(t, state.clock); }
 }
 const DASH = [6, 6], NO_DASH = [];
 // Needles in flight (Needle Pin shots), same art as the one loaded on the Pin, a little smaller.
@@ -541,6 +672,92 @@ function drawShredBanner(state) {
   ctx.restore();
 }
 
+// ======================= the Skills (the second move slot, game.js "Skills"; their meter is DOM, actionBar.js) =======================
+// Tailor's Focus: a faint cool tint over the plate while the world runs slow, fading in and out.
+function drawFocusTint(state) {
+  const s = state.skill; if (s.focusT <= 0 || !s.def) return;
+  const a = Math.min(1, s.focusT * 3, (s.def.focusSec - s.focusT) * 5);
+  ctx.globalAlpha = 0.16 * a; ctx.fillStyle = '#5a7fd0'; ctx.fillRect(-40, -40, view.W + 80, view.H + 80); ctx.globalAlpha = 1;
+}
+// Thimble Guard: a dimpled brass band round the heart pad while it's on (bright for a moment after each stop), and a
+// brass pip over the pad per stop left.
+function drawThimble(state) {
+  if (state.thimble <= 0 && state.thimbleHitT <= 0) return;
+  const p = state.paths[0], x = p.x[p.n - 1], y = p.y[p.n - 1], R = level().workshopR * view.L, R1 = R * 1.08, hit = state.thimbleHitT;
+  ctx.globalAlpha = state.thimble > 0 ? 1 : hit;
+  ctx.beginPath(); ctx.arc(x, y, R1, 0, TAU);
+  ctx.lineWidth = Math.max(5, R * 0.17); ctx.strokeStyle = '#7a4c10'; ctx.stroke();
+  ctx.lineWidth = Math.max(3, R * 0.1); ctx.strokeStyle = hit > 0.3 ? '#fff1b8' : '#e0b04a'; ctx.stroke();
+  ctx.fillStyle = '#7a4c10';
+  for (let i = 0; i < 18; i++) { const a = i / 18 * TAU; ctx.beginPath(); ctx.arc(x + Math.cos(a) * R1, y + Math.sin(a) * R1, Math.max(1.2, R * 0.025), 0, TAU); ctx.fill(); }
+  const pr = Math.max(4, R * 0.11);
+  for (let i = 0; i < state.thimble; i++) {
+    ctx.beginPath(); ctx.arc(x + (i - (state.thimble - 1) / 2) * pr * 2.6, y - R1 - pr * 1.8, pr, 0, TAU);
+    ctx.fillStyle = '#e0b04a'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = '#5a3a0a'; ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+// Seam Mark: a chalk cross over the enemy and a dashed chalk ring round it.
+function drawChalkMark(e, sy, clock) {
+  const r = e.r * 0.55;
+  ctx.lineCap = 'round'; ctx.globalAlpha = 0.9; ctx.strokeStyle = '#f6f2e8'; ctx.lineWidth = Math.max(2.5, e.r * 0.15);
+  ctx.beginPath(); ctx.moveTo(e.x - r, sy - r); ctx.lineTo(e.x + r, sy + r); ctx.moveTo(e.x + r, sy - r * 0.9); ctx.lineTo(e.x - r * 0.9, sy + r); ctx.stroke();
+  ctx.beginPath(); ctx.arc(e.x, sy, e.r + 6 + Math.sin(clock * 6) * 1.5, 0, TAU);
+  ctx.setLineDash(DASH); ctx.lineDashOffset = clock * 20; ctx.lineWidth = 2; ctx.stroke(); ctx.setLineDash(NO_DASH); ctx.lineDashOffset = 0;
+  ctx.globalAlpha = 1;
+}
+// Basting Stitch: each stitch line across the road (a dashed cream running stitch over its shadow, a red knot at each
+// end), fading as it frays; while a drag is under way, a dashed guide from where it started to the finger.
+const STITCH_DASH = [10, 6];
+function drawStitches(state) {
+  ctx.lineCap = 'round';
+  for (const s of state.stitches) {
+    if (!s.on) continue;
+    ctx.globalAlpha = s.fray;
+    ctx.setLineDash(STITCH_DASH);
+    ctx.beginPath(); ctx.moveTo(s.ax, s.ay + 2); ctx.lineTo(s.bx, s.by + 2); ctx.strokeStyle = 'rgba(30,18,8,0.55)'; ctx.lineWidth = 6; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(s.ax, s.ay); ctx.lineTo(s.bx, s.by); ctx.strokeStyle = '#fff4dc'; ctx.lineWidth = 3.5; ctx.stroke();
+    ctx.setLineDash(NO_DASH);
+    ctx.fillStyle = '#e0312b';
+    ctx.beginPath(); ctx.arc(s.ax, s.ay, 4.5, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(s.bx, s.by, 4.5, 0, TAU); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  const k = state.skill;
+  if (k.sewing) {
+    ctx.setLineDash(STITCH_DASH); ctx.globalAlpha = 0.75;
+    ctx.beginPath(); ctx.moveTo(k.sx, k.sy); ctx.lineTo(k.ex, k.ey); ctx.strokeStyle = '#fff4dc'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.setLineDash(NO_DASH); ctx.globalAlpha = 1;
+  }
+}
+// Pinking Cut: the lane it just cut flashes as a pinked zigzag, fading (state.skill.laneT 1 -> 0).
+function drawPinkingLane(state) {
+  const s = state.skill; if (s.laneT <= 0) return;
+  const dx = s.lx1 - s.lx0, dy = s.ly1 - s.ly0, len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len, h = s.lw / 2, step = s.lw * 0.5;
+  ctx.globalAlpha = s.laneT; ctx.lineJoin = 'miter';
+  ctx.beginPath(); ctx.moveTo(s.lx0, s.ly0);
+  let side = 1;
+  for (let d = step / 2; d < len; d += step) { ctx.lineTo(s.lx0 + ux * d - uy * h * side, s.ly0 + uy * d + ux * h * side); side = -side; }
+  ctx.lineTo(s.lx1, s.ly1);
+  ctx.strokeStyle = '#c2357a'; ctx.lineWidth = 7; ctx.stroke();
+  ctx.strokeStyle = '#ffe1f0'; ctx.lineWidth = 3; ctx.stroke();
+  ctx.lineJoin = 'round'; ctx.globalAlpha = 1;
+}
+// A Skill goes off: its word (CONFIG.skills[id].word) pops in above the SHRED banner's place and fades.
+const SKILL_FONT = '400 46px ' + UI_FONT;
+function drawSkillBanner(state) {
+  const s = state.skill, t = s.bannerT; if (t <= 0 || !s.def) return;
+  const p = 1 - t, sc = p < 0.15 ? 0.6 + p / 0.15 * 0.5 : 1.1 - Math.min(0.1, (p - 0.15) * 0.4);
+  ctx.save();
+  ctx.translate(view.SW / 2, view.SH * 0.22); ctx.scale(sc, sc);
+  ctx.globalAlpha = Math.min(1, t * 3);
+  ctx.font = SKILL_FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+  ctx.lineWidth = 9; ctx.strokeStyle = '#2a170a'; ctx.strokeText(s.def.word, 0, 3);
+  ctx.lineWidth = 6; ctx.strokeStyle = s.def.felt; ctx.strokeText(s.def.word, 0, 0);
+  ctx.fillStyle = '#fff4dc'; ctx.fillText(s.def.word, 0, 0);
+  ctx.restore();
+}
+
 // ======================= level 0: the ghost hand =======================
 // A translucent one-finger hand, drawn from its fingertip (g.x, g.y) with the hand coming up from below-right. It
 // presses (g.down: it drops onto the point and a ripple spreads), a gold ring fills round the fingertip while it holds
@@ -626,6 +843,42 @@ function drawBanner(state) {
   ctx.globalAlpha = 1;
 }
 
+// A mini boss walks on (state.miniBannerT 1 -> 0): its name in the banner lettering, "MINI BOSS" under it, above where
+// the wave banner sits, popping in and fading out.
+const MINI_FONT = '400 36px ' + UI_FONT;
+function drawMiniBanner(state) {
+  const t = state.miniBannerT; if (t <= 0 || !live()) return;
+  const p = 1 - t, a = Math.min(1, t * 5, p * 10), sc = p < 0.12 ? 0.7 + p / 0.12 * 0.4 : 1.1 - Math.min(0.1, (p - 0.12) * 0.5);
+  ctx.save();
+  ctx.translate(view.SW / 2, view.SH * 0.26); ctx.scale(sc, sc);
+  ctx.globalAlpha = a; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+  ctx.font = BANNER_SUB_FONT; ctx.lineWidth = 6; ctx.strokeStyle = '#2a170a'; ctx.strokeText('MINI BOSS', 0, -30);
+  ctx.fillStyle = '#ff9a6a'; ctx.fillText('MINI BOSS', 0, -30);
+  ctx.font = MINI_FONT; ctx.lineWidth = 9; ctx.strokeStyle = '#2a170a'; ctx.strokeText(state.miniName, 0, 4);
+  ctx.strokeStyle = '#5a3418'; ctx.lineWidth = 6; ctx.strokeText(state.miniName, 0, 2);
+  ctx.fillStyle = '#ffe4aa'; ctx.fillText(state.miniName, 0, 2);
+  ctx.restore();
+}
+// An autumn gust (state.gustBannerT 1 -> 0): GUST! sweeps across the screen left to right with wind streaks around it.
+const GUST_FONT = 'italic 400 44px ' + UI_FONT;
+function drawGust(state) {
+  const t = state.gustBannerT; if (t <= 0 || !live()) return;
+  const p = 1 - t, SW = view.SW, SH = view.SH, x = SW * (-0.2 + 1.4 * easing.inOutSine(p)), y = SH * 0.42;
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, t * 4, p * 8);
+  ctx.lineCap = 'round'; ctx.strokeStyle = 'rgba(255,244,220,0.55)';
+  for (let k = 0; k < 6; k++) {                                   // wind streaks, trailing behind the word
+    const sy = SH * (0.2 + k * 0.09) + Math.sin(p * 9 + k) * 8, len = SW * (0.18 + 0.05 * (k % 3)), sx = x - SW * 0.1 * (k % 3);
+    ctx.lineWidth = 2 + (k & 1);
+    ctx.beginPath(); ctx.moveTo(sx - len, sy); ctx.quadraticCurveTo(sx - len * 0.5, sy - 10, sx, sy); ctx.stroke();
+  }
+  ctx.font = GUST_FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+  ctx.lineWidth = 9; ctx.strokeStyle = '#2a170a'; ctx.strokeText('GUST!', x, y + 3);
+  ctx.strokeStyle = '#6a3a14'; ctx.lineWidth = 6; ctx.strokeText('GUST!', x, y);
+  ctx.fillStyle = '#ffcf7a'; ctx.fillText('GUST!', x, y);
+  ctx.restore();
+}
+
 function drawPrompt(state) {
   if (state.mode === 'PLAYING' && input.touchCapable && !input.mouse.used && !input.gripping && input.scAlpha === 0) {
     ctx.font = PROMPT_FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -691,21 +944,22 @@ function drawBossHint(state, boss, rx, y) {
     }
     ctx.restore();
   }
-  const m = bossMode(boss), H = C.bossHints;
+  const m = bossMode(boss), H = C.bossHints, own = H[boss.name];   // own = this boss's words for the keys (bossHints[name])
   let key;
   if (m === 'swarm') key = boss.shieldDownT > 0 ? 'shieldDown' : 'swarm';
-  else if (m === 'armor') key = !boss.armored && !boss.charging ? 'armorDown' : boss.windup || boss.charging ? 'windup' : 'armor';
+  else if (m === 'armor') key = !boss.armored && !boss.charging ? (boss.captives > 0 ? 'wrapped' : 'armorDown') : boss.windup || boss.charging ? 'windup' : 'armor';
+  else if (m === 'trail') key = boss.spoolWarn ? 'trailNow' : 'trail';
   else key = boss.seamOpen ? 'seamOpen' : 'seam';
   if (key !== hintKey) { hintKey = key; hintT0 = state.clock; }
-  const go = key === 'shieldDown' || key === 'armorDown' || key === 'seamOpen';
+  const go = key === 'shieldDown' || key === 'armorDown' || key === 'seamOpen' || key === 'trailNow', text = (own && own[key]) || H[key];
   const p = Math.max(0, 1 - (state.clock - hintT0) / C.bossHintPulseSec), s = 1 + 0.15 * p;   // small: it grows leftward toward the HUD
   ctx.save();
   ctx.translate(rx, y); ctx.scale(s, s);
   ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.font = HUD_FONT; ctx.lineJoin = 'round';
   if (go || p > 0) { ctx.shadowColor = go ? '#ffd23f' : '#ffffff'; ctx.shadowBlur = 6 + 10 * p; }
-  ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.strokeText(H[key], 0, 0);
+  ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.strokeText(text, 0, 0);
   ctx.shadowBlur = 0;
-  ctx.fillStyle = go ? '#ffd23f' : '#e8f4ff'; ctx.fillText(H[key], 0, 0);
+  ctx.fillStyle = go ? '#ffd23f' : '#e8f4ff'; ctx.fillText(text, 0, 0);
   ctx.restore();
 }
 
@@ -720,17 +974,23 @@ export function draw(state) {
   ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
   if (fx.camShake > 0) ctx.translate(Math.sin(state.clock * 83) * fx.camShake, Math.cos(state.clock * 71) * fx.camShake);   // kill shake moves the whole world
   ctx.drawImage(bgCanvas, 0, 0, view.W, view.H);
+  drawFocusTint(state);
   drawHeart(state);
+  drawThimble(state);
   drawEntryMarks(state);
   drawTowers(state);
   if (fx.kick > 0) ctx.translate(-input.aimX * C.snipKickPx * fx.kick, -input.aimY * C.snipKickPx * fx.kick);
   drawSplats(state);
+  drawCurls(state);
+  drawStitches(state);
   drawCutZone(fx.cut);
+  drawPinkingLane(state);
   drawEnemies(state);
   drawCritters(state);
   drawNeedles(state);
   drawFragments(state);
   drawHeartBurst();
+  drawDark(state);                                               // night: the dark over the world, under the weapon and the UI
   if (live()) {
     drawFingers();
     drawWeaponWithTrails(state, dt);
@@ -740,7 +1000,10 @@ export function draw(state) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);                         // UI from here on: screen px
   refreshHudText(state);
   drawBanner(state);
+  drawMiniBanner(state);
+  drawGust(state);
   if (state.mode === 'PLAYING' || state.mode === 'WAVE_CLEAR' || state.mode === 'GAME_OVER') { drawPrompt(state); drawBossBar(state); }
   drawEventFx();
   drawShredBanner(state);
+  drawSkillBanner(state);
 }

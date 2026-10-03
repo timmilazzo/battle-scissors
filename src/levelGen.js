@@ -413,8 +413,10 @@ function placeSpots(polys, spots, deco, rng) {
 
 // ======================= random recipes =======================
 // A recipe for "Random Quilt": segments drawn by weight until the road is about full; at most one fork (two if room).
-const POOL = [['s', 3], ['zigzag', 2], ['fork', 2.2], ['bend', 1.2], ['wave', 1.2], ['wiggle', 0.7], ['straight', 0.4], ['triple', 0.6]];
-export function randomRecipe(seed) {
+// size = a fixed plate size (the level file's), else one drawn from the seed.
+// (sweeping curves are favoured: hairpin zigzags crowd out the props and read as machine-made)
+const POOL = [['s', 3.5], ['zigzag', 0.8], ['fork', 2.2], ['bend', 1.5], ['wave', 1.6], ['wiggle', 0.7], ['straight', 0.4], ['triple', 0.6]];
+export function randomRecipe(seed, size = 0) {
   const G = GEN, rng = makeRng(seed ^ 0x51ED27), span = G.endY - G.startY, items = [];
   let used = 0, forks = 0, last = '';
   const total = POOL.reduce((a, p) => a + p[1], 0);
@@ -425,7 +427,7 @@ export function randomRecipe(seed) {
     if (name === last || ((name === 'fork' || name === 'triple') && forks >= (used < span * 0.3 ? 2 : 1))) continue;
     const pick = a => a[Math.floor(rng() * a.length)];
     const args = name === 's' || name === 'bend' ? [pick(['left', 'right'])]
-      : name === 'zigzag' ? [String(1 + Math.floor(rng() * 3))]
+      : name === 'zigzag' ? [String(1 + Math.floor(rng() * 2))]
       : name === 'wave' ? [String(2 + Math.floor(rng() * 3))]
       : name === 'fork' ? (rng() < 0.35 ? ['pin'] : rng() < 0.3 ? ['long'] : rng() < 0.5 ? ['wide'] : []) : [];
     const min = SEG[name].min(args);
@@ -434,7 +436,8 @@ export function randomRecipe(seed) {
     if (name === 'fork' || name === 'triple') forks++;
   }
   // sometimes a bigger level, up to two more entrances, and the heart pad not always in the middle
-  const pre = ['size ' + [1, 1.25, 1.5][Math.floor(rng() * 3)]];
+  const drawn = [1, 1.25, 1.5][Math.floor(rng() * 3)];            // drawn either way, so the rest of the draw is the same
+  const pre = ['size ' + (size || drawn)];
   const ne = rng() < 0.25 ? 0 : rng() < 0.65 ? 1 : 2, edges = ['left', 'right', 'top'].sort(() => rng() - 0.5);
   for (let k = 0; k < ne; k++) pre.push('entry ' + edges[k] + (edges[k] === 'top' ? '' : ' ' + (15 + Math.floor(rng() * 30))));
   if (rng() < 0.4) pre.push('heart ' + (rng() < 0.5 ? 'left' : 'right'));

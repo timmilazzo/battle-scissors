@@ -3,13 +3,16 @@
 //   report = the run report (game.js buildReport: won, level, towers {type: count}, boss, bestSnipKills, critterKills,
 //            beetleExecutes, prunerBite, ...)
 //   save   = the Save after the run was recorded (levels: { id: { stars, cleared } }, critterKills = lifetime squishes)
-//   ctx    = { worldLevels(world) -> level ids, levelAt(n) -> the id of map level n }
+//   ctx    = { worldLevels(world) -> level ids, worldBoss(world) -> its level 10's id, levelAt(n) -> the id of global level n }
+// The world achievements of the old three-world map (clear-lair, stars-lair) were retired with it: a save that earned
+// them keeps the ids (and the Buttons), they just aren't listed. World 5 (snow) holds the old Lair's levels.
 // Nothing here imports anything, so tools/buttonsupply.js can sum the rewards under Node.
 
 const pinTypes = r => Object.values(r.towers || {}).filter(n => n > 0).length;
 const allCleared = (ids, s) => ids.length > 0 && ids.every(id => s.levels[id] && s.levels[id].cleared);
 const allThreeStar = (ids, s) => ids.length > 0 && ids.every(id => s.levels[id] && s.levels[id].stars >= 3);
-const WORLD_NAMES = { meadow: 'World 1 (the Meadow)', denim: 'World 2 (the Denim)', lair: 'World 3 (the Lair)' };
+const WORLD_NAMES = { meadow: 'World 1 (the Sewing Tray)', denim: 'World 2 (the Mending Pile)', autumn: 'World 3 (the Kitchen Drawer)',
+  night: 'World 4 (the Bedside Drawer)', snow: 'World 5 (the Holiday Box)' };
 
 const clearWorld = (n, world, reward, name) => ({ id: 'clear-' + world, name, description: 'Clear every level of ' + WORLD_NAMES[world] + '. Not a stitch out of place.',
   reward, world, check: (r, s, ctx) => allCleared(ctx.worldLevels(world), s) });
@@ -39,10 +42,15 @@ export const ACHIEVEMENTS = [
     check: (r, s) => (s.critterKills | 0) >= 25 },
   clearWorld(1, 'meadow', 50, 'Meadow Mended'),
   clearWorld(2, 'denim', 75, 'Denim Darned'),
-  clearWorld(3, 'lair', 100, 'Lair Unravelled'),
+  clearWorld(3, 'autumn', 100, 'Drawer Swept'),
+  clearWorld(4, 'night', 125, 'Lights Out'),
+  clearWorld(5, 'snow', 150, 'Box Packed Away'),
   starWorld('meadow', 'Golden Meadow'),
   starWorld('denim', 'Golden Denim'),
-  starWorld('lair', 'Golden Lair'),
-  { id: 'beat-l12', name: 'Nobody Noticed', description: 'Beat Level 12 and The Unstitcher. The house sleeps on.', reward: 150,
-    check: (r, s, ctx) => !!(s.levels[ctx.levelAt(12)] && s.levels[ctx.levelAt(12)].cleared) },
+  starWorld('autumn', 'Golden Harvest'),
+  starWorld('night', 'Golden Hour'),
+  starWorld('snow', 'Golden Snow'),
+  // the id predates the five worlds (the Unstitcher was Level 12); it's the snow world's boss level now
+  { id: 'beat-l12', name: 'Nobody Noticed', description: 'Beat The Back Seam and The Unstitcher. The house sleeps on.', reward: 150,
+    check: (r, s, ctx) => { const id = ctx.worldBoss('snow'); return !!(id && s.levels[id] && s.levels[id].cleared); } },
 ];

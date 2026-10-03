@@ -27,15 +27,25 @@ export const input = {
   rawSpread: 0, aimX: 0, aimY: -1,
   gripping: false, scAlpha: 0,
   last: { ms: -1, speed: 0, power: 1, kind: '', ver: 0 },                  // last close, for the HUD
+  // the pointer that last pressed on the table (screen px): where it landed (pressX/Y, set just before onPress), where it
+  // is now (ptX/Y) and whether it is still down (ptDown). The Skills read them: Seam Mark marks where it lands, a Basting
+  // drag runs from the press to the lift.
+  pressX: 0, pressY: 0, ptX: 0, ptY: 0, ptDown: false,
 };
+let ptId = -1;                                                             // the touch identifier of that pointer
 let prevRaw = 0, needSnap = true, snapNext = false;
 // widest raw spread since the last close through snipCloseTo (catches closes too slow for the lookback window)
 let openPeak = 0;
 
 // onSnip(px, py, theta, spread, strong), onTooSlow(), onGrip(), onSpace(), onReset(), onPause() (P / Escape),
-// onSpecial() = the extra finger (second in 'hold', third in 'pinch') / E key, onPress() = a finger or the mouse button
+// onSpecial() = the extra finger (second in 'hold', third in 'pinch') / E key, onSkill() = the F key (the second move slot), onPress() = a finger or the mouse button
 // going down on the table (a new hand: the first finger in 'hold', either handle in 'pinch'; an armed SHRED starts on it)
-const hooks = { onSnip: null, onTooSlow: null, onGrip: null, onSpace: null, onReset: null, onSpecial: null, onPause: null, onPress: null };
+const hooks = { onSnip: null, onTooSlow: null, onGrip: null, onSpace: null, onReset: null, onSpecial: null, onSkill: null, onPause: null, onPress: null };
+// A pointer pressed on the table at screen (x, y) (touch identifier id, -1 = the mouse): remember it, then onPress.
+function pressAt(x, y, id) {
+  input.pressX = input.ptX = x; input.pressY = input.ptY = y; input.ptDown = true; ptId = id;
+  if (hooks.onPress) hooks.onPress();
+}
 
 // ring buffer of recent samples (no per-frame allocation)
 const BUF = 256;
@@ -185,7 +195,7 @@ export function initInput(h) {
   // 'hold': the first finger down is the hand; any other finger landing while it's held asks for SHRED.
   function onHoldTouch(e) {
     const h = input.hand, ct = e.changedTouches;
-    const lift = () => { h.id = -1; h.down = false; h.dist = C.closedDistPx; h.lift = true; };   // snap shut
+    const lift = () => { h.id = -1; h.down = false; h.dist = C.closedDistPx; h.lift = true; input.ptDown = false; };   // snap shut
     if (h.id !== -1) {                                            // lost events: the held finger is gone
       let alive = false;
       for (let i = 0; i < e.touches.length; i++) if (e.touches[i].identifier === h.id) { alive = true; break; }
@@ -194,10 +204,10 @@ export function initInput(h) {
     for (let i = 0; i < ct.length; i++) {
       const t = ct[i];
       if (e.type === 'touchstart') {
-        if (h.id === -1) { h.id = t.identifier; h.x = t.clientX; h.y = t.clientY; h.dist = C.closedDistPx; h.down = true; h.lift = false; h.fresh = true; if (hooks.onPress) hooks.onPress(); }
+        if (h.id === -1) { h.id = t.identifier; h.x = t.clientX; h.y = t.clientY; h.dist = C.closedDistPx; h.down = true; h.lift = false; h.fresh = true; pressAt(t.clientX, t.clientY, t.identifier); }
         else if (t.identifier !== h.id && hooks.onSpecial) hooks.onSpecial();
       } else if (t.identifier === h.id) {
-        if (e.type === 'touchmove') { h.x = t.clientX; h.y = t.clientY; } else lift();
+        if (e.type === 'touchmove') { h.x = input.ptX = t.clientX; h.y = input.ptY = t.clientY; } else lift();
       }
     }
   }
@@ -214,6 +224,11 @@ export function initInput(h) {
       if (!alive) tp.id[s] = -1;
     }
     const ct = e.changedTouches;
+    for (let i = 0; i < ct.length; i++) {                         // the pressing pointer (a Skill's tap or drag)
+      if (ct[i].identifier !== ptId) continue;
+      if (e.type === 'touchmove') { input.ptX = ct[i].clientX; input.ptY = ct[i].clientY; }
+      else if (e.type !== 'touchstart') { input.ptDown = false; ptId = -1; }
+    }
     if (e.type === 'touchstart' || e.type === 'touchmove') {
       for (let i = 0; i < ct.length; i++) {
         const t = ct[i];
@@ -223,7 +238,7 @@ export function initInput(h) {
           if (slot === -1 && hooks.onSpecial) hooks.onSpecial();   // a third finger while both handles are held
         }
         if (slot === -1) continue;
-        if (tp.id[slot] !== t.identifier && hooks.onPress) hooks.onPress();
+        if (tp.id[slot] !== t.identifier) pressAt(t.clientX, t.clientY, t.identifier);
         tp.id[slot] = t.identifier; tp.x[slot] = t.clientX; tp.y[slot] = t.clientY;
       }
     }
@@ -237,17 +252,18 @@ export function initInput(h) {
     if (!mouse.used) { mouse.used = true; hintEl.style.display = 'block'; }
     return true;
   }
-  window.addEventListener('mousemove', e => { if (!mouseActive()) return; mouse.x = e.clientX; mouse.y = e.clientY; mouse.inside = true; });
+  window.addEventListener('mousemove', e => { if (!mouseActive()) return; mouse.x = input.ptX = e.clientX; mouse.y = input.ptY = e.clientY; mouse.inside = true; });
   document.addEventListener('mouseleave', () => { mouse.inside = false; });
   cv.addEventListener('mousedown', e => {
     if (!mouseActive() || e.button !== 0) return;
     mouse.held = true;
-    if (hooks.onPress) hooks.onPress();
+    pressAt(e.clientX, e.clientY, -1);
   });
   window.addEventListener('mouseup', e => {
     if (input.usingTouch || e.button !== 0) return;
     if (!mouse.held) return;
     mouse.held = false; mouse.dist = C.closedDistPx;          // snap shut: power depends on how far it opened
+    input.ptDown = false;
   });
   cv.addEventListener('contextmenu', e => e.preventDefault());
   cv.addEventListener('wheel', e => {
@@ -263,6 +279,7 @@ export function initInput(h) {
     else if (e.code === 'KeyA') mouse.rot -= C.keyRotStep;
     else if (e.code === 'KeyD') mouse.rot += C.keyRotStep;
     else if (e.code === 'KeyE') { if (!e.repeat && hooks.onSpecial) hooks.onSpecial(); }
+    else if (e.code === 'KeyF') { if (!e.repeat && hooks.onSkill) hooks.onSkill(); }
     else if (e.code === 'KeyR') hooks.onReset();
     else if ((e.code === 'KeyP' || e.code === 'Escape') && !e.repeat && hooks.onPause) hooks.onPause();
   });

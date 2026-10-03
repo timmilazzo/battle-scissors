@@ -1,7 +1,8 @@
 // Procedural Pin (tower) art, after the level mock: a two-tier felt cushion with a stitched rim and yellow
 // cross-stitches, sewing pins with coloured heads stuck around it, a post holding the Pin's charm (Ice: a blue
-// crystal, Fire: an ember crystal, Magnet: a horseshoe magnet, Needle: a thread spool with a loaded needle) and, for
-// all but the Magnet, a little felt flag. A Pin's in-level rank (game.js state.towers[i].rank, 1..3) shows on it: rank 2
+// crystal, Fire: an ember crystal, Magnet: a horseshoe magnet, Needle: a thread spool with a loaded needle, Cork: a wine
+// cork, Lamp: a light bulb, Candle: a striped birthday candle, lit) and, for all but the Magnet, a little felt flag. The
+// Cork Pin's trap on the road is drawn live (drawCorkTrap). A Pin's in-level rank (game.js state.towers[i].rank, 1..3) shows on it: rank 2
 // adds two pins to the cushion and a wider flag, rank 3 two more pins (gold heads) and a stripe on the flag, and the
 // charm's glow grows with each.
 // One sprite per type and rank, built on resize at the spot's size; the charm's glow is drawn live on top. Called only by render.js.
@@ -87,6 +88,75 @@ function spool(g, u) {
   flange(y1);
   g.fillStyle = '#3a2210'; g.beginPath(); g.ellipse(0, y1, rx * 0.25, ry * 0.25, 0, 0, TAU); g.fill();
 }
+// Cork Pin: a wine cork standing on the post, speckled, its top stained.
+function corkCharm(g, u) {
+  const rx = 0.19 * u, ry = rx * K, y0 = -0.74 * u, y1 = -1.16 * u;
+  g.fillStyle = '#9c6a36'; g.strokeStyle = '#4a2a10'; g.lineWidth = Math.max(1, u * 0.03);
+  g.beginPath(); g.ellipse(0, y0, rx, ry, 0, 0, Math.PI); g.lineTo(-rx * 0.9, y1); g.ellipse(0, y1, rx * 0.9, ry * 0.9, 0, Math.PI, 0, true); g.closePath();
+  const gr = g.createLinearGradient(-rx, 0, rx, 0);
+  gr.addColorStop(0, '#8a5a2c'); gr.addColorStop(0.45, '#d6a66a'); gr.addColorStop(1, '#8f5f30');
+  g.fillStyle = gr; g.fill(); g.stroke();
+  g.fillStyle = 'rgba(70,40,15,0.55)';                           // the cork's pores
+  for (const [x, y, r] of [[-0.08, -0.85, 0.022], [0.06, -0.92, 0.018], [-0.02, -1.0, 0.026], [0.09, -1.06, 0.016], [-0.1, -1.04, 0.015], [0.03, -0.8, 0.014]]) {
+    g.beginPath(); g.arc(x * u, y * u, r * u, 0, TAU); g.fill();
+  }
+  g.fillStyle = '#e2b77c'; g.beginPath(); g.ellipse(0, y1, rx * 0.9, ry * 0.9, 0, 0, TAU); g.fill(); g.stroke();
+  g.fillStyle = 'rgba(120,20,40,0.45)'; g.beginPath(); g.ellipse(0, y1, rx * 0.55, ry * 0.5, 0, 0, TAU); g.fill();   // a wine stain
+}
+// Lamp Pin: a light bulb on a screw base, glass lit warm, a filament inside.
+function bulb(g, u) {
+  const by = -1.18 * u, r = 0.25 * u;
+  g.fillStyle = '#b9bfc6'; g.strokeStyle = '#4a4f55'; g.lineWidth = Math.max(1, u * 0.03);
+  g.beginPath(); g.rect(-0.11 * u, -0.96 * u, 0.22 * u, 0.22 * u); g.fill(); g.stroke();
+  g.strokeStyle = '#6d737a'; g.beginPath();
+  for (const y of [-0.9, -0.84, -0.78]) { g.moveTo(-0.11 * u, y * u); g.lineTo(0.11 * u, (y - 0.03) * u); }
+  g.stroke();
+  const gr = g.createRadialGradient(-r * 0.3, by - r * 0.3, r * 0.1, 0, by, r * 1.1);
+  gr.addColorStop(0, '#fffef0'); gr.addColorStop(0.5, '#ffe98a'); gr.addColorStop(1, '#e8b13a');
+  g.fillStyle = gr; g.strokeStyle = '#8a6a1a';
+  g.beginPath(); g.arc(0, by, r, Math.PI * 0.78, Math.PI * 0.22); g.lineTo(0.1 * u, -0.96 * u); g.lineTo(-0.1 * u, -0.96 * u); g.closePath(); g.fill(); g.stroke();
+  g.strokeStyle = '#ff8a1f'; g.lineWidth = Math.max(1, u * 0.025); g.beginPath();   // the filament
+  g.moveTo(-0.06 * u, -0.98 * u); g.lineTo(-0.06 * u, by); g.quadraticCurveTo(0, by - 0.1 * u, 0.06 * u, by); g.lineTo(0.06 * u, -0.98 * u); g.stroke();
+  g.fillStyle = 'rgba(255,255,255,0.7)'; g.beginPath(); g.ellipse(-r * 0.4, by - r * 0.35, r * 0.18, r * 0.1, -0.6, 0, TAU); g.fill();
+}
+// Candle Pin: a cream birthday candle with red stripes, its wick lit (the flame's glow is drawn live).
+function candle(g, u) {
+  const w = 0.09 * u, y0 = -0.74 * u, y1 = -1.22 * u;
+  g.fillStyle = '#f7efd9'; g.strokeStyle = '#8a7a5a'; g.lineWidth = Math.max(1, u * 0.025);
+  g.beginPath(); g.rect(-w, y1, 2 * w, y0 - y1); g.fill(); g.stroke();
+  g.save(); g.beginPath(); g.rect(-w, y1, 2 * w, y0 - y1); g.clip();
+  g.strokeStyle = '#e0312b'; g.lineWidth = u * 0.05; g.beginPath();
+  for (let y = y0 + 0.04 * u; y > y1 - 0.2 * u; y -= 0.13 * u) { g.moveTo(-w * 1.2, y); g.lineTo(w * 1.2, y - 0.1 * u); }
+  g.stroke(); g.restore();
+  g.fillStyle = '#e8dcc0'; g.beginPath(); g.ellipse(0, y1, w, w * K, 0, 0, TAU); g.fill();
+  g.strokeStyle = '#2a1a0a'; g.lineWidth = Math.max(1, u * 0.02); g.beginPath(); g.moveTo(0, y1); g.lineTo(0, y1 - 0.06 * u); g.stroke();
+  const fy = y1 - 0.16 * u, fl = new Path2D();
+  fl.moveTo(0, fy - 0.13 * u); fl.quadraticCurveTo(0.09 * u, fy + 0.02 * u, 0, fy + 0.1 * u); fl.quadraticCurveTo(-0.09 * u, fy + 0.02 * u, 0, fy - 0.13 * u);
+  g.fillStyle = '#ffd23f'; g.fill(fl);
+  g.fillStyle = '#ff7a1f'; g.beginPath(); g.ellipse(0, fy + 0.04 * u, 0.03 * u, 0.05 * u, 0, 0, TAU); g.fill();
+}
+// The Cork Pin's trap, live, on its road point (t.fx, t.fy): a cork top standing proud while armed (a faint ring
+// breathes round it), pressed flat into the road while it re-arms (t.timer) or waits to pop again (t.pop2), a gold arc
+// filling as it comes back. Drawn under the enemies (render.js drawTowers).
+export function drawCorkTrap(ctx, t, clock) {
+  const u = towerUnit() * 0.55, x = t.fx, y = t.fy, def = t.def;
+  const armed = t.timer <= 0 && t.pop2 <= 0, back = armed ? 1 : t.pop2 > 0 ? 0 : 1 - t.timer / def.rearmSec;
+  const lift = armed ? u * 0.28 : u * 0.06 * back;
+  ctx.fillStyle = 'rgba(30,15,5,0.35)'; ctx.beginPath(); ctx.ellipse(x, y + u * 0.12, u * 0.62, u * 0.62 * K, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = armed ? '#9c6a36' : '#7a5228';                 // the side, taller while armed
+  ctx.beginPath(); ctx.ellipse(x, y, u * 0.5, u * 0.5 * K, 0, 0, Math.PI); ctx.lineTo(x - u * 0.5, y - lift); ctx.ellipse(x, y - lift, u * 0.5, u * 0.5 * K, 0, Math.PI, 0, true); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = armed ? '#e2b77c' : '#b98a52'; ctx.strokeStyle = '#4a2a10'; ctx.lineWidth = Math.max(1, u * 0.05);
+  ctx.beginPath(); ctx.ellipse(x, y - lift, u * 0.5, u * 0.5 * K, 0, 0, TAU); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = 'rgba(70,40,15,0.5)';
+  for (let k = 0; k < 5; k++) { const a = k * 2.4 + 0.7; ctx.beginPath(); ctx.arc(x + Math.cos(a) * u * 0.28, y - lift + Math.sin(a) * u * 0.28 * K, u * 0.04, 0, TAU); ctx.fill(); }
+  if (armed) {
+    ctx.globalAlpha = 0.35 + 0.25 * Math.sin(clock * 4 + x); ctx.strokeStyle = '#ffe2a8'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(x, y - lift, u * 0.66, u * 0.66 * K, 0, 0, TAU); ctx.stroke(); ctx.globalAlpha = 1;
+  } else if (back > 0) {
+    ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x, y - lift, u * 0.66, -Math.PI / 2, -Math.PI / 2 + back * TAU); ctx.stroke();
+  }
+}
+
 // The loaded needle, pointing along `ang`, centred on (x, y): silver shaft, eye at the back, a loop of gold thread.
 export function drawNeedle(ctx, x, y, ang, len, alpha) {
   const c = Math.cos(ang), s = Math.sin(ang), bx = x - c * len * 0.45, by = y - s * len * 0.45, tx = x + c * len * 0.55, ty = y + s * len * 0.55;
@@ -126,6 +196,15 @@ function flag(g, u, felt, icon, rank = 1) {
       }
     }
     g.stroke();
+  } else if (icon === 'pop') {                                   // Cork: a little starburst (the pop)
+    g.strokeStyle = '#fff1c2'; g.lineCap = 'round'; g.lineWidth = Math.max(1, u * 0.035); g.beginPath();
+    for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4, r0 = s * (k & 1 ? 0.35 : 0.45), r1 = s * (k & 1 ? 0.8 : 1.15); g.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0); g.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1); }
+    g.stroke();
+  } else if (icon === 'rays') {                                  // Lamp: a sun of rays round a dot
+    g.fillStyle = '#fff1a8'; g.beginPath(); g.arc(cx, cy, s * 0.4, 0, TAU); g.fill();
+    g.strokeStyle = '#fff1a8'; g.lineCap = 'round'; g.lineWidth = Math.max(1, u * 0.03); g.beginPath();
+    for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; g.moveTo(cx + Math.cos(a) * s * 0.65, cy + Math.sin(a) * s * 0.65); g.lineTo(cx + Math.cos(a) * s * 1.1, cy + Math.sin(a) * s * 1.1); }
+    g.stroke();
   } else if (icon === 'needle') {                                // a threaded needle across the flag
     g.strokeStyle = '#ffffff'; g.lineCap = 'round'; g.lineWidth = Math.max(1, u * 0.035);
     g.beginPath(); g.moveTo(cx - s * 1.1, cy + s * 0.7); g.lineTo(cx + s * 1.1, cy - s * 0.7); g.stroke();
@@ -154,7 +233,8 @@ function drawArt(g, u, type, rank = 1) {
   const pinAt = a => [Math.cos(a * Math.PI / 180) * u * 0.8, Math.sin(a * Math.PI / 180) * u * 0.8 * K];
   for (const a of BACK) { const [x, y] = pinAt(a); pin(g, x, y, u, def.head); }
   for (const a of extra) if (a > 180) { const [x, y] = pinAt(a); pin(g, x, y, u * 0.9, def.head); }
-  if (type !== 'magnet') flag(g, u, felt, type === 'ice' ? 'snow' : type === 'needle' ? 'needle' : 'flame', rank);
+  const FLAG = { ice: 'snow', needle: 'needle', cork: 'pop', lamp: 'rays' };   // fire and candle fly the flame
+  if (type !== 'magnet') flag(g, u, felt, FLAG[type] || 'flame', rank);
   drum(g, u * 0.56, -u * 0.3, u * 0.3, felt);                 // upper drum
   for (const a of [35, 70, 110, 145]) {                        // yellow cross-stitches on its front
     const r = a * Math.PI / 180;
@@ -167,6 +247,9 @@ function drawArt(g, u, type, rank = 1) {
   if (type === 'ice') crystal(g, u, '#f2feff', '#7fdcff', '#2f63c9');
   else if (type === 'fire') crystal(g, u, '#fff6b0', '#ffa04a', '#c8352b');
   else if (type === 'needle') spool(g, u);
+  else if (type === 'cork') corkCharm(g, u);
+  else if (type === 'lamp') bulb(g, u);
+  else if (type === 'candle') candle(g, u);
   else magnet(g, u);
   for (const a of FRONT) { const [x, y] = pinAt(a); pin(g, x, y, u, def.head); }
   for (const a of extra) if (a < 180) { const [x, y] = pinAt(a); pin(g, x, y, u * 0.9, '#ffd23f'); }
@@ -207,8 +290,8 @@ export function drawTower(ctx, t, clock) {
     drawNeedle(ctx, x - Math.cos(t.aim) * back, my - Math.sin(t.aim) * back, t.aim, u * 0.95, ready * ready);
     return;
   }
-  const cy = y - (type === 'magnet' ? 1.05 : 1.08) * towerUnit();
-  const flick = type === 'fire' ? 0.75 + 0.25 * Math.sin(clock * 13 + x) * Math.sin(clock * 7.3) : 0.8 + 0.2 * Math.sin(clock * 3 + x);
+  const cy = y - (type === 'magnet' ? 1.05 : type === 'lamp' ? 1.18 : type === 'candle' ? 1.38 : 1.08) * towerUnit();   // round the charm (the bulb, the candle's flame)
+  const flick = type === 'fire' || type === 'candle' ? 0.75 + 0.25 * Math.sin(clock * 13 + x) * Math.sin(clock * 7.3) : 0.8 + 0.2 * Math.sin(clock * 3 + x);
   ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = (GLOW_ALPHA[Math.min(t.rank, 3) - 1] || 0.55) * flick;
   ctx.drawImage(s.glow, x - s.gr, cy - s.gr, s.gr * 2, s.gr * 2);
   ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;

@@ -35,8 +35,57 @@
 <h2>kit.js entries</h2>
 <pre id="out"></pre>
 <script>
-const ZONES = ['meadow', 'denim', 'lair'];
-const KEYS = {};
+const ZONES = ['meadow', 'denim', 'lair', 'autumn', 'night', 'snow'];
+// Round 5 (the five worlds; cut from the delivered sheets by tools/sheet-cut.js): shared pieces, the three new zones'
+// props, pads, chests and portraits, their ground tiles and the five map plates.
+const KEYS = {
+  // 28_shared
+  sewing_flag_post_left_01: 'flagPostL', sewing_flag_post_right_01: 'flagPostR', sewing_pad_ring_01: 'padRing',
+  sewing_pond_01: 'pond1', sewing_pond_02: 'pond2', sewing_pond_03: 'pond3',
+  sewing_river_brown_01: 'riverBrown', sewing_river_blue_01: 'riverBlue', sewing_river_bend_brown_01: 'riverBendBrown',
+  sewing_river_bend_blue_01: 'riverBendBlue', sewing_ruler_bridge_01: 'rulerBridge',
+  sewing_lantern_lit_01: 'lanternLit1', sewing_lantern_lit_02: 'lanternLit2', sewing_lantern_glow_01: 'lanternGlow', sewing_window_glow_01: 'windowGlow',
+  snow_fence_post_01: 'snowPost1', snow_fence_post_02: 'snowPost2', snow_fence_post_03: 'snowPost3',
+  snow_fence_rail_01: 'snowRail1', snow_fence_rail_02: 'snowRail2', snow_frame_end_cap_01: 'snowFrameCap',
+  // (snow_frame_rim_01/02 come from the ZONES loop below as snowFrameRim1/2)
+  // 29_autumn
+  autumn_hero_maple_red_01: 'heroMapleRed', autumn_hero_maple_gold_01: 'heroMapleGold', autumn_hero_pumpkin_orange_01: 'heroPumpkinOrange',
+  autumn_hero_pumpkin_green_01: 'heroPumpkinGreen', autumn_hero_honey_dipper_01: 'heroHoneyDipper', autumn_hero_copper_mug_01: 'heroCopperMug',
+  autumn_hero_bottle_opener_01: 'heroBottleOpener', autumn_hero_twine_01: 'heroTwine', autumn_leaf_red_big_01: 'leafRedBig', autumn_leaf_gold_big_01: 'leafGoldBig',
+  autumn_berry_bunch_01: 'berryBunch', autumn_pine_cone_pile_01: 'pineConePile', autumn_leaf_drift_01: 'leafDrift', autumn_toadstool_pair_01: 'toadstoolPair',
+  autumn_pine_cone_01: 'pineCone', autumn_acorn_01: 'acorn', autumn_toadstool_01: 'toadstool', autumn_pumpkin_small_01: 'pumpkinSmall',
+  autumn_leaf_gold_01: 'leafGold', autumn_leaf_red_01: 'leafRed', autumn_twig_01: 'twig', autumn_button_rust_01: 'buttonRust',
+  autumn_fill_leaf_gold_01: 'fillLeafGold', autumn_fill_leaf_orange_01: 'fillLeafOrange', autumn_fill_leaf_red_01: 'fillLeafRed',
+  autumn_fill_seed_01: 'fillSeed', autumn_fill_berry_01: 'fillBerry',
+  // 30_night
+  night_hero_lavender_big_01: 'heroLavenderBig', night_hero_lavender_small_01: 'heroLavenderSmall', night_hero_key_01: 'heroBrassKey',
+  night_hero_pencil_01: 'heroPencil', night_hero_cookie_cutter_01: 'heroCookieCutter', night_hero_clothespin_01: 'heroClothespin',
+  night_hero_spoon_01: 'heroSpoon', night_hero_moon_01: 'heroMoon',
+  night_lavender_bed_01: 'lavenderBed', night_berry_sprig_01: 'berrySprig', night_pebble_pile_01: 'pebblePile',
+  night_lantern_big_01: 'lanternBig', night_lantern_small_01: 'lanternSmall',
+  night_marble_01: 'marble', night_paperclip_01: 'paperclip', night_bottle_cap_01: 'bottleCap', night_pebble_01: 'pebble', night_key_small_01: 'keySmall',
+  night_toadstool_01: 'toadstoolNight', night_button_navy_01: 'buttonNavyNight', night_moth_01: 'mothProp',
+  night_fill_lavender_01: 'fillLavender1', night_fill_lavender_02: 'fillLavender2', night_fill_pebble_grey_01: 'fillPebbleGrey',
+  night_fill_pebble_cream_01: 'fillPebbleCream', night_fill_star_01: 'fillStar',
+  // 31_snow
+  snow_hero_fir_big_01: 'heroFirBig', snow_hero_fir_small_01: 'heroFirSmall', snow_hero_bare_tree_01: 'heroBareTree',
+  snow_hero_cottage_01: 'heroCottage1', snow_hero_cottage_02: 'heroCottage2', snow_hero_sled_01: 'heroSled', snow_hero_star_01: 'heroStarOrnament',
+  snow_hero_spool_white_01: 'heroSpoolWhite',
+  snow_pebbles_01: 'snowPebbles', snow_berry_sprig_01: 'snowBerrySprig', snow_footprints_01: 'snowFootprints', snow_tinsel_01: 'tinselTangle',
+  snow_snowball_01: 'snowballProp', snow_icicle_01: 'icicleProp', snow_bauble_red_01: 'baubleRed', snow_bauble_blue_01: 'baubleBlue',
+  snow_candy_cane_01: 'candyCane', snow_bell_01: 'bell', snow_pine_sprig_01: 'pineSprig', snow_button_white_01: 'buttonWhite',
+  snow_fill_lump_01: 'fillSnow1', snow_fill_lump_02: 'fillSnow2', snow_fill_berry_01: 'fillSnowBerry', snow_fill_star_gold_01: 'fillStarGold',
+  snow_fill_star_silver_01: 'fillStarSilver',
+  // 09_zone_pads (the pads themselves; the damage stages come from the ZONES loop), 04_chests, 11_portraits
+  ...Object.fromEntries(['autumn', 'night', 'snow'].flatMap(z => [[z + '_pin_pad_01', z + 'PinPad'], [z + '_heart_pad_01', z + 'HeartPad'],
+    [z + '_chest_locked', z + 'ChestLocked'], [z + '_chest_ready', z + 'ChestReady'], [z + '_chest_open', z + 'ChestOpen']])),
+  autumn_twine_ball_portrait_01: 'portraitTwine', autumn_honey_dipper_portrait_01: 'portraitHoneyDipper', night_skeleton_key_portrait_01: 'portraitSkeletonKey',
+  night_bottle_cap_portrait_01: 'portraitBottleCap', snow_snow_globe_portrait_01: 'portraitSnowGlobe', meadow_bobbin_portrait_01: 'portraitBobbin',
+  denim_zipper_portrait_01: 'portraitZipper',
+  // textures and maps (kind texture: copied, not measured)
+  autumn_ground_01: 'autumn', night_ground_01: 'night', snow_ground_01: 'snow',
+  meadow_map_01: 'mapMeadow', denim_map_01: 'mapDenim', autumn_map_01: 'mapAutumn', night_map_01: 'mapNight', snow_map_01: 'mapSnow',
+};
 for (const z of ZONES) Object.assign(KEYS, {
   [z + '_frame_rim_01']: z + 'FrameRim1', [z + '_frame_rim_02']: z + 'FrameRim2', [z + '_frame_divider_01']: z + 'FrameDivider',
   [z + '_frame_outer_corner_01']: z + 'FrameOuterCorner', [z + '_frame_inner_corner_01']: z + 'FrameInnerCorner',

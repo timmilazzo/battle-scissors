@@ -210,9 +210,171 @@ export const SPRITES = {
   hairTie2:   ['26_drawer_small/sewing_hair_tie_02.webp', 480, 480, 239.5, 239, 230.9],
   bandTangle: ['26_drawer_small/sewing_band_tie_tangle_01.webp', 840, 720, 419.5, 359.5, 467.7],
   coinSpill:  ['26_drawer_small/sewing_coin_screw_spill_01.webp', 800, 600, 399.5, 299.5, 408.5],
+  // round 5 (assets/kit/28_shared .. 31_snow, 04_chests, 09_zone_pads): the five worlds, as delivered (about a quarter of
+  // the wishlist's 2x size, so ZONES' scale ranges are set from these pixels: plate size = file px x scale)
+  // 28_shared
+  flagPostL:      ['28_shared/sewing_flag_post_left_01.webp', 230, 205, 114.5, 101.5, 128.2],
+  flagPostR:      ['28_shared/sewing_flag_post_right_01.webp', 227, 205, 113, 101.5, 127.5],
+  padRing:        ['28_shared/sewing_pad_ring_01.webp', 354, 312, 176.5, 155.5, 180.8],
+  pond1:          ['28_shared/sewing_pond_01.webp', 266, 186, 133, 92.5, 130.1],
+  pond2:          ['28_shared/sewing_pond_02.webp', 308, 254, 153, 126.5, 153.2],
+  pond3:          ['28_shared/sewing_pond_03.webp', 251, 303, 124.5, 151, 149.7],
+  riverBrown:     ['28_shared/sewing_river_brown_01.webp', 455, 126, 227, 62, 225.6],
+  riverBlue:      ['28_shared/sewing_river_blue_01.webp', 428, 126, 213.5, 62, 212.5],
+  riverBendBrown: ['28_shared/sewing_river_bend_brown_01.webp', 146, 181, 69.5, 93, 101.5],
+  riverBendBlue:  ['28_shared/sewing_river_bend_blue_01.webp', 151, 181, 74, 92, 100.4],
+  rulerBridge:    ['28_shared/sewing_ruler_bridge_01.webp', 381, 181, 189, 92.5, 196.2],
+  lanternLit1:    ['28_shared/sewing_lantern_lit_01.webp', 157, 206, 78, 102.5, 95.1],
+  lanternLit2:    ['28_shared/sewing_lantern_lit_02.webp', 133, 204, 66, 102, 94.2],
+  snowPost1:      ['28_shared/snow_fence_post_01.webp', 131, 201, 65, 101.5, 90.9],
+  snowPost2:      ['28_shared/snow_fence_post_02.webp', 131, 201, 64, 101, 91],
+  snowPost3:      ['28_shared/snow_fence_post_03.webp', 131, 201, 68, 108.5, 84.2],
+  snowRail1:      ['28_shared/snow_fence_rail_01.webp', 336, 128, 167.5, 63, 161.6],
+  snowRail2:      ['28_shared/snow_fence_rail_02.webp', 341, 129, 169.5, 64, 164.3],
+  snowFrameRim1:  ['28_shared/snow_frame_rim_01.webp', 438, 90, 218.5, 44, 211.4],
+  snowFrameRim2:  ['28_shared/snow_frame_rim_02.webp', 467, 91, 233, 45, 226.6],
+  snowFrameCap:   ['28_shared/snow_frame_end_cap_01.webp', 88, 111, 43, 55, 52.5],
+  lanternGlow:    ['28_shared/sewing_lantern_glow_01.webp', 594, 579, 296.5, 289, 190.1],
+  windowGlow:     ['28_shared/sewing_window_glow_01.webp', 689, 539, 344, 269.5, 266.9],
+  // 29_autumn
+  leafRedBig:        ['29_autumn/autumn_leaf_red_big_01.webp', 186, 241, 97, 122.5, 104.9],
+  leafGoldBig:       ['29_autumn/autumn_leaf_gold_big_01.webp', 181, 241, 90, 121, 105.2],
+  heroPumpkinOrange: ['29_autumn/autumn_hero_pumpkin_orange_01.webp', 181, 241, 90, 126.5, 104.7],
+  heroPumpkinGreen:  ['29_autumn/autumn_hero_pumpkin_green_01.webp', 176, 241, 87.5, 121, 128.4],
+  heroHoneyDipper:   ['29_autumn/autumn_hero_honey_dipper_01.webp', 86, 241, 42.5, 123.5, 105.8],
+  heroCopperMug:     ['29_autumn/autumn_hero_copper_mug_01.webp', 161, 181, 80, 80.5, 113.5],
+  heroBottleOpener:  ['29_autumn/autumn_hero_bottle_opener_01.webp', 131, 246, 65, 126, 112.6],
+  heroTwine:         ['29_autumn/autumn_hero_twine_01.webp', 151, 196, 71.5, 87, 112.6],
+  berryBunch:        ['29_autumn/autumn_berry_bunch_01.webp', 273, 261, 136, 130, 146.4],
+  pineConePile:      ['29_autumn/autumn_pine_cone_pile_01.webp', 281, 260, 140, 129.5, 141.6],
+  leafDrift:         ['29_autumn/autumn_leaf_drift_01.webp', 300, 241, 150, 119.5, 152.4],
+  toadstoolPair:     ['29_autumn/autumn_toadstool_pair_01.webp', 239, 204, 119, 101.5, 114.2],
+  pineCone:          ['29_autumn/autumn_pine_cone_01.webp', 144, 184, 72, 91, 84.1],
+  acorn:             ['29_autumn/autumn_acorn_01.webp', 134, 184, 62.5, 95, 80.2],
+  toadstool:         ['29_autumn/autumn_toadstool_01.webp', 148, 157, 73.5, 78, 70.8],
+  pumpkinSmall:      ['29_autumn/autumn_pumpkin_small_01.webp', 151, 159, 77, 76, 70.6],
+  leafGold:          ['29_autumn/autumn_leaf_gold_01.webp', 149, 159, 70.5, 79, 76.8],
+  leafRed:           ['29_autumn/autumn_leaf_red_01.webp', 146, 166, 72.5, 82.5, 75.3],
+  twig:              ['29_autumn/autumn_twig_01.webp', 110, 212, 54, 105.5, 104.5],
+  buttonRust:        ['29_autumn/autumn_button_rust_01.webp', 146, 149, 72.5, 74, 67.2],
+  fillLeafGold:      ['29_autumn/autumn_fill_leaf_gold_01.webp', 81, 95, 40, 46.5, 45.6],
+  fillLeafOrange:    ['29_autumn/autumn_fill_leaf_orange_01.webp', 85, 91, 42, 44.5, 47.1],
+  fillLeafRed:       ['29_autumn/autumn_fill_leaf_red_01.webp', 91, 98, 45, 48.5, 52.9],
+  fillSeed:          ['29_autumn/autumn_fill_seed_01.webp', 80, 99, 40, 49, 47.2],
+  fillBerry:         ['29_autumn/autumn_fill_berry_01.webp', 78, 79, 38.5, 39, 40],
+  heroMapleRed:      ['29_autumn/autumn_hero_maple_red_01.webp', 636, 671, 324.5, 331, 334.5],
+  heroMapleGold:     ['29_autumn/autumn_hero_maple_gold_01.webp', 641, 671, 314, 338, 335.8],
+  // 04_chests
+  autumnChestLocked: ['04_chests/autumn_chest_locked.webp', 349, 231, 174, 114.5, 181],
+  autumnChestReady:  ['04_chests/autumn_chest_ready.webp', 349, 234, 174, 116.5, 180.2],
+  autumnChestOpen:   ['04_chests/autumn_chest_open.webp', 333, 316, 165.5, 157.5, 203],
+  nightChestLocked:  ['04_chests/night_chest_locked.webp', 332, 217, 165.5, 108, 173],
+  nightChestReady:   ['04_chests/night_chest_ready.webp', 333, 220, 166, 109.5, 174.5],
+  nightChestOpen:    ['04_chests/night_chest_open.webp', 319, 266, 159, 132.5, 184.1],
+  snowChestLocked:   ['04_chests/snow_chest_locked.webp', 507, 509, 253, 254, 317.8],
+  snowChestReady:    ['04_chests/snow_chest_ready.webp', 508, 510, 253.5, 254.5, 317.8],
+  snowChestOpen:     ['04_chests/snow_chest_open.webp', 519, 587, 259.5, 293, 331.6],
+  // 09_zone_pads
+  autumnPinPad:       ['09_zone_pads/autumn_pin_pad_01.webp', 340, 340, 170, 169.5, 164],
+  autumnHeartPad:     ['09_zone_pads/autumn_heart_pad_01.webp', 460, 460, 230, 229.5, 223.8],
+  autumnHeartPadDmg1: ['09_zone_pads/autumn_heart_pad_dmg1.webp', 460, 460, 230, 229.5, 225.4],
+  autumnHeartPadDmg2: ['09_zone_pads/autumn_heart_pad_dmg2.webp', 460, 460, 230, 229.5, 225.4],
+  autumnHeartPadDmg3: ['09_zone_pads/autumn_heart_pad_dmg3.webp', 460, 460, 229.5, 229.5, 224.8],
+  autumnHeartPadDmg4: ['09_zone_pads/autumn_heart_pad_dmg4.webp', 460, 460, 230, 229.5, 224.7],
+  nightPinPad:        ['09_zone_pads/night_pin_pad_01.webp', 340, 340, 170, 169.5, 164],
+  nightHeartPad:      ['09_zone_pads/night_heart_pad_01.webp', 460, 460, 230, 229.5, 223],
+  nightHeartPadDmg1:  ['09_zone_pads/night_heart_pad_dmg1.webp', 460, 460, 230, 229.5, 224.2],
+  nightHeartPadDmg2:  ['09_zone_pads/night_heart_pad_dmg2.webp', 460, 460, 230, 229.5, 224.4],
+  nightHeartPadDmg3:  ['09_zone_pads/night_heart_pad_dmg3.webp', 460, 460, 229.5, 229.5, 224.5],
+  nightHeartPadDmg4:  ['09_zone_pads/night_heart_pad_dmg4.webp', 460, 460, 230, 229.5, 224.2],
+  snowPinPad:         ['09_zone_pads/snow_pin_pad_01.webp', 340, 340, 170, 169.5, 168.5],
+  snowHeartPad:       ['09_zone_pads/snow_heart_pad_01.webp', 460, 460, 229.5, 229.5, 227],
+  snowHeartPadDmg1:   ['09_zone_pads/snow_heart_pad_dmg1.webp', 460, 460, 229.5, 229.5, 227.4],
+  snowHeartPadDmg2:   ['09_zone_pads/snow_heart_pad_dmg2.webp', 460, 460, 229.5, 229.5, 227.3],
+  snowHeartPadDmg3:   ['09_zone_pads/snow_heart_pad_dmg3.webp', 460, 460, 230, 229.5, 226.6],
+  snowHeartPadDmg4:   ['09_zone_pads/snow_heart_pad_dmg4.webp', 460, 460, 230, 229.5, 228.6],
+  // 30_night
+  heroLavenderBig:   ['30_night/night_hero_lavender_big_01.webp', 251, 266, 128.5, 132.5, 131.5],
+  heroLavenderSmall: ['30_night/night_hero_lavender_small_01.webp', 132, 266, 65.5, 142, 108.3],
+  heroBrassKey:      ['30_night/night_hero_key_01.webp', 116, 266, 53.5, 133.5, 108.1],
+  heroPencil:        ['30_night/night_hero_pencil_01.webp', 67, 205, 33, 102, 94.2],
+  heroCookieCutter:  ['30_night/night_hero_cookie_cutter_01.webp', 190, 197, 94.5, 98, 104.9],
+  heroClothespin:    ['30_night/night_hero_clothespin_01.webp', 82, 234, 40, 116.5, 111.6],
+  heroSpoon:         ['30_night/night_hero_spoon_01.webp', 121, 261, 64, 143, 109.8],
+  heroMoon:          ['30_night/night_hero_moon_01.webp', 151, 261, 71.5, 130, 123.4],
+  lavenderBed:       ['30_night/night_lavender_bed_01.webp', 321, 247, 160.5, 123, 171.8],
+  berrySprig:        ['30_night/night_berry_sprig_01.webp', 223, 266, 111, 132.5, 148],
+  pebblePile:        ['30_night/night_pebble_pile_01.webp', 279, 225, 139, 112.5, 143.3],
+  lanternBig:        ['30_night/night_lantern_big_01.webp', 154, 276, 77, 137, 131.6],
+  lanternSmall:      ['30_night/night_lantern_small_01.webp', 118, 191, 58, 95, 90],
+  marble:            ['30_night/night_marble_01.webp', 149, 152, 74, 75.5, 68.1],
+  paperclip:         ['30_night/night_paperclip_01.webp', 96, 169, 47.5, 84, 78.9],
+  bottleCap:         ['30_night/night_bottle_cap_01.webp', 163, 164, 81, 81.5, 75.6],
+  pebble:            ['30_night/night_pebble_01.webp', 101, 173, 53.5, 100.5, 58.7],
+  keySmall:          ['30_night/night_key_small_01.webp', 101, 173, 45.5, 86, 79.9],
+  toadstoolNight:    ['30_night/night_toadstool_01.webp', 147, 149, 73, 74, 67.2],
+  buttonNavyNight:   ['30_night/night_button_navy_01.webp', 151, 157, 79, 72.5, 95.3],
+  mothProp:          ['30_night/night_moth_01.webp', 204, 157, 98, 77.5, 113.6],
+  fillLavender1:     ['30_night/night_fill_lavender_01.webp', 161, 179, 80, 89, 105.6],
+  fillLavender2:     ['30_night/night_fill_lavender_02.webp', 141, 200, 70, 99.5, 103.8],
+  fillPebbleGrey:    ['30_night/night_fill_pebble_grey_01.webp', 135, 120, 67, 59.5, 59.8],
+  fillPebbleCream:   ['30_night/night_fill_pebble_cream_01.webp', 128, 133, 63.5, 66, 66.4],
+  fillStar:          ['30_night/night_fill_star_01.webp', 173, 172, 86, 86, 92.5],
+  // 31_snow
+  heroFirBig:       ['31_snow/snow_hero_fir_big_01.webp', 251, 255, 121.5, 127, 125.5],
+  heroFirSmall:     ['31_snow/snow_hero_fir_small_01.webp', 166, 255, 81.5, 147.5, 85.5],
+  heroBareTree:     ['31_snow/snow_hero_bare_tree_01.webp', 243, 232, 121.5, 115.5, 116.5],
+  heroCottage1:     ['31_snow/snow_hero_cottage_01.webp', 217, 217, 108, 108, 121.4],
+  heroCottage2:     ['31_snow/snow_hero_cottage_02.webp', 206, 214, 102.5, 106, 118.2],
+  heroSled:         ['31_snow/snow_hero_sled_01.webp', 115, 170, 57, 84.5, 84.2],
+  heroStarOrnament: ['31_snow/snow_hero_star_01.webp', 148, 172, 73.5, 85.5, 87],
+  heroSpoolWhite:   ['31_snow/snow_hero_spool_white_01.webp', 101, 166, 50, 82.5, 76.6],
+  snowPebbles:      ['31_snow/snow_pebbles_01.webp', 307, 175, 153, 87, 147.5],
+  snowBerrySprig:   ['31_snow/snow_berry_sprig_01.webp', 251, 151, 125, 75, 133.4],
+  snowFootprints:   ['31_snow/snow_footprints_01.webp', 351, 183, 175, 90.5, 170.4],
+  tinselTangle:     ['31_snow/snow_tinsel_01.webp', 345, 179, 172, 89, 168.8],
+  snowballProp:     ['31_snow/snow_snowball_01.webp', 139, 139, 69.5, 69, 62],
+  icicleProp:       ['31_snow/snow_icicle_01.webp', 61, 169, 30, 84, 76],
+  baubleRed:        ['31_snow/snow_bauble_red_01.webp', 128, 165, 63.5, 82, 74.1],
+  baubleBlue:       ['31_snow/snow_bauble_blue_01.webp', 127, 164, 63, 81.5, 73.7],
+  candyCane:        ['31_snow/snow_candy_cane_01.webp', 106, 173, 52.5, 86, 81.4],
+  bell:             ['31_snow/snow_bell_01.webp', 125, 154, 62, 76.5, 78.8],
+  pineSprig:        ['31_snow/snow_pine_sprig_01.webp', 219, 158, 109, 78.5, 120.1],
+  buttonWhite:      ['31_snow/snow_button_white_01.webp', 124, 123, 61.5, 61, 53.8],
+  fillSnow1:        ['31_snow/snow_fill_lump_01.webp', 182, 115, 90.5, 57, 82.8],
+  fillSnow2:        ['31_snow/snow_fill_lump_02.webp', 133, 98, 66, 48.5, 58.1],
+  fillSnowBerry:    ['31_snow/snow_fill_berry_01.webp', 80, 84, 39.5, 41.5, 34.3],
+  fillStarGold:     ['31_snow/snow_fill_star_gold_01.webp', 105, 104, 52, 51.5, 50.9],
+  fillStarSilver:   ['31_snow/snow_fill_star_silver_01.webp', 121, 116, 50, 63.5, 56],
 };
+
+// ======================= wanted art (art asked for but not delivered yet) =======================
+// An entry made with want(file under assets/kit/, canvas w, h) registers a piece before its file exists, with a
+// placeholder centre and radius. Nothing loads a wanted entry: artKey / isWanted (below) treat it as missing, so a
+// zone paints with whatever has arrived, and STAND_IN names the delivered piece to draw meanwhile (none = left out:
+// "stand-in until the sprites arrive"). When the file arrives, paste tools/kit-import.html's measured line into
+// SPRITES above and it replaces the wanted one. Round 5 (wishlist sections 28 to 31) has all arrived, so both are empty.
+// eslint-disable-next-line no-unused-vars
+const want = (file, w, h) => [file, w, h, w / 2, h / 2, 0.47 * Math.max(w, h)];
+const WANTED = {};
+// Delivered pieces that stand in for wanted ones meanwhile (a wanted key not listed here is simply left out).
+const STAND_IN = {};
+for (const k in WANTED) if (!(k in SPRITES)) SPRITES[k] = WANTED[k];
+// True while a key's art hasn't arrived (its SPRITES entry is still the wanted placeholder, or the key is unknown).
+export const isWanted = key => !SPRITES[key] || SPRITES[key] === WANTED[key];
+// The key to draw for `key`: itself once delivered, else its stand-in, else null (leave it out).
+export function artKey(key) {
+  for (let i = 0; key && i < 4; i++) { if (!isWanted(key)) return key; key = STAND_IN[key]; }
+  return null;
+}
+// Every still-wanted file (key -> file under assets/kit/), for tools: what's to come and what each key's file is called.
+export const wantedFiles = () => Object.fromEntries(Object.keys(WANTED).filter(isWanted).map(k => [k, WANTED[k][0]]));
+
 // The heart pad for the workshop's HP: stage 0 = the zone's undamaged pad (baked into a generated plate), 1..4 = damaged.
-export const heartPadKey = (zone, stage) => zone + (stage ? 'HeartPadDmg' + stage : 'HeartPad');
+// A zone whose pads haven't arrived gets the meadow's (artKey's stand-in).
+export const heartPadKey = (zone, stage) => artKey(zone + (stage ? 'HeartPadDmg' + stage : 'HeartPad')) || 'meadow' + (stage ? 'HeartPadDmg' + stage : 'HeartPad');
+// The zone's Pin pad / heart pad sprite key (kind 'Pin' or 'Heart'), the meadow's while the zone's own hasn't arrived.
+export const padKey = (zone, kind) => artKey(zone + kind + 'Pad') || 'meadow' + kind + 'Pad';
 export const HIT_BITS = ['puff1', 'puff2', 'puff3', 'threadEnd1', 'threadEnd2', 'threadEnd3', 'stitchBit1', 'stitchBit2'];
 
 export const TEXTURES = {
@@ -227,7 +389,22 @@ export const TEXTURES = {
   meadow2: '21_ground/meadow_ground_02.webp', meadow3: '21_ground/meadow_ground_03.webp',
   denim2: '21_ground/denim_ground_02.webp', denim3: '21_ground/denim_ground_03.webp',
   lair2: '21_ground/lair_ground_02.webp', lair3: '21_ground/lair_ground_03.webp',
+  // round 5 ground tiles
+  autumn: 'textures/autumn_ground_01.webp',
+  autumn2: 'textures/autumn_ground_02.webp',
+  autumn3: 'textures/autumn_ground_03.webp',
+  night: 'textures/night_ground_01.webp',
+  night2: 'textures/night_ground_02.webp',
+  night3: 'textures/night_ground_03.webp',
+  snow: 'textures/snow_ground_01.webp',
+  snow2: 'textures/snow_ground_02.webp',
+  snow3: 'textures/snow_ground_03.webp',
 };
+// Ground tiles still wanted (as WANTED above; none now). A zone whose tiles haven't arrived paints on its `standIn`
+// zone's ground under its own colours (levelArt.js).
+const WANTED_TEX = {};
+for (const t in WANTED_TEX) if (!(t in TEXTURES)) TEXTURES[t] = WANTED_TEX[t];
+export const texWanted = name => !TEXTURES[name] || TEXTURES[name] === WANTED_TEX[name];
 
 // Prop entries: [sprite, weight, min scale, max scale, turn] (scale 0.5 = the plate size the sprite was drawn for, 1 = the
 // file's full pixels, past which it blurs; turn = how far it may be rotated, in radians: 3.2 = any way, small = stays
@@ -262,10 +439,19 @@ const JUNK = w => [...each(['paperclip1', 'paperclip2'], w, 0.46, 0.56, 3.2), ..
   ...each(['bottleCap1', 'bottleCap2'], w, 0.46, 0.56, 3.2), ...each(['twistTie1', 'twistTie2'], w * 0.7, 0.46, 0.56, 3.2),
   ...each(['coin1', 'coin2'], w * 0.7, 0.46, 0.56, 3.2), ...each(['screw1', 'screw2', 'screw3'], w * 0.5, 0.46, 0.56, 3.2),
   ...each(['hairTie1', 'hairTie2'], w * 0.7, 0.46, 0.56, 3.2)];
+// carpet: the tiniest pieces, packed into every patch of ground still bare after the fill pass (no shadow each, so
+// hundreds stay cheap). The round 5 worlds' carpets are their wishlist "Fill" rows; the meadow (and any zone whose own
+// carpet hasn't arrived) uses grass tufts and the small felt flowers drawn small.
+const CARPET_MEADOW = [...each(['grassTuft1', 'grassTuft2', 'grassTuft3'], 1.6, 0.24, 0.34, 3.2), ['flowerYellow', 0.3, 0.24, 0.3, 3.2],
+  ['flowerPink', 0.2, 0.2, 0.26, 3.2], ['flowerBlue', 0.2, 0.2, 0.26, 3.2], ['flowerCream', 0.15, 0.18, 0.24, 3.2], ['stoneS', 0.1, 0.18, 0.24, 3.2]];
+export const CARPET_STAND_IN = CARPET_MEADOW;
 
 const MEADOW = {
-  heroes: [['treeL', 1.3, 0.86, 1.02, 3.2], ['pond', 1.2, 0.62, 0.75, 0.2], ['treeM', 0.9, 1.02, 1.12, 3.2],
+  heroes: [['treeL', 1.3, 0.86, 1.02, 3.2], ['treeM', 0.9, 1.02, 1.12, 3.2],
     ['stoneL', 0.3, 0.95, 1.08, 3.2], ['pincushion', 0.2, 0.85, 0.98, 3.2], ['yarnYellow', 0.2, 0.95, 1.05, 3.2]],
+  // ground features, flat under everything (the duck pond lies here now, beside the round 5 ponds once they arrive)
+  ponds: [['pond', 1, 0.5, 0.6, 0.2], ['pond1', 1, 0.95, 1.15, 0.4], ['pond2', 1, 0.95, 1.1, 0.4], ['pond3', 1, 0.95, 1.1, 0.4]],
+  carpet: CARPET_MEADOW,
   clusters: [
     { w: 1.5, n: [2, 4], spread: 95, core: FLOWER_BEDS, members: [...FLOWERS, ...TUFTS] },
     { w: 0.8, n: [2, 4], spread: 85, core: [['mossMeadow', 1, 0.46, 0.56, 0.4]], members: [...TUFTS, ['flowerCream', 0.6, 0.4, 0.5, 3.2], ['stoneS', 0.5, 0.42, 0.52, 3.2]] },
@@ -283,6 +469,8 @@ const MEADOW = {
   singles: [...each(['grassTuft1', 'grassTuft2', 'grassTuft3'], 0.7, 0.46, 0.6, 3.2), ['flowerBed2', 0.3, 0.46, 0.54, 0.4],
     ['treeS', 1, 0.6, 0.72, 3.2], ['bush2', 0.8, 0.6, 0.72, 3.2], ['stoneM', 0.3, 0.5, 0.6, 3.2],
     ['sunflower', 0.6, 0.48, 0.58, 3.2], ['daisy', 0.6, 0.42, 0.52, 3.2], ['spoolRed', 0.25, 0.46, 0.54, 3.2], ['thimble', 0.2, 0.44, 0.52, 3.2], ...JUNK(0.06)],
+  // the painter's fill pass (bare ground left after the clusters): mostly bushes and small trees, as the painted plates
+  fill: [...each(['bush1', 'bush2', 'bush3'], 1.3, 0.5, 0.68, 3.2), ['treeS', 1, 0.5, 0.66, 3.2], ...FLOWERS, ...TUFTS, ['stoneS', 0.4, 0.42, 0.52, 3.2], ['stoneM', 0.3, 0.42, 0.52, 3.2]],
 };
 const DENIM = {
   heroes: [['pincushion', 1.2, 0.9, 1.02, 3.2], ['tape', 1.1, 0.95, 1.06, 3.2], ['thimble', 0.7, 1.05, 1.15, 3.2],
@@ -322,6 +510,70 @@ const LAIR = {
   singles: [['lumpS', 0.5, 0.5, 0.6, 0.35], ['lantern', 1, 0.75, 0.88, 3.2], ['needle', 0.7, 0.5, 0.6, 3.2],
     ['tangle2', 0.5, 0.45, 0.55, 3.2], ['pincushionLair', 0.4, 0.46, 0.52, 3.2], ['spoolBlue', 0.3, 0.45, 0.52, 3.2], ...JUNK(0.08)],
 };
+// Round 5 worlds (docs/worlds.md, wishlist sections 28 to 31). The art came at about a quarter of the wishlist's 2x
+// size, so each entry's scale is set from the delivered pixels (plate size = file px x scale): heroes about 300 to 450
+// plate wide (the small drawer junk less, so it doesn't blur), cluster cores 200 to 300, singles 50 to 90, carpet 20
+// to 40. heroes = the big trees and drawer junk inside the tray walls, clusters = the cluster sprites as cores,
+// singles, carpet = the wishlist's "Fill" row (the night's lavender sprigs came sprig-sized: they're singles there).
+const AUTUMN_SINGLES = [...each(['pineCone', 'acorn'], 1, 0.4, 0.5, 3.2), ['twig', 0.8, 0.38, 0.46, 3.2], ...each(['toadstool', 'pumpkinSmall'], 0.35, 0.4, 0.52, 3.2),
+  ...each(['leafGold', 'leafRed'], 1.2, 0.4, 0.55, 3.2), ['buttonRust', 0.6, 0.4, 0.52, 3.2]];
+const AUTUMN = {
+  heroes: [['heroMapleRed', 1.4, 0.56, 0.68, 3.2], ['heroMapleGold', 1.4, 0.56, 0.68, 3.2], ['heroPumpkinOrange', 0.6, 0.95, 1.15, 3.2],
+    ['heroPumpkinGreen', 0.4, 0.95, 1.15, 3.2], ['heroTwine', 0.4, 1.3, 1.5, 3.2], ['heroCopperMug', 0.4, 1.3, 1.5, 3.2]],
+  ponds: [],
+  clusters: [
+    { w: 1.3, n: [3, 5], spread: 90, core: [['leafDrift', 1, 0.75, 0.95, 3.2]], members: AUTUMN_SINGLES },
+    { w: 1, n: [2, 4], spread: 80, core: [['pineConePile', 1, 0.75, 0.95, 3.2]], members: [...each(['pineCone', 'acorn'], 1, 0.4, 0.5, 3.2), ['twig', 0.6, 0.38, 0.46, 3.2]] },
+    { w: 1, n: [2, 4], spread: 80, core: [['berryBunch', 1, 0.75, 0.95, 3.2]], members: [...each(['leafRed', 'leafGold'], 1, 0.4, 0.52, 3.2), ['buttonRust', 0.5, 0.4, 0.5, 3.2]] },
+    { w: 0.9, n: [2, 3], spread: 75, core: [['toadstoolPair', 1, 0.85, 1.05, 0.5]], members: [['toadstool', 0.5, 0.4, 0.5, 3.2], ['leafGold', 1, 0.4, 0.5, 3.2]] },
+    { w: 0.7, n: [3, 5], spread: 95, core: [['heroPumpkinOrange', 1, 0.75, 0.9, 3.2]], members: [['pumpkinSmall', 1.4, 0.45, 0.6, 3.2], ...each(['leafGoldBig', 'leafRedBig'], 1, 0.4, 0.5, 3.2)] },
+    { ...COIN_SPILL, w: 0.12 },
+  ],
+  singles: [...AUTUMN_SINGLES, ...each(['leafGoldBig', 'leafRedBig'], 0.6, 0.45, 0.6, 3.2), ...JUNK(0.04)],
+  carpet: [...each(['fillLeafGold', 'fillLeafOrange', 'fillLeafRed'], 1.4, 0.3, 0.44, 3.2), ['fillSeed', 0.6, 0.28, 0.36, 3.2], ['fillBerry', 0.6, 0.3, 0.4, 3.2]],
+};
+const NIGHT_SINGLES = [...each(['marble', 'bottleCap', 'toadstoolNight', 'buttonNavyNight'], 1, 0.38, 0.52, 3.2), ...each(['paperclip', 'keySmall'], 0.8, 0.42, 0.52, 3.2),
+  ['pebble', 1, 0.42, 0.55, 3.2], ['mothProp', 0.6, 0.36, 0.46, 3.2], ...each(['fillLavender1', 'fillLavender2'], 1.6, 0.4, 0.55, 3.2)];
+const NIGHT = {
+  heroes: [['heroLavenderBig', 1.5, 1.2, 1.5, 3.2], ['heroLavenderSmall', 1.2, 1.05, 1.3, 3.2], ['heroBrassKey', 0.4, 1.0, 1.2, 1.2],
+    ['heroPencil', 0.4, 1.0, 1.2, 1.2], ['heroCookieCutter', 0.35, 1.0, 1.2, 3.2], ['heroMoon', 0.35, 0.95, 1.1, 3.2]],
+  ponds: [],
+  clusters: [
+    { w: 1.4, n: [3, 5], spread: 90, core: [['lavenderBed', 1, 0.7, 0.9, 0.5]], members: [...each(['fillLavender1', 'fillLavender2'], 1.5, 0.4, 0.55, 3.2), ['toadstoolNight', 0.6, 0.38, 0.5, 3.2], ['mothProp', 0.3, 0.36, 0.44, 3.2]] },
+    { w: 1, n: [2, 4], spread: 80, core: [['berrySprig', 1, 0.8, 1.0, 3.2]], members: [['pebble', 1, 0.42, 0.55, 3.2], ['buttonNavyNight', 0.6, 0.38, 0.5, 3.2]] },
+    { w: 0.9, n: [2, 4], spread: 80, core: [['pebblePile', 1, 0.75, 0.95, 3.2]], members: [['pebble', 1, 0.42, 0.55, 3.2], ['marble', 0.6, 0.38, 0.5, 3.2]] },
+    { w: 0.8, n: [1, 3], spread: 70, core: [['lanternBig', 1, 0.5, 0.6, 0.3]], members: [['lanternSmall', 1, 0.5, 0.6, 0.3], ['pebble', 1, 0.42, 0.55, 3.2]] },
+    { ...BAND_TANGLE, w: 0.25 }, { ...COIN_SPILL, w: 0.15 },
+  ],
+  singles: [...NIGHT_SINGLES, ['lanternSmall', 0.7, 0.5, 0.6, 0.3], ...JUNK(0.08)],
+  // the night's carpet: pebbles and stitched stars, with small purple and blue felt flowers
+  carpet: [...each(['fillLavender1', 'fillLavender2'], 1, 0.16, 0.22, 3.2), ...each(['fillPebbleGrey', 'fillPebbleCream'], 0.45, 0.15, 0.22, 3.2), ['fillStar', 0.5, 0.13, 0.18, 3.2],
+    ['flowerBlue', 0.5, 0.22, 0.3, 3.2], ['buttonPurple', 0.15, 0.16, 0.2, 3.2], ...each(['grassTuft1', 'grassTuft2', 'grassTuft3'], 0.7, 0.24, 0.32, 3.2)],
+};
+const SNOW_SINGLES = [...each(['snowballProp', 'bell', 'buttonWhite'], 1, 0.4, 0.55, 3.2), ...each(['baubleRed', 'baubleBlue'], 0.45, 0.4, 0.52, 3.2), ...each(['icicleProp', 'candyCane'], 0.8, 0.4, 0.52, 3.2),
+  ['pineSprig', 1, 0.36, 0.46, 3.2]];
+const SNOW = {
+  heroes: [['heroFirBig', 1.5, 1.2, 1.5, 3.2], ['heroFirSmall', 1.3, 1.1, 1.35, 3.2], ['heroBareTree', 1, 1.2, 1.45, 3.2],
+    ['heroCottage1', 0.7, 1.3, 1.55, 0.3], ['heroCottage2', 0.7, 1.3, 1.55, 0.3], ['heroSled', 0.3, 1.2, 1.4, 1.2], ['heroStarOrnament', 0.3, 1.1, 1.3, 3.2]],
+  ponds: [['pond1', 1, 0.95, 1.15, 0.4], ['pond2', 1, 0.95, 1.1, 0.4], ['pond3', 1, 0.95, 1.1, 0.4]],
+  clusters: [
+    { w: 1.2, n: [2, 4], spread: 85, core: [['snowPebbles', 1, 0.7, 0.9, 3.2]], members: each(['snowballProp', 'buttonWhite'], 1, 0.4, 0.52, 3.2) },
+    { w: 1, n: [2, 4], spread: 80, core: [['snowBerrySprig', 1, 0.8, 1.0, 3.2]], members: [['pineSprig', 1, 0.36, 0.46, 3.2], ['baubleRed', 0.8, 0.4, 0.52, 3.2]] },
+    { w: 0.9, n: [1, 3], spread: 80, core: [['snowFootprints', 1, 0.65, 0.8, 0.6]], members: each(['snowballProp', 'icicleProp'], 1, 0.4, 0.52, 3.2) },
+    { w: 0.8, n: [2, 4], spread: 80, core: [['tinselTangle', 1, 0.65, 0.8, 3.2]], members: each(['baubleRed', 'baubleBlue', 'bell', 'candyCane'], 1, 0.4, 0.52, 3.2) },
+  ],
+  singles: [...SNOW_SINGLES, ...JUNK(0.03)],
+  carpet: [['fillSnow1', 1.2, 0.15, 0.22, 3.2], ['fillSnow2', 1.2, 0.2, 0.28, 3.2], ['fillSnowBerry', 0.3, 0.3, 0.4, 3.2],
+    ['fillStarGold', 0.4, 0.25, 0.34, 3.2], ['fillStarSilver', 0.4, 0.22, 0.32, 3.2]],
+};
+// Lit things: a prop whose key is here shines (levelArt.js lays its glow under it and lists it in the level's `lights`
+// for the night world's dark). r = the light's radius in multiples of the sprite's visible radius at the scale drawn
+// (times CONFIG.levelGen.lightScale), glow = the additive glow sprite laid under it.
+export const LIGHTS = {
+  lanternLit1: { r: 4.5, glow: 'lanternGlow' }, lanternLit2: { r: 4.5, glow: 'lanternGlow' }, lantern: { r: 4, glow: 'lanternGlow' },
+  lanternBig: { r: 2.6, glow: 'lanternGlow' }, lanternSmall: { r: 3, glow: 'lanternGlow' }, heroCopperMug: { r: 1.4, glow: 'lanternGlow' },
+  heroCottage1: { r: 1.3, glow: 'windowGlow' }, heroCottage2: { r: 1.3, glow: 'windowGlow' },
+};
 
 // Per zone (a level file's `world`): ground texture, whether the ground is a quilt (irregular squares of it, each turned
 // its own way, with seams), whether the ground may be laid again turned a quarter to hide the tile's repeat (false: only
@@ -330,6 +582,9 @@ const LAIR = {
 // finished plate (light from the top left, the far corner sinking into the shade).
 // Round 3 (assets/kit/18_frames .. 22_denim): the frame round the plate (src/levelFrame.js), the road kit (src/roadKit.js),
 // more ground and road felt tiles, and the hero props that sit in the frame's compartments.
+// Round 5: `tray` (a sewing-tray world: 3 to 4 big heroes leaning over the wall, continuous fences), props.ponds (flat
+// ground features), props.carpet (the tiny pieces packed into bare ground), river, roadLanterns, standIn / standInWash,
+// and roadKit.padRing / roadKit.flags (the fence ring round a Pin pad, the heart pad's two flag posts).
 // frame: rim strips (variants), the thinner divider strip, corner pieces, the end cap where a road passes through, the
 // T-joint, and the compartment floor texture. Strips are drawn horizontal with their bottom long edge facing the play area.
 const frameOf = z => ({ rim: [z + 'FrameRim1', z + 'FrameRim2'], divider: z + 'FrameDivider', outerCorner: z + 'FrameOuterCorner',
@@ -346,18 +601,57 @@ const FRAME_HEROES = {
   lair: [['heroSeamRipper', 1, 0.5, 0.56, 0.6], ['heroPincushionLair', 1, 0.5, 0.56, 3.2], ['heroDarningMushroom', 0.9, 0.5, 0.56, 3.2],
     ['heroBobbinTangle', 1, 0.5, 0.56, 3.2], ['heroDoily', 0.8, 0.5, 0.56, 3.2]],
 };
+// the round 5 tray worlds share the sewing tray's compartments, each with some of its own drawer's junk in them
+// (the refs: rubber bands and a battery in the kitchen drawer, keys and bands by the bed, the battery in the holiday box)
+FRAME_HEROES.autumn = [...FRAME_HEROES.meadow, ['heroBandTan', 0.7, 0.42, 0.48, 3.2], ['heroBattery', 0.5, 0.5, 0.56, 0.4],
+  ['heroHoneyDipper', 0.9, 1.5, 1.7, 0.6], ['heroBottleOpener', 0.7, 1.4, 1.6, 3.2]];
+FRAME_HEROES.night = [...FRAME_HEROES.meadow.filter(e => e[0] !== 'heroFabricGingham'), ['heroKey', 0.9, 0.5, 0.56, 0.5],
+  ['heroBandRed', 0.7, 0.42, 0.48, 3.2], ['heroBandTan', 0.5, 0.42, 0.48, 3.2], ['heroClothespin', 0.8, 1.4, 1.6, 0.6], ['heroSpoon', 0.7, 1.3, 1.5, 0.6]];
+FRAME_HEROES.snow = [...FRAME_HEROES.meadow, ['heroBattery', 0.6, 0.5, 0.56, 0.4], ['heroSpoolWhite', 0.9, 1.7, 1.9, 0.6]];
+// the shared tray's fence; the holiday box's posts and rails wear snow caps (the meadow's stand in until they arrive)
+const TRAY_FENCE = { posts: ['fencePost1', 'fencePost2', 'fencePost3'], links: ['ropeLink1', 'ropeLink2'], rails: ['fenceRail1', 'fenceRail2'] };
+const SNOW_FENCE = { posts: ['snowPost1', 'snowPost2', 'snowPost3'], links: [], rails: ['snowRail1', 'snowRail2'] };
+const TRAY_EXTRAS = { padRing: 'padRing', flags: ['flagPostL', 'flagPostR'] };
 export const ZONES = {
   meadow: { ground: 'meadow', grounds: ['meadow', 'meadow2', 'meadow3'], seams: false, groundTurn: false, stitch: '#6e4524', patches: ['patchGingham', 'patchRedPlaid'], props: MEADOW,
-    tint: '#ffd98a', shade: '#08331c', frame: frameOf('meadow'), frameHeroes: FRAME_HEROES.meadow,
-    roadKit: { posts: ['fencePost1', 'fencePost2', 'fencePost3'], links: ['ropeLink1', 'ropeLink2'], rails: ['fenceRail1', 'fenceRail2'], strips: [], decals: ROAD_DECALS } },
+    tint: '#ffd98a', shade: '#08331c', frame: frameOf('meadow'), frameHeroes: FRAME_HEROES.meadow, tray: true,
+    // (no padRing: the meadow's Pin pad has its own fence)
+    roadKit: { ...TRAY_FENCE, strips: [], decals: ROAD_DECALS, padRing: null, flags: TRAY_EXTRAS.flags } },
   denim:  { ground: 'denim', grounds: ['denim', 'denim2', 'denim3'], seams: true, groundTurn: true, stitch: '#6e4524', patches: ['patchRedPlaid', 'patchBluePlaid', 'patchGingham', 'patchPolka'], props: DENIM,
     tint: '#ffcf8a', shade: '#021a2a', frame: frameOf('denim'), frameHeroes: FRAME_HEROES.denim,
     roadKit: { posts: [], links: [], rails: [], strips: ['denimSelvage', 'denimFrayed'], decals: ROAD_DECALS } },
   lair:   { ground: 'lair', grounds: ['lair', 'lair2', 'lair3'], seams: false, groundTurn: true, stitch: '#4a2a50', patches: ['patchBluePlaid', 'patchPolka'], props: LAIR,
     tint: '#d9a0ff', shade: '#12031c', frame: frameOf('lair'), frameHeroes: FRAME_HEROES.lair,
     roadKit: { posts: [], links: [], rails: [], strips: ['lairPinned1', 'lairPinned2'], decals: ROAD_DECALS } },
+  // Round 5 tray worlds: the shared tray (meadow frame; snow-capped rims and caps for the holiday box), the shared fence,
+  // their own ground, props, pads and light. Until a world's ground tiles arrive it paints on its standIn zone's ground
+  // under its own colours plus standInWash ([css colour, alpha, blend] over the ground), with the meadow's pads. river =
+  // the satin river's colour ('brown' / 'blue', levelArt.js), roadLanterns = lanterns along the road (the dark world).
+  autumn: { ground: 'autumn', grounds: ['autumn', 'autumn2', 'autumn3'], standIn: 'meadow', standInWash: ['#b8561c', 0.5, 'color'],
+    seams: false, groundTurn: true, stitch: '#6a3a1a', patches: ['patchRedPlaid', 'patchGingham'], props: AUTUMN,
+    tint: '#ffc069', shade: '#2a1206', frame: frameOf('meadow'), frameHeroes: FRAME_HEROES.autumn, tray: true, river: 'brown',
+    roadKit: { ...TRAY_FENCE, strips: [], decals: ROAD_DECALS, ...TRAY_EXTRAS } },
+  night:  { ground: 'night', grounds: ['night', 'night2', 'night3'], standIn: 'meadow', standInWash: ['#2a2f78', 0.62, 'multiply'],
+    seams: false, groundTurn: true, stitch: '#5a3420', patches: ['patchBluePlaid', 'patchPolka'], props: NIGHT,
+    tint: '#c9b8ff', shade: '#060a24', frame: frameOf('meadow'), frameHeroes: FRAME_HEROES.night, tray: true, river: 'blue', roadLanterns: true,
+    roadKit: { ...TRAY_FENCE, strips: [], decals: ROAD_DECALS, ...TRAY_EXTRAS } },
+  snow:   { ground: 'snow', grounds: ['snow', 'snow2', 'snow3'], standIn: 'meadow', standInWash: ['#eef3ff', 0.72, 'source-over'],
+    seams: false, groundTurn: true, stitch: '#6e4524', patches: ['patchBluePlaid', 'patchRedPlaid'], props: SNOW,
+    tint: '#e6f0ff', shade: '#1c2c4a', frame: { ...frameOf('meadow'), rim: ['snowFrameRim1', 'snowFrameRim2'], cap: 'snowFrameCap' },
+    frameHeroes: FRAME_HEROES.snow, tray: true, river: 'blue',
+    roadKit: { ...SNOW_FENCE, strips: [], decals: ROAD_DECALS, ...TRAY_EXTRAS } },
 };
+// True once a zone's own look has arrived (its ground tile and both pads), so it may be drawn for a random road.
+export const zoneReady = zone => !!ZONES[zone] && !texWanted(ZONES[zone].ground) && !isWanted(zone + 'PinPad') && !isWanted(zone + 'HeartPad');
+// The zone a Random Quilt run paints in, from its seed: any zone whose art is in (zoneReady), else the original three.
+export function randomZone(seed) {
+  const ready = Object.keys(ZONES).filter(zoneReady);
+  return ready[(seed >>> 0) % ready.length];
+}
 export const ROAD_FELTS = ['roadFelt', 'roadFelt2', 'roadFelt3'];   // the road felt tiles a plate picks from by seed
+// Strips delivered with rounded, non-seamless ends: this share of their length is left off each end when they're tiled
+// (levelFrame.js; the river strips are trimmed by CONFIG.levelGen.riverTrim).
+export const STRIP_TRIM = { snowFrameRim1: 0.035, snowFrameRim2: 0.035 };
 
 // Round-2 UI and character art (assets/kit/NN_section/), addressed by short name. uiImage(name) loads each once and
 // returns the <img> (its .complete tells whether it has decoded yet); DOM code uses uiUrl(name) in CSS/src.
@@ -369,12 +663,20 @@ export const UI_ART = {
   check: '06_markers/ui_check_badge_01.png', lock: '06_markers/ui_lock_badge_01.png', here: '06_markers/ui_you_are_here_01.png',
   button: '03_currency/ui_currency_button_01.png',
   portraits: { seamRipper: '11_portraits/lair_seam_ripper_portrait_01.png', bruteKing: '11_portraits/lair_brute_king_portrait_01.png',
-               unstitcher: '11_portraits/lair_unstitcher_portrait_01.png' },   // 600x600, by boss key
-  // achievement id -> badge (08_trophies/ui_achievement_<name>.png); anything unlisted keeps the trophy emoji
+               unstitcher: '11_portraits/lair_unstitcher_portrait_01.png',
+               twine: '11_portraits/autumn_twine_ball_portrait_01.webp', honeydipper: '11_portraits/autumn_honey_dipper_portrait_01.webp',
+               skeletonkey: '11_portraits/night_skeleton_key_portrait_01.webp', bottlecap: '11_portraits/night_bottle_cap_portrait_01.webp',
+               snowglobe: '11_portraits/snow_snow_globe_portrait_01.webp', bobbin: '11_portraits/meadow_bobbin_portrait_01.webp',
+               zipper: '11_portraits/denim_zipper_portrait_01.webp' },   // 600x600, by boss key
+  // achievement id -> badge (08_trophies/ui_achievement_<name>.png); anything unlisted keeps the trophy emoji. List only
+  // badges that exist (shop.js shows a listed one as an <img>, so a missing file is a broken image, not the emoji).
+  // Wanted, not drawn yet: clear-autumn drawer_swept, clear-night lights_out, stars-autumn golden_harvest,
+  // stars-night golden_hour. The snow world borrows the old Lair's badges.
   achievements: { snip6: 'half_dozen', snip10: 'tailors_ten', 'boss-no-needle': 'no_needles_needed', 'one-pin': 'one_trick',
     'no-pins': 'bare_blades', 'cigar-beetle': 'cigar_cut', 'pruner-bite': 'ratchet_bite', 'squish-level': 'pest_control',
     'squish-25': 'silverfish_squasher', 'clear-meadow': 'meadow_mended', 'clear-denim': 'denim_darned', 'clear-lair': 'lair_unravelled',
-    'stars-meadow': 'golden_meadow', 'stars-denim': 'golden_denim', 'stars-lair': 'golden_lair', 'beat-l12': 'the_quilt_is_safe' },
+    'stars-meadow': 'golden_meadow', 'stars-denim': 'golden_denim', 'stars-lair': 'golden_lair', 'beat-l12': 'the_quilt_is_safe',
+    'clear-snow': 'lair_unravelled', 'stars-snow': 'golden_lair' },
   achievementLocked: '08_trophies/ui_achievement_locked_blank.png',
   // cosmetic id -> swatch (08_trophies/ui_swatch_<name>_01.png)
   swatches: { brassHandles: 'brass', roseHandles: 'rose', emberGlow: 'ember', frostGlow: 'frost', cloverHandles: 'clover', indigoGlow: 'indigo', ripperGlow: 'ripper' },

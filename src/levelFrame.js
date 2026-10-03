@@ -9,13 +9,14 @@
 // Its own seeded stream, so the frame is the same every time and the painter's own stream isn't disturbed.
 import { CONFIG as C } from './config.js';
 import { makeRng } from '../vendor/mulberry32.js';
-import { SPRITES, ZONES } from './kit.js';
+import { SPRITES, ZONES, artKey, STRIP_TRIM } from './kit.js';
 import { kitSprite, kitImage, kitTexture } from './levelArt.js';
 
 const QUARTER = Math.PI / 2;
 
-// Every SPRITES key and TEXTURES name the zone's frame and heroes use, so the painter's loader can wait for them.
-// `zone` is a ZONES entry or its name.
+// Every SPRITES key and TEXTURES name the zone's frame and heroes use, so the painter's loader can wait for them, as
+// drawn: a wanted piece's stand-in (kit.js; the holiday box's snow-capped rims stand in as the plain tray's), pieces with
+// neither left out. `zone` is a ZONES entry or its name.
 export function frameKeys(zone) {
   if (typeof zone === 'string') zone = ZONES[zone];
   const F = zone && zone.frame;
@@ -23,7 +24,7 @@ export function frameKeys(zone) {
   const keys = [...F.rim, F.divider, F.outerCorner, F.innerCorner, F.cap];
   if (C.levelFrame.tee) keys.push(F.tee);
   for (const h of zone.frameHeroes || []) if (!keys.includes(h[0])) keys.push(h[0]);
-  return { keys: keys.filter(k => SPRITES[k]), tex: [F.floor] };
+  return { keys: [...new Set(keys.map(artKey).filter(Boolean))], tex: [F.floor] };
 }
 
 // ======================= measuring the art =======================
@@ -51,7 +52,9 @@ function stripInfo(key) {
   const t = y1 - y0, cols = [0.2, 0.35, 0.5, 0.65, 0.8];
   // its colour across the wall, top (outer side) to bottom (play side)
   const profile = PROFILE.map(p => meanRgb(A, cols.map(f => [A.w * f, y0 + p * (t - 1)])));
-  const info = { img, w: A.w, h: A.h, mid: (y0 + y1) / 2, thick: t, profile };
+  // (a strip whose ends aren't seamless, kit.js STRIP_TRIM, is tiled from its middle part only)
+  const trim = (STRIP_TRIM[artKey(key)] || 0) * A.w;
+  const info = { img, w: A.w, h: A.h, x0: trim, x1: A.w - trim, mid: (y0 + y1) / 2, thick: t, profile };
   measured.set(key, info);
   return info;
 }
@@ -380,11 +383,11 @@ export function frameBase(g, def, env) {
 // Strips along local x from a to b, centred on local y = 0, tiling end to end from a seeded point in the art, taking
 // turns through `list` from index v (returns the next index).
 function drawStrip(g, list, v, a, b, s, rng) {
-  let x = a, src = Math.floor(rng() * list[0].w);
+  let x = a, src = list[0].x0 + Math.floor(rng() * (list[0].x1 - list[0].x0));
   while (x < b - 0.5) {
-    const st = list[v % list.length], sw = Math.min(st.w - src, (b - x) / s);
+    const st = list[v % list.length], sw = Math.min(st.x1 - src, (b - x) / s);
     g.drawImage(st.img, src, 0, sw, st.h, x, -st.mid * s, sw * s + 0.6, st.h * s);
-    x += sw * s; src = 0; v++;
+    x += sw * s; v++; src = list[v % list.length].x0;
   }
   return v;
 }
@@ -396,7 +399,7 @@ function drawStrip(g, list, v, a, b, s, rng) {
 // lies along the nearest plate edge; a round one turns any way.
 function planHeroes(env, Z, rng, geo) {
   const FC = C.levelFrame, { V, T, W, H, n, half, taken } = geo, road = env.road, roadOuter = env.roadOuter;
-  const list = (Z.frameHeroes || []).filter(e => SPRITES[e[0]] && kitImage(e[0]));
+  const list = (Z.frameHeroes || []).map(e => [artKey(e[0]), ...e.slice(1)]).filter(e => e[0] && kitImage(e[0]));
   const heroes = [], used = new Set();
   const count = Math.min(list.length, Math.floor(FC.heroes[0] + rng() * (FC.heroes[1] - FC.heroes[0] + 0.99)));
   let side = rng() < 0.5 ? 'left' : 'right';

@@ -4,6 +4,9 @@
 // The pick is remembered in the save (Save.equippedScissors). Only the default weapon starts unlocked; the rest are a
 // map level's reward (its unlockOnClear) or bought in the Shop (CONFIG.weapons[id].shop, once shopAfter is cleared),
 // and either way join Save.unlocks.scissors.
+// Under the pair, a Moves row: SHRED (once this level has it; not a choice) and the Skills this level allows (the second
+// move slot, CONFIG.skills), one picked (Save.equippedSkill; a tap toggles it, NEW on its first level). main.js passes
+// getMoves() (what game.js allows on the level about to start), since this module doesn't import game.js.
 import { CONFIG as C } from './config.js';
 import { Save, persist } from './save.js';
 import { rewardLevelOf } from './levels/index.js';
@@ -14,32 +17,57 @@ import { sharpMeter, setSharpMeter, sharpenButton, setSharpenButton } from './sh
 // Reach: blade length in story inches (play area = statDrawerHeightIn tall). Spread: full angle between the open blades.
 // Speed: how fast a held button / finger opens it (1 / openMs).
 // A slide weapon (kind 'slide') has no reach or spread: its bite is a round hole (reachFrac = the hole's radius).
+// Special: one more row for a pair whose signature is a trick of its own (SPECIAL, by signature), in a few words.
 const inches = w => w.reachFrac * C.weaponScale * C.statDrawerHeightIn;
+const SPECIAL = {
+  crit:  w => 'Crit x' + w.critMult.toFixed(1) + ' near pivot',
+  hold:  w => 'Holds them ' + w.holdSec.toFixed(1) + 's',
+  ring:  () => 'Beetle in hole: gone',
+  notch: w => 'Pivot ' + Math.round(w.pivotZone * 100) + '%: Burr, Beetle gone',
+  nick:  w => 'Soft spot x' + C.lampMult + ', crit x' + w.critMult.toFixed(1),
+  curl:  w => 'Curl: ' + Math.round(w.curlSlow * 100) + '% speed, ' + w.curlSec.toFixed(1) + 's',
+};
 const STATS = [
   { label: w => w.kind === 'slide' ? 'Hole' : 'Reach', text: w => (w.kind === 'slide' ? 2 * inches(w) : inches(w)).toFixed(1) + ' in' },
   { label: w => w.kind === 'slide' ? 'Cut' : 'Spread', text: w => w.kind === 'slide' ? 'guillotine' : Math.round(w.maxOpenDeg * 2) + '°' },
   { label: () => 'Power', bar: w => w.damageMult },
   { label: () => 'Speed', bar: w => 1 / w.openMs },
+  { label: () => 'Special', text: w => SPECIAL[w.signature](w), only: w => !!SPECIAL[w.signature] },
 ];
 
 // (a save from before a weapon got its reward level counts that level's clear)
 export const weaponLocked = id => id !== C.defaultWeapon && !Save.unlocks.scissors.includes(id) && !Save.levels[rewardLevelOf(id)]?.cleared;
 // Shop weapons: on sale once their shopAfter level is cleared.
 export const shopOpen = id => !!C.weapons[id].shop && !!Save.levels[C.weapons[id].shopAfter]?.cleared;
-const levelNum = id => C.map.nodes.findIndex(n => n[0] === id);
-// How a locked weapon is won, in words.
+// A map level's number as the map shows it: "3-10" (world-level) on the world maps (CONFIG.map.worlds), else its patch
+// index on the single map; '' off the map.
+function levelNum(id) {
+  const M = C.map;
+  if (M.worlds) {
+    for (let k = 0; k < M.worlds.length; k++) {
+      const i = M.worlds[k].nodes.findIndex(n => n[0] === id);
+      if (i >= 0) return (k + 1) + '-' + (M.worlds[k].nodes[0][0] === C.tutLevel ? i : i + 1);
+    }
+    return '';
+  }
+  const i = M.nodes ? M.nodes.findIndex(n => n[0] === id) : -1;
+  return i >= 0 ? String(i) : '';
+}
+// How a locked weapon is won, in words (a boss's reward: the level that boss is on).
 export function unlockHint(id) {
   const w = C.weapons[id];
   if (w.shop) return shopOpen(id) ? 'In the Shop' : 'Shop, after Level ' + levelNum(w.shopAfter);
-  return 'Clear Level ' + levelNum(rewardLevelOf(id));
+  const n = levelNum(rewardLevelOf(id));
+  return n ? 'Beat Level ' + n : 'Won on the map';
 }
 export function savedWeapon() {
   return C.weapons[Save.equippedScissors] && !weaponLocked(Save.equippedScissors) ? Save.equippedScissors : C.defaultWeapon;
 }
 
 // onPick(id) when a pair is chosen, onStart() / onBack() for the two buttons, onSharpen(id) for the quick Sharpen
-// (returns '' when it went through, else why not).
-export function initWeaponSelect({ onPick, onStart, onBack, onSharpen }) {
+// (returns '' when it went through, else why not), getMoves() = { shred, shredNew, skills: [{ id, isNew }] } for the Moves row.
+export function initWeaponSelect({ onPick, onStart, onBack, onSharpen, getMoves }) {
+  movesOf = getMoves || movesOf;
   const strip = document.getElementById('weapon-cards');
   const hero = document.getElementById('sel-hero'), heroImg = hero.querySelector('img'), heroLock = document.getElementById('sel-lock');
   const bal = document.getElementById('sel-buttons'), startBtn = document.getElementById('select-start');
@@ -92,6 +120,7 @@ export function initWeaponSelect({ onPick, onStart, onBack, onSharpen }) {
     }
     const id = savedWeapon();
     select(id); show(shownId && !weaponLocked(shownId) ? shownId : id);
+    renderMoves();
     // the strip scrolls sideways: open it scrolled to the equipped pair
     requestAnimationFrame(() => thumbs[id]?.scrollIntoView({ block: 'nearest', inline: 'nearest' }));
   };
@@ -103,6 +132,7 @@ function fillStats(card, id, best) {
   card.querySelector('.wc-name').textContent = w.name + (w.tier ? ' ' + '★'.repeat(w.tier) : '');
   stats.textContent = '';
   STATS.forEach((s, i) => {
+    if (s.only && !s.only(w)) return;
     const row = document.createElement('span');
     row.className = 'wc-stat';
     row.innerHTML = s.bar ? '<span></span><span class="wc-bar"><span></span></span>' : '<span></span><span class="wc-val"></span>';
@@ -111,6 +141,30 @@ function fillStats(card, id, best) {
     else row.querySelector('.wc-val').textContent = s.text(w);
     stats.appendChild(row);
   });
+}
+// The Moves row: SHRED's chip (fixed) and a chip per Skill this level allows; tapping a Skill's chip picks it (again: none).
+let movesOf = () => ({ shred: false, shredNew: false, skills: [] });
+function moveChip(icon, name, felt, isNew) {
+  const c = document.createElement('button');
+  c.type = 'button'; c.className = 'move-chip';
+  c.innerHTML = '<span class="mc-ico"></span><span class="mc-name"></span>';
+  c.firstChild.textContent = icon; c.firstChild.style.setProperty('--fc', felt); c.lastChild.textContent = name;
+  if (isNew) { const n = document.createElement('span'); n.className = 'mc-new'; n.textContent = 'NEW'; c.appendChild(n); }
+  return c;
+}
+export function renderMoves() {
+  const box = document.getElementById('sel-moves'), list = document.getElementById('sel-moves-list'), m = movesOf();
+  list.textContent = '';
+  box.hidden = !m.shred && !m.skills.length;
+  if (m.shred) { const c = moveChip('✂', 'SHRED', '#7a3fb8', m.shredNew); c.classList.add('fixed'); c.tabIndex = -1; c.title = 'Always with you'; list.appendChild(c); }
+  for (const { id, isNew } of m.skills) {
+    const k = C.skills[id], c = moveChip(k.icon, k.name, k.felt, isNew);
+    c.title = k.blurb; c.setAttribute('aria-pressed', String(Save.equippedSkill === id));
+    c.addEventListener('click', () => { Save.equippedSkill = Save.equippedSkill === id ? '' : id; persist(); renderMoves(); });
+    list.appendChild(c);
+  }
+  const picked = list.querySelector('[aria-pressed="true"]');     // the row scrolls sideways: show the picked one
+  if (picked) requestAnimationFrame(() => picked.scrollIntoView({ block: 'nearest', inline: 'nearest' }));
 }
 // Re-check locks, upgrades, sharpness and Buttons (each time the screen opens, and after a quick Sharpen).
 let refreshLocks = () => {};

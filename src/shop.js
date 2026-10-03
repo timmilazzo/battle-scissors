@@ -68,7 +68,9 @@ function renderShop() {
 // a trophy badge from the kit, or the fallback glyph when there's no art for it
 function badgeIcon(file, glyph) {
   if (!file) return el('span', 'ico', glyph);
-  const i = new Image(); i.src = uiUrl(file); i.alt = ''; return i;
+  const i = new Image(); i.src = uiUrl(file); i.alt = '';
+  i.onerror = () => i.replaceWith(el('span', 'ico', glyph));   // a badge listed but not drawn yet: the glyph instead of a broken image
+  return i;
 }
 
 function renderTrophies() {

@@ -1,14 +1,15 @@
 // Which level is picked and how each has gone: both kept in the save (Save.lastLevel, Save.levels). No DOM: the level
 // map (levelMap.js) shows them. ?level=id in the URL wins (the run report's replay link carries it); otherwise the
-// last pick. ?recipe=... adds a "Custom Road" level built from that recipe (and ?seed=, if given) and picks it: the
+// last pick. ?recipe=... adds a "Custom Road" level built from that recipe (and ?seed=, if given; ?world= = its zone's look) and picks it: the
 // level lab's "Play it" link.
 import { CONFIG as C } from './config.js';
 import { Save, persist, levelRecord } from './save.js';
 import { STORY } from './story.js';
 import { hasLevel, levelInfo, addCustomLevel } from './levels/index.js';
+import { levelPlace, levelNo } from './meta.js';
 
 const q = new URLSearchParams(location.search), urlLevel = q.get('level'), urlRecipe = q.get('recipe');
-if (urlRecipe) addCustomLevel(urlRecipe, /^\d+$/.test(q.get('seed') || '') ? +q.get('seed') : 1);
+if (urlRecipe) addCustomLevel(urlRecipe, /^\d+$/.test(q.get('seed') || '') ? +q.get('seed') : 1, q.get('world') || '');   // ?world= = the zone's look
 
 export function savedLevel() {
   if (urlRecipe) return 'custom';
@@ -53,10 +54,11 @@ export function recordLevelResult(id, won, score, stars, unlock) {
 }
 
 // Whether id is one of the map's numbered levels (Random Quilt and Custom Road aren't: they're played from the title).
-export const onMap = id => C.map.nodes.some(n => n[0] === id);
+export const onMap = id => levelPlace(id).onMap;
 
-// "Level 4: Running Stitch" for a map level (numbered from 0: the tutorial), just the name for the others.
+// "Level 2-3: Rivet Row" for a map level (world-n; the tutorial is "Level 0: First Snip"), just the name for the
+// others. A map level whose file isn't there yet shows its id.
 export function levelLabel(id) {
-  const i = C.map.nodes.findIndex(n => n[0] === id), lv = levelInfo(id);
-  return lv ? (i >= 0 ? 'Level ' + i + ': ' : '') + lv.name : '';
+  const no = levelNo(id), lv = levelInfo(id), name = lv ? lv.name : no ? id : '';
+  return no ? 'Level ' + no + ': ' + name : name;
 }

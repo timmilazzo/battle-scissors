@@ -46,7 +46,7 @@ export function trackRunEnd(r) {
     outcome: r.inProgress ? 'quit' : r.won ? 'won' : 'lost', level: r.level, weapon: r.weapon, won: !!r.won && !r.inProgress, waves_reached: r.wavesReached, score: r.score, stars: r.stars, snips: r.snips, kills: r.kills,
     accuracy: r.accuracy, multi_snips: r.multiSnips, shred_uses: r.specialUses, leaks: r.deathsAtWorkshop, boss: r.boss,
     pins_built: Object.values(r.towers || {}).reduce((a, b) => a + (b | 0), 0), rank_ups: r.rankUps, critter_kills: r.critterKills, critter_spawns: r.critterSpawns,
-    upgrade_tier: r.upgradeTier, sharpness: r.sharpness, duration_sec: r.durationSec, buttons_earned: r.buttons ? r.buttons.total : 0, seed: r.seed,
+    endless: !!r.endless, waves_survived: r.wavesSurvived, upgrade_tier: r.upgradeTier, sharpness: r.sharpness, duration_sec: r.durationSec, buttons_earned: r.buttons ? r.buttons.total : 0, seed: r.seed,
   });
 }
 

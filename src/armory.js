@@ -3,7 +3,8 @@
 // button, the sharpness meter with its Sharpen button (sharpMeter.js), and the next upgrade tier with its price.
 // Pins = one panel per Pin type: its icon, what it does, its three permanent tiers (meta.js buyPinTier; on sale once
 // its level is cleared). Moves = SHRED as a skill (CONFIG.shredTiers), its next tier bought with Buttons once SHRED's
-// level is cleared, then the skills to come (CONFIG.skillIdeas). Shop: Pairs = the scissors not held yet, greyed: a
+// level is cleared, then a panel per Skill (CONFIG.skills, the second move slot: its tiers, meta.js buySkillTier, on sale
+// once its level is cleared). Shop: Pairs = the scissors not held yet, greyed: a
 // Shop pair on sale shows its price (meta.js buyWeapon), the rest say how they're won (a level) or when they go on
 // sale. Prices: CONFIG.meta; the buys themselves are meta.js.
 import { CONFIG as C } from './config.js';
@@ -11,16 +12,18 @@ import { Save } from './save.js';
 import { upgradeTier, shredTier } from './scissors.js';
 import { pinTier, PIN_TIERS } from './pins.js';
 import { weaponLocked, shopOpen, unlockHint, savedWeapon } from './weaponSelect.js';
-import { upgradeCost, buyUpgrade, buySharpen, buyWeapon, shredOpen, shredCost, buyShred, pinOpen, pinTierCost, buyPinTier } from './meta.js';
+import { upgradeCost, buyUpgrade, buySharpen, buyWeapon, shredOpen, shredCost, buyShred, pinOpen, pinTierCost, buyPinTier, skillOpen, skillCost, buySkillTier, levelNo } from './meta.js';
+import { skillTier, SKILL_TIERS } from './skills.js';
 import { sfx, unlockAudio } from './audio.js';
 import { sharpMeter, setSharpMeter, sharpenButton, setSharpenButton } from './sharpMeter.js';
 import { revealNow } from './levelMap.js';
 import { PIN_ICON } from './actionBar.js';
 
-let opts = { toast: () => {}, onChange: () => {}, onEquip: () => {}, onFeedback: () => {}, refresh: () => {} };
+let opts = { toast: () => {}, onChange: () => {}, onEquip: () => {}, refresh: () => {} };
 
 const pct = x => '+' + Math.round(x * 100) + '%';
-const SIGNATURE = { angle: 'cut angle', damage: 'damage', crit: 'crit damage', hold: 'jaw hold time', ring: 'ring size' };
+const SIGNATURE = { angle: 'cut angle', damage: 'damage', crit: 'crit damage', hold: 'jaw hold time', ring: 'ring size',
+  notch: 'pivot kill zone', nick: 'crit zone', curl: 'ribbon curl time' };
 // What tier n (1..3) of weapon id does, in words.
 export function tierText(id, n) {
   const M = C.meta, sig = C.weapons[id].signature;
@@ -38,6 +41,20 @@ export function pinTierText(type, n) {
   if (s.freezeSec) return 'stops an enemy ' + s.freezeSec + 's as it enters';
   if (s.burnSecUp) return pct(s.burnSecUp) + ' burn time after leaving';
   if (s.periodDown) return 'pulls ' + Math.round(s.periodDown * 100) + '% sooner';
+  if (s.popTwice) return 'pops twice before re-arming';
+  if (s.lampCrit) return 'lit enemies take a x' + s.lampCrit + ' crit';
+  if (s.meltLingerSec) return 'softening lasts ' + s.meltLingerSec + 's after leaving';
+  return '';
+}
+
+// What tier n (1..3) of a Skill does, in words (the numbers in CONFIG.skills[id]).
+export function skillTierText(id, n) {
+  const k = C.skills[id];
+  if (id === 'focus') return n === 1 ? '+' + k.focusSecUp + 's of Focus' : n === 2 ? 'charges in ' + k.needT2 + ' clean snips' : 'kills during it refund ' + Math.round(k.refund * 100) + '% charge';
+  if (id === 'thimble') return n === 1 ? 'stops ' + k.thimbleStopsT1 : n === 2 ? 'bumps them back up the road instead' : 'charges in ' + k.needT3;
+  if (id === 'mark') return n === 1 ? 'a marked kill passes the mark on' : n === 2 ? 'marked kills refund ' + Math.round(k.markRefund * 100) + '% charge' : k.marksT3 + ' marks at once';
+  if (id === 'pinking') return n === 1 ? pct(k.pinkingLenT1 / k.pinkingLen - 1) + ' lane' : n === 2 ? 'cuts through armor' : 'leaves a slowing trail';
+  if (id === 'basting') return n === 1 ? 'holds ' + k.bastingHoldsT1 : n === 2 ? 'holds each ' + k.bastingSecT2 + 's' : 'held enemies take x' + k.bastingDmgMult + ' snip damage';
   return '';
 }
 
@@ -156,38 +173,40 @@ function shredPanel() {
   return p;
 }
 
-// Skills to come (CONFIG.skillIdeas, not in play yet): a card each with the level it would arrive on, what it would
-// do, what charges it and its planned tiers, and a Want this button (opts.onFeedback) so playtesters can vote.
-const levelNo = id => C.map.nodes.findIndex(n => n[0] === id);
-function ideaPanel(k) {
-  const p = el('div', 'arm-card skill idea'), icon = el('span', 'arm-skill-ico felt dark', k.icon);
+// A Skill's panel (the second move slot): its badge in its felt, name with tier stars, what it does and what charges
+// it, and its next tier (named) with its price; locked (greyed, "Clear Level n-m") until its level is cleared.
+function skillPanel(id) {
+  const k = C.skills[id], tier = skillTier(id), open = skillOpen(id);
+  const p = el('div', 'arm-card skill' + (open ? '' : ' lockd'));
+  const icon = el('span', 'arm-skill-ico felt', k.icon); icon.style.setProperty('--fc', k.felt);
   const head = el('div', 'arm-head');
-  head.append(el('span', 'nm', k.name), el('span', 'arm-soon', 'SOON · LEVEL ' + levelNo(k.from)));
-  const want = el('button', 'felt-btn small', 'Want this'); want.type = 'button';
-  want.addEventListener('click', () => { unlockAudio(); opts.onFeedback(k); });
-  const main = el('div', 'arm-main');
-  main.append(head, el('div', 'arm-skill-now', k.blurb), el('div', 'arm-idea-meta', 'Charges from ' + k.charge + '. Tiers: ' + k.tiers.join(' → ') + '.'), want);
+  head.append(el('span', 'nm', k.name + (tier ? ' ' + '★'.repeat(tier) : '')));
+  if (!open) head.append(el('span', 'tag', 'Clear Level ' + levelNo(C.skillFrom[id])));
+  const meta = id === 'basting' ? 'Costs ' + k.bastingCost + ' thread each time.' : 'Charges from ' + k.charge + '.';
+  const cost = skillCost(id), next = Math.min(SKILL_TIERS, tier + 1), nextText = k.tiers[next - 1] + ': ' + skillTierText(id, next);
+  const up = upgradeRow(tier, SKILL_TIERS, nextText, cost, open && Save.buttons >= cost, () => buy(() => buySkillTier(id), 'pinPop'));
+  if (tier < SKILL_TIERS) up.querySelector('.arm-up-txt').textContent = nextText;   // a Skill's tiers are named, not numbered
+  const main = el('div', 'arm-main'); main.append(head, el('div', 'arm-skill-now', k.blurb), el('div', 'arm-skill-meta', meta), up);
   p.append(icon, main);
   return p;
 }
 
 export function movesTab(body) {
   body.append(shredPanel());
-  const ideas = C.skillIdeas.filter(k => !k.enabled);
-  if (!ideas.length) return;
-  body.append(el('h3', '', 'Skills coming soon'), el('p', 'hint', 'The plan: a second move slot beside SHRED, filled with one of these before each level, each bought up in tiers like SHRED. Not in the game yet. Tell us which you’d want.'));
-  for (const k of ideas) body.append(ideaPanel(k));
+  body.append(el('h3', '', 'Skills'), el('p', 'hint', 'Your second move: pick one on the weapon screen before a level. Its badge sits under SHRED; tap it when it’s full (F on a keyboard).'));
+  for (const id in C.skills) body.append(skillPanel(id));
 }
 
 // A deal (meta.js deals()) in words, for the results card's Shop line: "Safety Firsts tier 1 (+15% reach)",
-// "Needle Pin tier 2 (+15% ring)", "SHRED Double Spin", a pair's or a cosmetic's name.
+// "Needle Pin tier 2 (+15% ring)", "SHRED Double Spin", "Seam Mark Double Mark (2 marks at once)", a pair's or a cosmetic's name.
 export function dealText(d) {
   if (d.cosmetic) return C.meta.cosmetics[d.cosmetic].name;
+  if (d.skill) return C.skills[d.skill].name + ' ' + C.skills[d.skill].tiers[d.tier - 1] + ' (' + skillTierText(d.skill, d.tier) + ')';
   if (d.tab === 'moves') return 'SHRED ' + C.shredTiers[d.tier].name;
   if (d.pin) return C.towers[d.pin].name + ' tier ' + d.tier + ' (' + pinTierText(d.pin, d.tier) + ')';
   const w = C.weapons[d.weapon];
   return d.tier ? w.name + ' tier ' + d.tier + ' (' + tierText(d.weapon, d.tier) + ')' : w.name;
 }
 
-// o: toast(text), onChange() after a buy (re-apply the weapon), onEquip(id), onFeedback(skillIdea), refresh() (re-render the Shop).
+// o: toast(text), onChange() after a buy (re-apply the weapon), onEquip(id), refresh() (re-render the Shop).
 export function initArmory(o) { opts = o; }

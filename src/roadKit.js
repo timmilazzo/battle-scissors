@@ -1,45 +1,77 @@
 // Dresses a generated level's painted road from the zone's road kit (src/kit.js ZONES[zone].roadKit, assets/kit/20_road):
-// edge lines along both sides of every route (meadow: runs of fence posts joined by rope links or rails; denim and lair:
-// an edge strip sliced along the road, its bottom long edge toward the road) and a few low-contrast decals on the felt
-// (darned patches, a walk of boot prints, dropped pins, a chalk arrow at each entrance). Called by levelArt.js's
-// paintLevel right after the road and its stitch, before the Pin pads, under the painter's 1 / size scale, in plate
-// units. Uses its own seeded stream, so the same level always dresses the same way. Tunables: CONFIG.roadKit.
+// edge lines along both sides of every route (the tray worlds: fence posts joined by rope links or rails, unbroken and
+// evenly spaced, open only at the pads, the entrances, the heart pad and a river crossing, plus a fence ring round each
+// Pin pad with its opening toward the road; denim and lair: an edge strip sliced along the road, its bottom long edge
+// toward the road) and a few low-contrast decals on the felt (darned patches, a walk of boot prints, dropped pins, a
+// chalk arrow at each entrance). Called by levelArt.js's paintLevel right after the road and its stitch, before the Pin
+// pads, under the painter's 1 / size scale, in plate units; drawHeartFlags after the pads. Uses its own seeded stream,
+// so the same level always dresses the same way. Tunables: CONFIG.roadKit. A wanted piece (kit.js) draws its stand-in
+// (the snow caps: the plain fence) or is left out (the ring and the flag posts until they arrive).
 import { CONFIG as C } from './config.js';
 import { makeRng } from '../vendor/mulberry32.js';
-import { SPRITES, ZONES } from './kit.js';
+import { SPRITES, ZONES, artKey } from './kit.js';
 import { kitSprite, kitImage } from './levelArt.js';
 
 const TAU = Math.PI * 2;
 
-// Every sprite key the zone's road kit uses (zone = a ZONES name or entry); keys missing from SPRITES are left out.
+// Every sprite key the zone's road kit uses (zone = a ZONES name or entry), as drawn: stand-ins for wanted pieces,
+// pieces with neither left out.
 export function roadKitKeys(zone) {
   const rk = (typeof zone === 'string' ? ZONES[zone] : zone)?.roadKit;
   if (!rk) return [];
   const d = rk.decals || {};
-  const keys = [...rk.posts, ...rk.links, ...rk.rails, ...rk.strips, ...(d.darns || []), ...(d.boots || []), ...(d.pins || []), ...(d.arrow ? [d.arrow] : [])];
-  return [...new Set(keys)].filter(k => SPRITES[k]);
+  const keys = [...rk.posts, ...rk.links, ...rk.rails, ...rk.strips, ...(d.darns || []), ...(d.boots || []), ...(d.pins || []), ...(d.arrow ? [d.arrow] : []),
+    ...(rk.padRing ? [rk.padRing] : []), ...(rk.flags || [])];
+  return [...new Set(keys.map(artKey).filter(Boolean))];
 }
+// The list's pieces that have loaded, as drawn (stand-ins resolved).
+const loaded = list => (list || []).map(artKey).filter(k => k && kitImage(k));
 
 // env: { zone (ZONES entry), G (CONFIG.levelGen), polys, roadOuter, roadHalf, road (road.clear), spots, spotR, heart,
 // workshopR, entries, layer(), flat(canvas) } (see levelArt.js paintLevel). Returns what it drew
-// ({ posts, links, slices, arrows, darns, boots, pins }), for the level lab.
+// ({ posts, links, rings, slices, arrows, darns, boots, pins }), for the level lab.
 export function drawRoadKit(g, def, env) {
-  const R = C.roadKit, rk = env.zone && env.zone.roadKit, count = { posts: 0, links: 0, slices: 0, arrows: 0, darns: 0, boots: 0, pins: 0 };
+  const R = C.roadKit, rk = env.zone && env.zone.roadKit, count = { posts: 0, links: 0, rings: 0, slices: 0, arrows: 0, darns: 0, boots: 0, pins: 0 };
   if (!rk) return count;
   const rng = makeRng((def.seed | 0) ^ 0x7C31), W = def.w, H = def.h;
   const routes = routeInfo(env.polys, W, H, R.sharedTol);
   // places nothing lines or decals may come near: pads, the heart pad, fork buttons, the entrances, the plate's edge
   const zones = env.spots.map(([x, y]) => [x, y, env.spotR]).concat([[env.heart[0], env.heart[1], env.workshopR]],
     (def.deco || []).filter(d => d.kind === 'button').map(d => [d.x, d.y, d.r]));
+  if (env.river) zones.push([env.river.x, env.river.y, env.river.r + R.riverGap]);   // the fence opens where the road crosses the river
   const entryPts = routes.map(rt => rt.P[rt.enter]);
   const blocked = (x, y, rad, clear) => x < R.edgeClear || y < R.edgeClear || x > W - R.edgeClear || y > H - R.edgeClear ||
     zones.some(([zx, zy, zr]) => Math.hypot(x - zx, y - zy) < zr + clear + rad) ||
     entryPts.some(([ex, ey]) => Math.hypot(x - ex, y - ey) < R.entryClear);
   const ctx = { R, env, routes, blocked, rng, count };
   drawDecals(g, def, rk.decals, ctx);
-  if (rk.strips.length) drawStrips(g, rk.strips, ctx);
-  else if (rk.posts.length) drawFences(g, rk, ctx);
+  const strips = loaded(rk.strips), posts = loaded(rk.posts);
+  if (strips.length) drawStrips(g, strips, ctx);
+  else if (posts.length) drawFences(g, { posts, links: loaded(rk.links), rails: loaded(rk.rails), padRing: rk.padRing }, def, ctx);
   return count;
+}
+
+// The heart pad's two flag posts, at its front corners: where the road comes onto the pad, on its fence either side of
+// the road. flagPostL's pennant flies right, flagPostR's left; both posts fly the same one. Nothing until the sprites arrive.
+export function drawHeartFlags(g, def, env) {
+  const rk = env.zone && env.zone.roadKit, R = C.roadKit;
+  if (!rk || !rk.flags) return;
+  const keys = rk.flags.map(k => (artKey(k) && kitImage(k) ? k : null));
+  if (!keys[0] && !keys[1]) return;
+  // the main route's last point outside the pad: the road's direction coming in
+  const P = env.polys[0], [hx, hy] = env.heart;
+  let i = P.length - 1;
+  while (i > 0 && Math.hypot(P[i][0] - hx, P[i][1] - hy) < env.workshopR * 1.3) i--;
+  const ux = P[i][0] - hx, uy = P[i][1] - hy, ul = Math.hypot(ux, uy) || 1, nx = ux / ul, ny = uy / ul;
+  const b = env.roadOuter + R.flagOut, rr = env.workshopR * R.flagRing, a = Math.sqrt(Math.max(0, rr * rr - b * b));
+  const pts = [-1, 1].map(s => [hx + nx * a - ny * b * s, hy + ny * a + nx * b * s]).sort((p, q) => p[0] - q[0]);
+  // each drawn so its post's foot (flagFoot, shares of the left one's canvas; mirrored for the right) stands on the point
+  // both pennants fly the same way, as in the references (which way by the level's seed): one hangs over the road
+  const j = keys[0] && keys[1] ? (def.seed | 0) & 1 : keys[0] ? 0 : 1, key = keys[j];
+  pts.forEach(([x, y]) => {
+    const [, w, h, cx, cy] = SPRITES[artKey(key)], fx = (j ? 1 - R.flagFoot[0] : R.flagFoot[0]) * w, fy = R.flagFoot[1] * h;
+    kitSprite(g, key, x + (cx - fx) * R.flagScale, y + (cy - fy) * R.flagScale, R.flagScale, 0, 1);
+  });
 }
 
 // ======================= routes =======================
@@ -146,15 +178,32 @@ function flatShadowed(g, env, lc, alpha, sh) {
   g.restore();
 }
 
-// ======================= meadow: fences =======================
-// Along both sides of each route: runs of posts every postEvery (measured along the side line, so they stay even round
-// bends), joined post to post by rope links or rails (one or the other per plate), then a gap. Links first, posts on top.
-function drawFences(g, rk, ctx) {
+// ======================= tray worlds: fences =======================
+// Along both sides of each route, joined post to post by rope links or rails (one or the other per plate). With
+// fenceContinuous every allowed stretch of side line (see sideRuns: it stops at pads, entrances, the heart pad, the
+// river crossing, the plate's edge and the inside of tight bends) is fenced end to end, its posts spaced evenly (about
+// postEvery, measured along the line, so they stay even round bends); otherwise runs of posts and gaps (fenceRun,
+// fenceGap). Then a ring round each Pin pad (fencePadRings). Links first, posts on top.
+function drawFences(g, rk, def, ctx) {
   const { R, env, routes, rng, count } = ctx, d = env.roadOuter + R.fenceOffset, step = R.postEvery;
-  const links = rk.rails.length && rng() < R.railChance ? rk.rails : rk.links;
+  const links = rk.rails.length && (rng() < R.railChance || !rk.links.length) ? rk.rails : rk.links;
   const postR = 14 * R.postScale, placed = [], chains = [];
   const near = (x, y, lim) => placed.some(([px, py]) => (px - x) ** 2 + (py - y) ** 2 < lim * lim);
-  for (const rt of routes) for (const side of [-1, 1]) {
+  if (R.fenceContinuous) for (const rt of routes) for (const side of [-1, 1]) {
+    for (const line of sideRuns(rt, side, d, postR, R.fenceClear, ctx)) {
+      const { len } = resample(line, 1e9);
+      if (len < step * (R.fenceMin - 1) * 0.8) continue;
+      const m = Math.max(1, Math.round(len / step)), pts = resample(line, len / m - 1e-6).pts;
+      let chain = [];
+      const end = () => { if (chain.length >= R.fenceMin) chains.push({ side, posts: chain }); else for (const p of chain) placed.splice(placed.indexOf(p), 1); chain = []; };
+      for (const [x, y] of pts) {
+        if (near(x, y, step * R.postMinGap)) { end(); continue; }
+        const post = [x, y, pick(rk.posts, rng), rng() * TAU]; chain.push(post); placed.push(post);
+      }
+      end();
+    }
+  }
+  else for (const rt of routes) for (const side of [-1, 1]) {
     // the run / gap pattern carries on across this side's stretches; it starts part way into a gap so the sides differ
     let inRun = false, left = range(R.fenceGap, rng) * rng();
     for (const line of sideRuns(rt, side, d, postR, R.fenceClear, ctx)) {
@@ -171,26 +220,72 @@ function drawFences(g, rk, ctx) {
         const prev = chain[chain.length - 1];
         if ((prev && Math.hypot(p[0] - prev[0], p[1] - prev[1]) < step * R.postMinGap) || near(p[0], p[1], step * R.postMinGap)) end();
         else { const post = [p[0], p[1], pick(rk.posts, rng), rng() * TAU]; chain.push(post); placed.push(post); }
-        pos += step;
+        pos += step * (1 + (rng() * 2 - 1) * R.postJitter);
         if (--left <= 0) { end(); inRun = false; left = range(R.fenceGap, rng); }
       }
       end();
     }
   }
   const [lc, lg] = env.layer();
-  for (const { side, posts } of chains) for (let i = 1; i < posts.length; i++) {
-    const a = posts[i - 1], b = posts[i];
-    if (Math.hypot(b[0] - a[0], b[1] - a[1]) < step * 1.6) { drawLink(lg, pick(links, rng), a, b, side > 0, R); count.links++; }
+  const ring = fencePadRings(lg, rk, def, ctx, near, placed, chains);
+  for (const { side, posts, loop } of chains) for (let i = loop ? 0 : 1; i < posts.length; i++) {
+    const a = posts[(i + posts.length - 1) % posts.length], b = posts[i];
+    if (links.length && Math.hypot(b[0] - a[0], b[1] - a[1]) < step * 1.6) { drawLink(lg, pick(links, rng), a, b, side > 0, R); count.links++; }
   }
-  for (const { posts } of chains) for (const [x, y, key, rot] of posts) { kitSprite(lg, key, x, y, 0.5 * R.postScale, rot, 0); count.posts++; }
+  for (const { posts } of chains) for (const [x, y, key, rot] of posts) { kitSprite(lg, key, x, y, postScaleOf(key, R), upright(key) ? 0 : rot, 0); count.posts++; }
+  for (const r of ring) { kitSprite(lg, r.key, r.x, r.y, r.scale, r.rot, 0); count.rings++; }
   punchRoads(lg, env);
   flatShadowed(g, env, lc, 1, R.fenceShadow);
 }
+// The fence ring round each Pin pad, its opening toward the nearest road: the padRing sprite (turned so its opening,
+// padRingGapAt as delivered, faces the road) once it's in, else posts every ~postEvery round a circle of padRingR x
+// the pad's radius, leaving out padRingGap either side of the road's direction and any post the road or a road-side post
+// would crowd; their links are added to `chains` (a post run each side of the opening). Only when the zone's own Pin pad
+// has arrived (the meadow pad standing in has a fence of its own) unless padRingOnStandIn. Returns the sprite rings to draw.
+function fencePadRings(lg, rk, def, ctx, near, placed, chains) {
+  const { R, env, rng } = ctx, out = [];
+  if (!rk.padRing) return out;
+  const zone = env.zoneName, ownPad = zone && artKey(zone + 'PinPad') === zone + 'PinPad';
+  if (!ownPad && !R.padRingOnStandIn) return out;
+  const ringKey = artKey(rk.padRing) && kitImage(rk.padRing) ? artKey(rk.padRing) : null;
+  const postR = 14 * R.postScale, rr = env.spotR * R.padRingR;
+  for (const [sx, sy] of env.spots) {
+    // toward the road: the nearest centreline point
+    let best = Infinity, ax = 0, ay = 1;
+    for (const P of env.polys) for (const [x, y] of P) { const q = (x - sx) ** 2 + (y - sy) ** 2; if (q < best) { best = q; ax = x - sx; ay = y - sy; } }
+    const toRoad = Math.atan2(ay, ax);
+    if (ringKey) {
+      out.push({ key: ringKey, x: sx, y: sy, scale: rr / (SPRITES[ringKey][5] * R.padRingInner), rot: toRoad - R.padRingGapAt });   // (its rails at rr)
+      continue;
+    }
+    const m = Math.max(8, Math.round(TAU * rr / R.postEvery)), runs = [];
+    let cur = [];
+    for (let j = 0; j < m; j++) {
+      const a = toRoad + Math.PI + (j / m) * TAU, off = Math.abs(Math.atan2(Math.sin(a - toRoad), Math.cos(a - toRoad)));
+      const x = sx + Math.cos(a) * rr, y = sy + Math.sin(a) * rr;
+      const ok = off > R.padRingGap && env.road.clear(x, y, env.roadOuter + postR + 2) && !near(x, y, R.postEvery * R.postMinGap);
+      if (ok) cur.push([x, y, pick(rk.posts, rng), rng() * TAU]);
+      else if (cur.length) { runs.push(cur); cur = []; }
+    }
+    if (cur.length) runs.push(cur);
+    // the walk starts opposite the road, so a run that reaches the end carries on into the first one
+    if (runs.length > 1 && runs[0][0] && runs[runs.length - 1].length && near2(runs[0][0], runs[runs.length - 1][runs[runs.length - 1].length - 1], R.postEvery * 1.6)) runs[0] = runs.pop().concat(runs[0]);
+    for (const run of runs) if (run.length >= 2) { chains.push({ side: 1, posts: run }); placed.push(...run); }
+  }
+  return out;
+}
+const near2 = (a, b, lim) => Math.hypot(a[0] - b[0], a[1] - b[1]) < lim;
+// A post's scale: postW plate units wide (the meadow posts' files are 56 px, the snow-capped ones 131), times postScale.
+const postScaleOf = (key, R) => R.postW * R.postScale / SPRITES[key][1];
+// A piece drawn standing up (a side view, taller than wide: the snow-capped posts) is never turned.
+const upright = key => SPRITES[key][2] > SPRITES[key][1] * 1.2;
 // A rope link / rail from post a to post b: its opaque part stretched to the gap plus linkOverlap under each post,
-// bottom edge toward the road (flip on the right-hand side).
+// bottom edge toward the road (flip on the right-hand side). A thin piece (a rope or rail alone) keeps its own
+// thickness; a whole fence segment (the snow rail, posts at its ends) keeps its proportions instead.
 function drawLink(lg, key, a, b, flip, R) {
   const img = kitImage(key), [x0, y0, x1, y1] = opaqueBox(key);
-  const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) + 2 * R.linkOverlap, h = (y1 - y0) * 0.5 * R.linkScale;
+  const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) + 2 * R.linkOverlap;
+  const h = (y1 - y0 <= 40 ? (y1 - y0) * 0.5 : L * (y1 - y0) / (x1 - x0)) * R.linkScale;
   lg.save();
   lg.translate((a[0] + b[0]) / 2, (a[1] + b[1]) / 2); lg.rotate(Math.atan2(dy, dx));
   if (flip) lg.scale(1, -1);
