@@ -1776,34 +1776,31 @@ function magnetPull(t) {
 // drawn pressed down, towerArt.js drawCorkTrap).
 function corkTower(t, dt) {
   const def = t.def;
-  if (t.pop2 > 0) { if ((t.pop2 -= dt) <= 0) { t.pop2 = 0; corkPop(t); t.timer = def.rearmSec; } return; }
+  if (t.pop2 > 0) { if ((t.pop2 -= dt) <= 0) { t.pop2 = 0; corkPop(t, true); t.timer = def.rearmSec; } return; }
   if (t.timer > 0) { t.timer = Math.max(0, t.timer - dt); return; }
-  const R = towerReachOf(t), r2 = R * R;
+  const R = towerReachOf(t), r2 = R * R, bit = 1 << (towers.indexOf(t) & 31);   // each Cork pops a given enemy once (e.corks)
   for (let i = 0; i < enemies.length; i++) {
     const e = enemies[i];
-    if (!e.on || e.pinned || e.air || e.escortOf) continue;
+    if (!e.on || e.pinned || e.air || e.escortOf || (e.corks & bit)) continue;   // one it has popped already can't trip it again
     const dx = e.px - t.fx, dy = e.py - t.fy;
     if (dx * dx + dy * dy > r2) continue;
-    corkPop(t);
+    corkPop(t, !def.popTwice);
     if (def.popTwice) t.pop2 = def.popSecondSec; else t.timer = def.rearmSec;
     return;
   }
 }
-// The pop: everything within the ring of the road point (its edge touching) is shoved popBackU of a traverseRefLen-long
-// road back up its own route over popMs (the Magnet's tween on u, tagged by the enemy so a kill cancels it) and stunned
-// stunSec after (e.holdT, via pullDone); a boss, or anything that can't be shoved, is only stunned. Escorts stay with
-// their boss and a Moth in the air flies over it.
-function corkPop(t) {
-  const def = t.def, R = towerReachOf(t);
+// The pop: everything within the ring of the road point (its edge touching) stands stunned for stunSec (e.holdT, as the
+// Pruners' jaw; bosses too). No push-back: that let a trap work a slow enemy over again and again. Escorts stay with
+// their boss and a Moth in the air flies over it. mark = remember who it popped (e.corks, a bit per Pin), so the trap never
+// catches the same enemy twice (a tier-3 second pop marks; its first pop leaves the marking to the second).
+function corkPop(t, mark = true) {
+  const def = t.def, R = towerReachOf(t), bit = 1 << (towers.indexOf(t) & 31);
   t.pulse = 1; sfx('corkPop', 0); sparks(t.fx, t.fy, 12, 3); addShake(3, 6);
   for (let i = 0; i < enemies.length; i++) {
     const e = enemies[i];
-    if (!e.on || e.pinned || e.air || e.escortOf || Math.hypot(e.x - t.fx, e.y - t.fy) > R + e.r) continue;
-    if (e.type.boss || e.type.pushScale <= 0) { e.holdT = Math.max(e.holdT, def.stunSec); continue; }
-    tweens.cancel(e);
-    e.pulling = true; e.pvx = e.pvy = 0; e.pullHold = def.stunSec;
-    const du = def.popBackU * C.traverseRefLen / state.paths[e.route].lenU;
-    tween(e, { u: Math.max(0, e.u - du) }, def.popMs, easing.outCubic, pullDone, e);
+    if (!e.on || e.pinned || e.air || e.escortOf || (e.corks & bit) || Math.hypot(e.x - t.fx, e.y - t.fy) > R + e.r) continue;   // once per enemy
+    if (mark) e.corks |= bit;
+    e.holdT = Math.max(e.holdT, def.stunSec);
   }
 }
 
@@ -1962,7 +1959,7 @@ function spawnEnemy(name, entry = 0, ranked = false, forceRank = 0) {
   // a boss's hp: its own (more each time round on an endless run; an endless mini boss by the wave, like the rest)
   const bossHp = t.mini && isEndless() ? hpScale(t) : bossHpScale();
   e.on = true; e.type = t; e.name = name; e.r = t.r; e.hp = e.maxHp = t.boss ? t.hp * bossHp : t.hp * hpScale(t) * C.enemyRanks.hpMult[e.rank - 1];
-  e.armored = !!t.armor; e.slowed = false; e.slowT = 0; e.slowMult = 1; e.iced = false; e.burning = false; e.burnLeft = 0; e.burnT = 0; e.burnDps = 0; e.pullHold = 0; e.magnets = 0; e.leg = 0; e.seamA = rng.spawn() * TAU; e.age = 0;
+  e.armored = !!t.armor; e.slowed = false; e.slowT = 0; e.slowMult = 1; e.iced = false; e.burning = false; e.burnLeft = 0; e.burnT = 0; e.burnDps = 0; e.pullHold = 0; e.magnets = 0; e.corks = 0; e.leg = 0; e.seamA = rng.spawn() * TAU; e.age = 0;
   e.speed = 1 / t.traverseSec; e.u = 0; e.seg = 0; e.ox = 0; e.oy = 0; e.pvx = 0; e.pvy = 0; e.hitT = 0;
   e.pulling = false; e.pinned = false; e.walking = false; e.escortOf = null; e.holdT = 0; e.gen++;
   e.bossPhase = 0; e.seamT = e.chargeT = e.armorDownT = e.swarmT = e.shieldDownT = 0; e.seamOpen = e.seamWarn = e.charging = e.windup = false;
@@ -2128,6 +2125,12 @@ function labTick(dt) {
 export function labCharge() { heli.charge = shredDef().charge; if (state.skillOn) skill.charge = 1; }
 export function labClear() { labQueue.length = 0; for (const e of enemies) if (e.on) { e.on = false; tweens.cancel(e); e.pulling = false; } }
 export function labHeal() { state.hp = C.workshopHp; }
+// The workbench picks a Skill mid-run (a normal run picks it at the start, resetRun): the slot switches at once, uncharged.
+export function labSkill(id) {
+  Save.equippedSkill = id;
+  skill.id = id && skillAllowed(id) ? id : ''; skill.def = skill.id ? skillDef(skill.id) : null; state.skillOn = !!skill.id;
+  skill.charge = 0; skill.armed = false;
+}
 
 export const worldRule = () => (C.worldRules && C.worldRules[level().world]) || null;
 

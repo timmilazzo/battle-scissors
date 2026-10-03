@@ -27,7 +27,7 @@ export function pinDef(type, rank = 1, tier = pinTier(type)) {
   if (d.pullBack != null) d.pullBack = base.pullBack * power;
   if (d.holdSec != null) d.holdSec = base.holdSec * power;
   if (d.periodSec != null && d.periodDown) d.periodSec = base.periodSec * (1 - d.periodDown);
-  if (d.popBackU != null) d.popBackU = base.popBackU * power;                   // cork: shoves further back
+  if (d.stunSec != null) d.stunSec = base.stunSec * power;                       // cork: a longer stun
   if (d.meltMult != null) d.meltMult = 1 + (base.meltMult - 1) * power;         // candle: the bonus part grows (1.25 -> 1.35 -> 1.45)
   if (type === 'ice') d.slowMult = R.iceSlow[r];
   return d;
@@ -55,7 +55,7 @@ export function rankUpText(t) {
   else if (t.type === 'fire') out.push(['burn', power]);
   else if (t.type === 'magnet') out.push(['pull', power], ['hold', power]);
   else if (t.type === 'ice') out.push(['slow', 'to ' + Math.round(R.iceSlow[b] * 100) + '% speed']);
-  else if (t.type === 'cork') out.push(['pop-back', power]);
+  else if (t.type === 'cork') out.push(['stun', power]);
   else if (t.type === 'candle') {
     const m = C.towers.candle.meltMult - 1;
     out.push(['melt', 'x' + (1 + m * R.powerMult[b]).toFixed(2) + ' damage']);

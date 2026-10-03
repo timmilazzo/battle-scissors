@@ -312,19 +312,20 @@ export function refreshActionBar() {
     if (pick.spot >= 0 && pick.mode === 'build' && built[pick.spot] === '1') closePicker();
   }
   if (can !== shown.can) { shown.can = can; spotsEl.classList.toggle('can', can); }
-  // rank-up buttons: on every built Pin below the top rank, lit while its next rank is affordable
+  // rank-up buttons: on a built Pin below the top rank, only once its next rank is affordable (a chip for a rank that
+  // can't be paid for yet is just noise over the road); the picker's rank card stays open while it's up
   let ranks = '', rankAfford = -1;
   for (let i = 0; i < state.towers.length; i++) {
     const t = state.towers[i], cost = rankUpCost(t), ok = cost > 0 && state.thread >= cost;
-    ranks += cost > 0 ? (ok ? 'a' : 'p') + t.rank : '0';
+    ranks += ok ? 'a' + t.rank : '0';
     if (ok && rankAfford < 0) rankAfford = i;
   }
   if (ranks !== shown.ranks) {
     shown.ranks = ranks;
     upBtns.forEach((b, i) => {
-      const t = state.towers[i], cost = rankUpCost(t);
-      b.hidden = !cost;
-      if (cost) { b.classList.toggle('poor', state.thread < cost); b.firstChild.textContent = C.pinRanks.names[t.rank] || ''; b.title = 'Rank up: ' + cost + ' thread'; }
+      const t = state.towers[i], cost = rankUpCost(t), ok = cost > 0 && state.thread >= cost;
+      b.hidden = !ok;
+      if (ok) { b.classList.remove('poor'); b.firstChild.textContent = C.pinRanks.names[t.rank] || ''; b.title = 'Rank up: ' + cost + ' thread'; }
     });
     if (pick.spot >= 0 && pick.mode === 'rank') { if (!rankUpCost(state.towers[pick.spot])) closePicker(); else fillRankCard(state.towers[pick.spot]); }
   }

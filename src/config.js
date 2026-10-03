@@ -769,9 +769,9 @@ export const CONFIG = {
   // These are rank 1 at tier 0: pinRanks (in-level ranks, Thread) and meta.pinTierCosts.. (permanent tiers, Buttons)
   // scale them (src/pins.js pinDef). The four cost the same, so the choice is about role, not price.
   // cork (the trap, world 3): sits on its road point (the road point nearest the pad, fx / fy); when an enemy's road
-  // point comes within radius of it, it pops: everything within radius of it is shoved popBackU of a
-  // traverseRefLen-long road back up its route over popMs and stunned stunSec (bosses aren't shoved, only stunned), then
-  // it re-arms over rearmSec (drawn pressed down). Its ring is drawn round the road point, not the pad.
+  // point comes within radius of it, it pops: everything within radius of it stands stunned for stunSec (bosses too),
+  // then it re-arms over rearmSec (drawn pressed down). A trap catches a given enemy only once (e.corks), so a slow one
+  // can't trip it again every re-arm. Its ring is drawn round the road point, not the pad.
   // lamp (world 4): enemies in its ring are lit: every graded snip on one is a weak-spot hit (lampMult), and in the
   // dark (worldRules.night) its whole ring counts as light. candle (world 5): enemies in its ring are softened: armor
   // doesn't stop a snip or needle (as if slowed), a Snowball stops growing and shrinks back meltShrinkPerSec x its growth
@@ -783,13 +783,13 @@ export const CONFIG = {
     ice:    { name: 'Ice Pin',    blurb: 'slows, beats armor', intro: "a frost crystal off the freezer tray. Slows everything in its ring, and a slowed Brute's armor won't stop your snip.", cost: 100, radius: 300, slowMult: 0.4, color: '#8fe8ff', felt: '#2f63c9', head: '#3d7dff' },
     fire:   { name: 'Fire Pin',   blurb: 'burns what walks by', intro: 'a stray match head. Sets enemies in its ring on fire; they keep burning after they leave it, armor or not.', cost: 100, radius: 300, burnDps: 0.6, burnSec: 2.5, burnTickMs: 1000, color: '#ffa04a', felt: '#c8352b', head: '#e0312b' },
     magnet: { name: 'Magnet Pin', blurb: 'drags back into a clump', intro: 'the fridge magnet nobody missed. Every few seconds it drags everything in its ring back up the road into a clump that stands still a moment: one wide snip takes the lot.', cost: 100, radius: 330, periodSec: 2.5, pullMs: 500, pullKeep: 0.25, pullFalloff: 1, pullBack: 0.7, holdSec: 0.5, color: '#c79bff', felt: '#7b3fc4', head: '#9a4fe0' },
-    cork:   { name: 'Cork Pin',   blurb: 'a trap: pops them back, dazed', intro: 'a wine cork, still smelling of Sunday. Sits on the road like a trap: step on it and it pops, shoving everything near it back up the road, dazed.', cost: 100, radius: 150, popBackU: 0.1, popMs: 350, stunSec: 1, rearmSec: 4, popSecondSec: 0.8, color: '#d98a3a', felt: '#a87a46', head: '#6b3f1e' },
+    cork:   { name: 'Cork Pin',   blurb: 'a trap: stuns what steps on it', intro: 'a wine cork, still smelling of Sunday. Sits on the road like a trap: step on it and it pops, and everything near it stands there dazed.', cost: 100, radius: 150, stunSec: 1.2, rearmSec: 4, popSecondSec: 0.8, color: '#d98a3a', felt: '#a87a46', head: '#6b3f1e' },
     lamp:   { name: 'Lamp Pin',   blurb: 'lit enemies take harder hits', intro: 'the bulb from the reading lamp, still warm. Everything in its ring is lit: every snip on a lit enemy hits harder, even in the dark.', cost: 100, radius: 300, color: '#ffe27a', felt: '#d9a032', head: '#fff1a8' },
     candle: { name: 'Candle Pin', blurb: 'softens: armor off, hits harder', intro: 'a birthday candle saved for later. Softens everything in its ring: armor off, snowballs shrink, every hit does more.', cost: 100, radius: 280, meltMult: 1.25, meltShrinkPerSec: 1.5, color: '#ffb85c', felt: '#c2577a', head: '#fff3d6' },
   },
   // In-level ranks (Thread; tap a built Pin's arrow): rank 1 is the build; rank n costs costMult[n-1] x the Pin's build
   // cost, widens the ring by radiusMult and multiplies its power (needle damage and fire rate, fire burn, magnet pull-back
-  // and hold, cork pop-back, the candle's melt bonus meltMult - 1) by powerMult; an Ice Pin's slow goes by iceSlow, a
+  // and hold, cork stun, the candle's melt bonus meltMult - 1) by powerMult; an Ice Pin's slow goes by iceSlow, a
   // Lamp Pin only widens. Gone when the level ends.
   pinRanks: { costMult: [0, 0.75, 1], radiusMult: [1, 1.15, 1.3], powerMult: [1, 1.4, 1.8], iceSlow: [0.4, 0.3, 0.22], names: ['', 'II', 'III'] },
   slowSpeedMult: 0.4,        // enemies slowed by the Helicopter (slowT) move at this fraction of their speed (Ice Pins use their slowMult)

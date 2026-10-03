@@ -140,7 +140,7 @@ One Pin and one Skill per world, a reward pair from every boss but the last, a p
 | Ice | 1-6 | slows its ring; a slowed Brute's armor doesn't stop a snip | freezes on entry |
 | Fire | 2-2 | sets its ring on fire, burns on after | longer burn |
 | Magnet | 2-6 | drags its ring back into a clump that stands still | shorter period |
-| **Cork** | 3-2 | a trap on its road point: when an enemy steps on it, it pops: everything within `popPx` is shoved back `popBackU` along the road and stunned `stunSec`, then it re-arms over `rearmSec` | pops twice |
+| **Cork** | 3-2 | a trap on its road point: when an enemy steps on it, it pops: everything within its ring stands stunned `stunSec` (no push-back: that let it work a slow enemy over again and again), then it re-arms over `rearmSec`; a trap catches a given enemy once | pops twice |
 | **Lamp** | 4-2 | lights its ring: a lit enemy takes a weak-spot hit from any snip (`weakDamageMult`), and in the dark it's fully visible | lit enemies also crit (`critMult`) |
 | **Candle** | 5-2 | softens its ring: armor is off, Snowballs stop growing and shrink, and everything takes `meltMult` x damage | the softening lingers `meltLingerSec` after leaving |
 

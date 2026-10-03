@@ -7,7 +7,7 @@
 // rank, in numbers; clear the board; hold waves; heart safe; heal). DOM only; nothing here is in the game's hot loop.
 import { CONFIG as C } from './config.js';
 import { Save, unlockAll } from './save.js';
-import { state, lab, labSpawn, labCharge, labClear, labHeal } from './game.js';
+import { state, lab, labSpawn, labCharge, labClear, labHeal, labSkill } from './game.js';
 import { weapon } from './scissors.js';
 import { ZONES } from './kit.js';
 import { randomRecipe } from './levelGen.js';
@@ -63,9 +63,9 @@ export function initLab(api) {
   panel.append(el('h4', '', 'Moves'));
   const shredT = tiers(C.shredTiers.length - 1, Save.skills.shred || 0, t => { Save.skills.shred = t; });
   const skillIds = Object.keys(C.skills);
-  const skillT = tiers(3, Save.skills[Save.equippedSkill] || 0, t => { if (Save.equippedSkill) Save.skills[Save.equippedSkill] = t; });
-  const skillSel = select([['', '(no Skill)'], ...skillIds.map(id => [id, C.skills[id].name])], Save.equippedSkill || '', id => { Save.equippedSkill = id; skillT.value = String(Save.skills[id] || 0); });
-  panel.append(row('SHRED', shredT), row('Skill', skillSel, skillT), row('', btn('Charge both', labCharge), el('span', 'lab-hint', 'the Skill pick takes effect at the next run')));
+  const skillT = tiers(3, Save.skills[Save.equippedSkill] || 0, t => { if (Save.equippedSkill) { Save.skills[Save.equippedSkill] = t; labSkill(Save.equippedSkill); } });
+  const skillSel = select([['', '(no Skill)'], ...skillIds.map(id => [id, C.skills[id].name])], Save.equippedSkill || '', id => { skillT.value = String(Save.skills[id] || 0); labSkill(id); });
+  panel.append(row('SHRED', shredT), row('Skill', skillSel, skillT), row('', btn('Charge both', labCharge), el('span', 'lab-hint', 'the Skill switches at once (its badge sits under SHRED’s; tap it or press F); Charge both fills both meters')));
 
   // --- Pins ---
   panel.append(el('h4', '', 'Pins'));
