@@ -116,7 +116,7 @@
   .hud-wave .hud-level { font-size: 12px; letter-spacing: 1px; color: #fff1c2; margin-bottom: 3px; }   /* the map level's number, above WAVE */
   .hud-wave .hud-level[hidden] { display: none; }
   .hud-wave b { font-size: 22px; letter-spacing: 0.5px; font-variant-numeric: tabular-nums; }
-  /* endless (Random Quilt): the run's kill count under the wave */
+  /* endless (Endless): the run's kill count under the wave */
   .hud-kills { display: flex; flex-direction: column; align-items: center; margin-top: 4px; padding-top: 4px; border-top: 1px dashed rgba(207, 224, 255, 0.45); }
   .hud-kills[hidden] { display: none; }
   .hud-kills b { font-size: 18px; }
@@ -539,7 +539,7 @@
   .art-btn:active { transform: translateY(3%) scale(0.97); filter: brightness(0.9); }
   .art-btn:focus-visible { outline: 3px solid #ffe27a; outline-offset: 3px; }
   /* A title tile built in felt (no painted art yet): placed like .art-btn (--px/--py/--pw/--ph portrait,
-     --lx/--ly/--lw/--lh landscape, plate px); vh sizes its text with the full-height plate. Random Quilt: the old
+     --lx/--ly/--lw/--lh landscape, plate px); vh sizes its text with the full-height plate. Endless: the old
      Upgrades tile's orange-brown, a little quilt patch where the painted tiles have their icon. */
   .title-tile { --fc: #a8561f; --rim: #4a220b; --dx: var(--px); --dy: var(--py); --dw: var(--pw); --dh: var(--ph); --fs: 1.9vh;
     position: absolute; left: calc(var(--dx) / var(--cw) * 100%); top: calc(var(--dy) / var(--ch) * 100%);
@@ -1020,8 +1020,8 @@
          --lx/--ly/--lw/--lh: landscape rect; --r: clip shape. The Shop tile sits in the old Upgrades slot (--py). -->
     <button id="play" class="art-btn" type="button" style="--x:212;--y:1030;--w:526;--h:192;--lx:616;--ly:640;--lw:440;--lh:161;--r:11% / 31%"><span class="sr-only">Play</span></button>
     <button class="art-btn" id="title-shop" type="button" style="--x:291;--y:1356;--w:365;--h:98;--py:1244;--lx:373;--ly:815;--lw:297;--lh:80;--r:5% / 19%"><span class="sr-only">Shop</span></button>
-    <!-- Random Quilt: no painted tile yet, so a felt one in the old Upgrades tile's colours, in the slot under the Shop -->
-    <button class="title-tile felt" id="title-quilt" type="button" style="--px:299;--py:1361;--pw:349;--ph:86;--lx:694;--ly:819;--lw:285;--lh:70"><span class="quilt-ico" aria-hidden="true"></span><span>RANDOM QUILT</span></button>
+    <!-- Endless: no painted tile yet, so a felt one in the old Upgrades tile's colours, in the slot under the Shop -->
+    <button class="title-tile felt" id="title-quilt" type="button" style="--px:299;--py:1361;--pw:349;--ph:86;--lx:694;--ly:819;--lw:285;--lh:70"><span class="quilt-ico" aria-hidden="true"></span><span>ENDLESS</span></button>
     <button id="how" class="art-btn" type="button" style="--x:291;--y:1467;--w:365;--h:98;--lx:1003;--ly:815;--lw:297;--lh:80;--r:5% / 19%"><span class="sr-only">How to play</span></button>
     <button id="title-settings" class="art-btn icon" type="button" style="--x:699;--y:22;--w:90;--h:80;--px:652;--lx:1282;--ly:18;--lw:80;--lh:71;--r:20%"><span class="sr-only">Settings</span></button>
     <button id="title-sound" class="art-btn icon" type="button" aria-pressed="false" style="--x:824;--y:22;--w:90;--h:80;--px:754;--lx:1370;--ly:18;--lw:80;--lh:71;--r:20%"><span class="sr-only">Sound</span></button>
@@ -1209,7 +1209,7 @@
 <div id="lb-name" class="screen lb-screen" role="dialog" aria-labelledby="lb-name-title" hidden>
   <div class="card">
     <h2 id="lb-name-title" data-text="YOUR NAME">YOUR NAME</h2>
-    <p class="lead">How you'll show on the Random Quilt leaderboard. You pick it once.</p>
+    <p class="lead">How you'll show on the Endless leaderboard. You pick it once.</p>
     <div class="lb-name-row">
       <input id="lb-name-input" type="text" maxlength="20" autocomplete="off" spellcheck="false" aria-label="Leaderboard name">
       <button id="lb-name-dice" class="felt-btn small" type="button" aria-label="Random name" title="Random name">🎲</button>
@@ -1220,11 +1220,11 @@
     <button id="lb-name-cancel" class="felt-btn small" type="button">Not now</button>
   </div>
 </div>
-<!-- Leaderboard (src/leaderboardScreen.js): every player's best Random Quilt run -->
+<!-- Leaderboard (src/leaderboardScreen.js): every player's best Endless run -->
 <div id="lb" class="screen lb-screen" role="dialog" aria-labelledby="lb-title" hidden>
   <div class="card">
     <h2 id="lb-title" data-text="LEADERBOARD">LEADERBOARD</h2>
-    <p class="lead">Random Quilt: each player's best run.</p>
+    <p class="lead">Endless: each player's best run.</p>
     <p id="lb-status" class="set-note"></p>
     <ol id="lb-list" class="lb-list"></ol>
     <p id="lb-me" class="lb-me" hidden></p>

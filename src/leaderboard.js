@@ -1,4 +1,4 @@
-// The Random Quilt leaderboard's client (no DOM): plain fetch to Supabase, no client library. The player is a Supabase
+// The Endless leaderboard's client (no DOM): plain fetch to Supabase, no client library. The player is a Supabase
 // anonymous user, signed in the first time they post (a later Apple / Google sign-in can link to it); its refresh
 // token and id live in the save (Save.account), the short-lived access token only in memory. Everything else goes
 // through the `leaderboard` Edge Function (supabase/functions/leaderboard): name (checked there), score, top.

@@ -6,7 +6,7 @@
 // One-time supply = stars (every star of every Button-earning level, first time only) + achievements
 // (src/achievements.js) + world chests. On top of that every win pays the wage: floor(score / scorePerButton), capped
 // per level at scoreCapBase + scoreCapPerLevel x the global level number 1..50 (src/meta.js scoreCap / levelPlace),
-// replays included, and Random Quilt pays it as world hpOffMapWorld, level hpOffMapLevel. So income never runs out; the
+// replays included, and Endless pays it as world hpOffMapWorld, level hpOffMapLevel. So income never runs out; the
 // tool prints how many replay wins the whole tree takes. It then estimates what a full playthrough averaging 2.2 stars
 // per level earns. Sinks: every pair's upgrades, every Pin type's tiers (CONFIG.towers x pinTierCosts), SHRED's tiers,
 // the Skills' tiers (CONFIG.skills x skillCosts, once they exist), the Shop pairs and cosmetics.
@@ -55,7 +55,7 @@ console.log('  world chests  ' + String(chests).padStart(5));
 console.log('  TOTAL         ' + String(supply).padStart(5));
 console.log('');
 console.log('The wage, per win (floor(score / ' + M.scorePerButton + '), capped by level): ' + levelNo(levels[0]) + ' ' + cap(levels[0]) + ' .. ' +
-  levelNo(levels[levels.length - 1]) + ' ' + cap(levels[levels.length - 1]) + ', Random Quilt (as ' + C.hpOffMapWorld + '-' + C.hpOffMapLevel + ') ' + cap('random') + '. Replays pay it every time.');
+  levelNo(levels[levels.length - 1]) + ' ' + cap(levels[levels.length - 1]) + ', Endless (as ' + C.hpOffMapWorld + '-' + C.hpOffMapLevel + ') ' + cap('random') + '. Replays pay it every time.');
 console.log('  by world: ' + worlds.map((w, i) => (i + 1) + ': ' + cap(levels[i * 10]) + '..' + cap(levels[i * 10 + 9])).join(', '));
 console.log('');
 console.log('Spending: scissors upgrades ' + upgrades + ' (' + Object.keys(C.weapons).length + ' x ' + sum(M.upgradeCosts) + '), Pin tiers ' + pinTiers +

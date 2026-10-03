@@ -412,7 +412,7 @@ function placeSpots(polys, spots, deco, rng) {
 }
 
 // ======================= random recipes =======================
-// A recipe for "Random Quilt": segments drawn by weight until the road is about full; at most one fork (two if room).
+// A recipe for "Endless": segments drawn by weight until the road is about full; at most one fork (two if room).
 // size = a fixed plate size (the level file's), else one drawn from the seed.
 // (sweeping curves are favoured: hairpin zigzags crowd out the props and read as machine-made)
 const POOL = [['s', 3.5], ['zigzag', 0.8], ['fork', 2.2], ['bend', 1.5], ['wave', 1.6], ['wiggle', 0.7], ['straight', 0.4], ['triple', 0.6]];

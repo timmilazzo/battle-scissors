@@ -310,7 +310,7 @@ into the ground tile. They get scattered many times per level, so avoid one stan
 
 ### 22. Denim zone props: still outstanding (P1)
 
-No new items: section 5 above is still wanted, and there is no `assets/kit/denim/` yet. Levels 7–10 and Random Quilt
+No new items: section 5 above is still wanted, and there is no `assets/kit/denim/` yet. Levels 7–10 and Endless
 are denim and still scatter only the generic sewing props.
 
 ### 23. Per-level dressing overlays (P2: hold until I say a level's layout is final)

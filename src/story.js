@@ -22,7 +22,7 @@ export const STORY = {
   // One line as a level starts, under the wave 1 banner, by level id, only where there's something new to say: a boss,
   // a mini boss, a new Pin, Skill, enemy or mechanic (a level without a line starts with no card; its star goals are on
   // the weapon screen). Each world's first level says what this drawer is and what comes out of it. None for level 0
-  // (it's wordless on purpose), Random Quilt or Custom Road.
+  // (it's wordless on purpose), Endless or Custom Road.
   dispatch: {
     // World 1: The Sewing Tray
     meadow:     'The sewing tray, lights out. Every scrap that missed the bin. Here they come.',

@@ -53,7 +53,7 @@ export function recordLevelResult(id, won, score, stars, unlock) {
   persist();
 }
 
-// Whether id is one of the map's numbered levels (Random Quilt and Custom Road aren't: they're played from the title).
+// Whether id is one of the map's numbered levels (Endless and Custom Road aren't: they're played from the title).
 export const onMap = id => levelPlace(id).onMap;
 
 // "Level 2-3: Rivet Row" for a map level (world-n; the tutorial is "Level 0: First Snip"), just the name for the

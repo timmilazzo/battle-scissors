@@ -33,7 +33,7 @@ The seed shows on the game-over card, in the pause menu and in the debug panel. 
 
 ## Generated levels
 
-Every map level but the first two, and Random Quilt, are built by a level generator from a short road recipe and painted in the world's look from an art kit (a felt meadow in a sewing tray, a denim quilt, autumn leaf litter, a knitted night drawer lit by lanterns, snow). Try your own with `?recipe=` (and `&world=snow` for a look):
+Every map level but the first two, and Endless, are built by a level generator from a short road recipe and painted in the world's look from an art kit (a felt meadow in a sewing tray, a denim quilt, autumn leaf litter, a knitted night drawer lit by lanterns, snow). Try your own with `?recipe=` (and `&world=snow` for a look):
 
 ```
 https://<user>.github.io/<repo>/?recipe=start left, s, fork pin, zigzag 2&seed=3
@@ -45,7 +45,7 @@ Segments run top to bottom: `straight`, `bend left|right|center`, `s left|right`
 
 Thread buys Pins inside a level and is gone when it ends. **Buttons** are what you keep. They are never converted into each other.
 
-- **Earned** only from playing, with no randomness: every win pays a score bonus of floor(score / 100) Buttons, capped by level (9 on Level 1-1 up to 58 on Level 5-10; Random Quilt pays like a mid level), replays included, so you can always earn more; 10 / 15 / 25 for the first time you earn each star of a level; one-time achievements (two for squishing silverfish, a pair per world) (listed on the map's Trophies screen, locked ones included); and a chest per world (three-star every level in it: 100 Buttons and a cosmetic, contents shown up front).
+- **Earned** only from playing, with no randomness: every win pays a score bonus of floor(score / 100) Buttons, capped by level (9 on Level 1-1 up to 58 on Level 5-10; Endless pays like a mid level), replays included, so you can always earn more; 10 / 15 / 25 for the first time you earn each star of a level; one-time achievements (two for squishing silverfish, a pair per world) (listed on the map's Trophies screen, locked ones included); and a chest per world (three-star every level in it: 100 Buttons and a cosmetic, contents shown up front).
 - **Spent** in the Sewing Box (on the map and the weapon screen: what you hold): three upgrade tiers per pair (150 / 300 / 600), three permanent tiers per Pin (seven Pins; 120 / 240 / 450: a cheaper build, a wider ring, then the Pin's own trick), SHRED's three tiers (120 / 240 / 400: it starts as one spin and a snip, then Double Spin, Quick Charge, Whirlwind) and Sharpen (40: every snip slowly dulls a pair, from half sharp at the start; a dull pair does 20% less snip damage, a sharp one 20% more, and Sharpen puts it back to full); and in the Shop (on the title and the map: new things): five pairs of scissors that are only sold there (200 to 600, each on sale after a world's second level) and cosmetics (handle colours, blade glows, 100 each). Pins themselves and stars are never for sale.
 - **One-time supply: about 4,500 Buttons** (stars 2,500, achievements 1,530, world chests 500), plus the wage on every win. `node tools/buttonsupply.js` prints it, the wage by level and everything there is to buy.
 - Inside a level, Thread also ranks a built Pin up (II, then III: a wider ring, more power), tapping the gold button on its pad. Ranks are gone when the level ends.

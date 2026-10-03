@@ -8,7 +8,7 @@
 // world (refreshLevelMap(true)). Locks: with CONFIG.map.lockWorlds a world's patches stay locked until the previous
 // world's level 10 is cleared (its name greys and the arrow toward it says what to clear); with CONFIG.map.locks a
 // level also waits for the one before it; Save.unlocks.levels opens a level either way. A map level whose file isn't
-// there yet shows its id and says so when tapped. Under the plate: BACK (Random Quilt and Custom Road are off the map,
+// there yet shows its id and says so when tapped. Under the plate: BACK (Endless and Custom Road are off the map,
 // on the title). Rewards won since the map was last open (Save.reveals: new scissors' card, Shop stock a clear put on
 // sale, the credits, a world chest's contents) play over it, one tap each (revealNow plays one straight away
 // elsewhere). Top left: the Buttons balance, Sewing Box, Shop and Trophies. Each world's chest (CONFIG.map.worlds[].chest

@@ -1,4 +1,4 @@
--- Random Quilt (endless) leaderboard. Players are Supabase anonymous users (the game signs one in on first use, so a
+-- Endless (endless) leaderboard. Players are Supabase anonymous users (the game signs one in on first use, so a
 -- later Apple / Google sign-in can link to the same account). Only the `leaderboard` Edge Function touches these
 -- tables, with the service role: RLS is on with no policies, so the public API keys can't read or write them.
 

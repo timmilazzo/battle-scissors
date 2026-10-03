@@ -76,7 +76,7 @@ export function showResults(t) {
       noteEl.textContent = best.length ? 'New personal best: ' + best.join(', ') + '!' : 'Your best: ' + e.bestWaves + ' waves, ' + e.bestKills + ' kills, ' + e.bestScore + ' points.';
       if (best.length) sfxSequence('waveClear');
     } else if (!t.stars.some(s => s !== 'none') && t.wage && !t.scoreButtons) noteEl.textContent = 'A win here pays up to ' + t.scoreCap + ' Buttons for its score, every time.';
-    else if (t.wage && t.earns && !earnsStars(view.levelId)) noteEl.textContent = 'Random Quilt pays the wage of a mid level; stars and trophies are earned on the map.';
+    else if (t.wage && t.earns && !earnsStars(view.levelId)) noteEl.textContent = 'Endless pays the wage of a mid level; stars and trophies are earned on the map.';
     else if (t.stars.includes('old')) noteEl.textContent = 'Grey stars were earned before and pay nothing again. The score bonus pays every win.';
     if (t.starButtons) tallyEl.appendChild(row('Stars', t.starButtons));
     if (t.wage) tallyEl.appendChild(row('Score bonus', t.scoreButtons, '', '(' + t.scoreBonus + '/' + t.scoreCap + ')'));

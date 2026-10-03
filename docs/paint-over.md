@@ -17,7 +17,7 @@ All of them are 941 x 1672 (a pixel either way on the bigger levels), the same a
 2. **Keep every pad and the heart pad at the same centre and size.** Pins are drawn on the pads, and the game draws the zone's own heart pad over the painted one.
 3. **Keep the canvas size and framing.** Narrow phones crop roughly 80 px off each side, so nothing important goes there.
 4. **Keep the top-left corner and the strip below the heart pad quiet.** The HUD and the action bar sit over them.
-5. **Everything else is free:** props, trees, frame, lighting, fabric. Denser and richer is the point. Keep the world's look (meadow, denim, autumn, night or snow; lair for Random Quilt). A generated plate in a river world (autumn, night, snow) may have a river crossing the road under a ruler bridge; keep the crossing where it is or paint the road over it, never move the road.
+5. **Everything else is free:** props, trees, frame, lighting, fabric. Denser and richer is the point. Keep the world's look (meadow, denim, autumn, night or snow; lair for Endless). A generated plate in a river world (autumn, night, snow) may have a river crossing the road under a ruler bridge; keep the crossing where it is or paint the road over it, never move the road.
 6. **No scissors or blades in the art.** Players would mistake them for weapons.
 7. **The night world's lights come from the generated plate, not the painting.** The game darkens a night level outside the light sources the painter lists (`level().lights`: its lanterns and lit props). A painted-over night level (`bg`) has none, so paint lanterns only where the generated plate had them, or leave the level unpainted.
 

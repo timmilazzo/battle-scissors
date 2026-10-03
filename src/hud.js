@@ -17,7 +17,7 @@ export function refreshHud() {
   if (!visible) return;
   const dull = sharpBandIndex(state.sharpAtStart) === 0;         // snips do less damage this run
   if (dull !== shown.dull) { shown.dull = dull; dullEl.hidden = !dull; }
-  if (shown.level !== view.levelId) {                              // "LEVEL 2-3" for a map level; none for Random Quilt / Custom Road
+  if (shown.level !== view.levelId) {                              // "LEVEL 2-3" for a map level; none for Endless / Custom Road
     shown.level = view.levelId;
     const no = levelNo(view.levelId);
     levelEl.hidden = !no; levelEl.textContent = 'LEVEL ' + no;

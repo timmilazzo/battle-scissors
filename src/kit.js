@@ -643,7 +643,7 @@ export const ZONES = {
 };
 // True once a zone's own look has arrived (its ground tile and both pads), so it may be drawn for a random road.
 export const zoneReady = zone => !!ZONES[zone] && !texWanted(ZONES[zone].ground) && !isWanted(zone + 'PinPad') && !isWanted(zone + 'HeartPad');
-// The zone a Random Quilt run paints in, from its seed: any zone whose art is in (zoneReady), else the original three.
+// The zone a Endless run paints in, from its seed: any zone whose art is in (zoneReady), else the original three.
 export function randomZone(seed) {
   const ready = Object.keys(ZONES).filter(zoneReady);
   return ready[(seed >>> 0) % ready.length];

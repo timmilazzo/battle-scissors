@@ -1,7 +1,7 @@
 // The meta economy: Buttons, the one currency that outlives a level (thread is in-level only and is never converted).
 // Buttons are earned only from playing, all deterministic:
 //   wage       every win: floor(score / scorePerButton), capped at scoreCap(id) (CONFIG.meta.scoreCapBase + scoreCapPerLevel
-//              x the global level number 1..50, levelPlace), replays included, so income never runs out; Random Quilt
+//              x the global level number 1..50, levelPlace), replays included, so income never runs out; Endless
 //              pays it too (as world hpOffMapWorld, level hpOffMapLevel). Save.levels[id].bonusPaid keeps the level's
 //              best for the results card.
 //   stars      the first time each star of a map level is earned: CONFIG.meta.starButtons (re-earning pays 0)
@@ -23,7 +23,7 @@ import { weaponLocked, shopOpen } from './weaponSelect.js';
 // ---------- the map: five worlds of ten levels (CONFIG.map.worlds, docs/worlds.md) ----------
 // A level's place: { world: 1..5, worldId, n: 0..10 (its number inside the world; level 0 = the tutorial, world 1's
 // patch 0), global: 0..50 (the patches counted in play order, level 0 = 0: the wage cap and the rank mix), onMap }.
-// Off the map (Random Quilt, Custom Road) it is world CONFIG.hpOffMapWorld, level hpOffMapLevel, and the global number
+// Off the map (Endless, Custom Road) it is world CONFIG.hpOffMapWorld, level hpOffMapLevel, and the global number
 // that place would have (3-5 = 25), onMap false. The map's places are built once (the map isn't tuned live).
 let places = null;
 function placeTable() {
@@ -58,7 +58,7 @@ export const mapLevelNum = id => levelPlace(id).global;
 export const earningLevels = () => mapIds().filter(id => id !== C.tutLevel);
 export const earnsStars = id => placeTable().has(id) && id !== C.tutLevel;
 export const earnsButtons = earnsStars;
-// The levels that pay the wage: those, and Random Quilt.
+// The levels that pay the wage: those, and Endless.
 export const earnsWage = id => earnsStars(id) || id === 'random';
 // The most the wage pays on a level: scoreCapBase + scoreCapPerLevel x its global number.
 export const scoreCap = id => C.meta.scoreCapBase + C.meta.scoreCapPerLevel * levelPlace(id).global;

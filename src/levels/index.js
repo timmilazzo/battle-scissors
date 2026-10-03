@@ -1,9 +1,9 @@
 // The level registry: every level's data file (in map order: level 0, then the five worlds' ten levels each, then
-// Random Quilt) and loadLevel(id, seed), the one way the game gets a level to play. Only this module imports the level files.
+// Endless) and loadLevel(id, seed), the one way the game gets a level to play. Only this module imports the level files.
 //
 // Files: 00-first.js (level 0, the tutorial, on world 1's map), w<world>-<nn>-<id>.js for the fifty map levels (w1-01-meadow.js
 // .. w5-10-whip.js; world 1 The Sewing Tray, 2 The Mending Pile, 3 The Kitchen Drawer, 4 The Bedside Drawer, 5 The Holiday
-// Box; docs/worlds.md has what each level introduces), random.js (Random Quilt, off the map). A level's place on the map
+// Box; docs/worlds.md has what each level introduces), random.js (Endless, off the map). A level's place on the map
 // (world, number) comes from CONFIG.map.worlds (meta.js levelPlace), not from the file name; LIST just keeps the same order.
 // Ids never change once shipped (saves key on them), so an old id can sit in a new place under a new name.
 //

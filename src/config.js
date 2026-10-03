@@ -12,7 +12,7 @@ export const FEEDBACK_URL = 'mailto:tim@saltandwisdom.com';
 export const ANALYTICS_HOST = 'https://us.i.posthog.com';
 export const ANALYTICS_KEY = 'phc_z4235bmczBCg65dxaMJcEEsqTKypip6ut2fv5ghLx76T';
 
-// Supabase (src/leaderboard.js): the Random Quilt leaderboard. The project URL and its publishable (anon) key, both
+// Supabase (src/leaderboard.js): the Endless leaderboard. The project URL and its publishable (anon) key, both
 // safe in client code (the tables are only reachable through the leaderboard Edge Function). Empty = no leaderboard.
 export const SUPABASE_URL = 'https://fkhuzanqyfainkieruxs.supabase.co';
 export const SUPABASE_KEY = 'sb_publishable_rA8Yt-7J1dULTlc-ip4dZw_OkPuahEr';
@@ -209,7 +209,7 @@ export const CONFIG = {
   },
   // Enemy ranks: from map level fromLevel on, wave spawns (not bosses, their escorts or level 0) can come as a tougher,
   // recoloured rank 2 or 3 of their type. The rank mix m = start + perLevel x (map level - fromLevel) + perWave x (wave - 1)
-  // (Random Quilt / Custom Road count as map level hpOffMapLevel): up to 1 it is the share of rank 2 (the rest rank 1);
+  // (Endless / Custom Road count as map level hpOffMapLevel): up to 1 it is the share of rank 2 (the rest rank 1);
   // past 1 there are no rank 1s left and m - 1 is the share of rank 3 (the rest rank 2).
   enemyRanks: {
     fromLevel: 4,            // the first map level (global number, 1-4) with ranked enemies: a few rank 2s
@@ -238,7 +238,7 @@ export const CONFIG = {
   // world 1..5 and n 1..10 its place on the map (meta.js levelPlace; docs/worlds.md "Difficulty").
   hpPerWorld: 0.3,           // each world after the first adds this fraction of base hp x the type's levelHp (0.3, not 0.5: ranks' hpMult stack on top)
   hpPerLevel: 0.06,          // each level inside a world after its first adds this fraction of base hp x the type's levelHp
-  hpOffMapWorld: 3,          // Random Quilt / Custom Road scale as this world... (fixed, so ?seed= replays match)
+  hpOffMapWorld: 3,          // Endless / Custom Road scale as this world... (fixed, so ?seed= replays match)
   hpOffMapLevel: 5,          // ...and this level in it (3-5; global level 25 for the wage cap and the rank mix)
   waddleDeg: 6,              // side-to-side rock while walking
   pathReturnRate: 1.6,       // how fast a shoved enemy drifts back onto the road (per second)
@@ -407,7 +407,7 @@ export const CONFIG = {
         look: { ground: '#dfe8ef', edge: '#6b4423', road: '#b9cbd8', felt: '#b83a3a', rim: '#4d140c' } },
     ],
     bigNode: 1.3,            // felt stand-in plates: the 5th (mini boss) and 10th (boss) patches are this much bigger
-    locks: false,            // lock levels until the one before is cleared (false keeps every level open for playtesting)
+    locks: true,             // lock levels until the one before is cleared (the story goes one level at a time; the workbench and Save.unlocks.levels open them)
     lockWorlds: true,        // a world opens once the previous world's level 10 (its boss) is cleared
     // compat, read-only: every world's nodes in one list (index = the global level number); new code uses meta.js
     // mapIds() / levelPlace(). Remove once nothing reads CONFIG.map.nodes.
@@ -679,7 +679,7 @@ export const CONFIG = {
     [['scrap', 8, 2], ['brute', 1, 6], ['bolster', 3, 10], ['scrap', 7, 18], ['brute', 1, 24], ['scrap', 8, 30]],
     [['scrap', 6, 2], ['runner', 5, 6], ['bolster', 2, 10], ['scrap', 7, 20], ['brute', 1, 28], ['scrap', 8, 36]],
   ],
-  // Endless (Random Quilt, its level file's `endless: true`): waves are generated from the run seed, without end. A
+  // Endless (Endless, its level file's `endless: true`): waves are generated from the run seed, without end. A
   // normal wave is a run of groups, each a type drawn by weight among the types unlocked by that wave; every
   // bossEvery-th wave is a boss alone (the five in turn, more hp each time round), and from miniFromWave some waves bring
   // a mini boss (game.js endlessMini). Enemies get tougher by wave here
@@ -729,7 +729,7 @@ export const CONFIG = {
   // the workshop, Pins and SHRED ignore them. Their reward is fixed Thread (never Buttons, never random) and each level
   // caps how many come (its `critters`, else perWorld). Spawns are scheduled on the wave clock from the run's seed.
   critters: {
-    perWorld: { meadow: 2, denim: 3, lair: 4 },   // cap per level when the level file doesn't set `critters` (Random Quilt, Custom Road)
+    perWorld: { meadow: 2, denim: 3, lair: 4 },   // cap per level when the level file doesn't set `critters` (Endless, Custom Road)
     minWaveSec: 10,          // never spawns in the first this-many seconds of a wave
     minEnemies: 4,           // never spawns while fewer than this many enemies are on screen
     tailSec: 8,              // a wave's spawn window ends this long after its last scheduled enemy spawn
@@ -814,7 +814,7 @@ export const CONFIG = {
   pickerStaggerMs: 45,       // ...each one this much after the one before
 
   // --- progression: the map level (id) where each Pin, SHRED and Skill first appear; they stay on every map level after
-  // it. Off the map (Random Quilt, Custom Road) they're there once that level has been cleared. One new tool at a time,
+  // it. Off the map (Endless, Custom Road) they're there once that level has been cleared. One new tool at a time,
   // each beside the problem it answers (docs/worlds.md): a world's Pin on its level 2 (world 1: Needle on 1-1 and Ice
   // with the armored Brute on 1-6, world 2: Fire on 2-2 and Magnet on 2-6), SHRED with the fast Runners on 1-3.
   pinFrom: { needle: 'meadow', ice: 'double', fire: 'loop', magnet: 'cross', cork: 'corkscrew', lamp: 'keyring', candle: 'candlelight' },   // 1-1, 1-6, 2-2, 2-6, 3-2, 4-2, 5-2
@@ -947,7 +947,7 @@ export const CONFIG = {
     starButtons: [10, 15, 25], // Buttons for star 1 / 2 / 3 of a level, the first time each is earned (re-earning pays 0)
     scorePerButton: 100,     // score bonus (the wage): floor(score / this) Buttons on every win, replays included...
     scoreCapBase: 8,         // ...capped at scoreCapBase + scoreCapPerLevel x the global level number 1..50 (1-1 = 9, 5-10 = 58;
-    scoreCapPerLevel: 1,     // Random Quilt counts as 3-5, global 25), so later levels are worth replaying
+    scoreCapPerLevel: 1,     // Endless counts as 3-5, global 25), so later levels are worth replaying
     upgradeCosts: [150, 300, 600], // scissors upgrade tiers 1 / 2 / 3 (per weapon, bought in order)
     shredCosts: [120, 240, 400],   // SHRED tiers 1 / 2 / 3 (CONFIG.shredTiers), bought in order once SHRED's level is cleared
     pinTierCosts: [120, 240, 450], // a Pin type's permanent tiers 1 / 2 / 3 (Sewing Box, once the Pin is unlocked on the map)

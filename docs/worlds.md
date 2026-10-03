@@ -6,7 +6,7 @@ level 10. Clearing a world's boss opens the next world. This file is the contrac
 introduces, the tools, the enemies, the bosses, the rules per world, the economy and what the save keeps. Code and
 story follow it; change it here first.
 
-Level 0 (First Snip, the tutorial) stays as it is, on world 1's map. Random Quilt and Custom Road stay off the map.
+Level 0 (First Snip, the tutorial) stays as it is, on world 1's map. Endless and Custom Road stay off the map.
 
 ## The five worlds
 
@@ -233,7 +233,7 @@ Enemy HP scales by world and by level inside the world, not by one straight line
 
     mult = 1 + hpPerWave x (wave - 1) + levelHp x (hpPerWorld x (world - 1) + hpPerLevel x (n - 1))
 
-`hpPerWorld` 0.3 (0.5 stacked too high on top of the rank mix), `hpPerLevel` 0.06 (replacing `hpLevelFrom`); the rank mix (`enemyRanks`: start 0.1, perLevel 0.045, perWave 0.03, fromLevel 4 on the global number) fills in rank 2s through worlds 1-2 and rank 3s through worlds 3-5, each type's `levelHp` as now. Random Quilt and Custom
+`hpPerWorld` 0.3 (0.5 stacked too high on top of the rank mix), `hpPerLevel` 0.06 (replacing `hpLevelFrom`); the rank mix (`enemyRanks`: start 0.1, perLevel 0.045, perWave 0.03, fromLevel 4 on the global number) fills in rank 2s through worlds 1-2 and rank 3s through worlds 3-5, each type's `levelHp` as now. Endless and Custom
 Road count as world 3, level 5 (`hpOffMapWorld`, `hpOffMapLevel`). The reward pairs' `damageMult` rise to keep pace
 (Kitchen Shears the heaviest). `node tools/wavesheet.js` prints every level's waves, Thread and the multiplier.
 

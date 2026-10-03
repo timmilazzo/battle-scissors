@@ -24,7 +24,7 @@ import { showResults, refreshResultsShop } from './results.js';
 import { initShop, openShop, openTrophies, refreshShop } from './shop.js';
 import { initBox, openBox, refreshBox } from './sewingBox.js';
 import { initArmory } from './armory.js';
-import { buySharpen, newDeals } from './meta.js';
+import { buySharpen, newDeals, worldBoss } from './meta.js';
 import { giveMove } from './skills.js';
 
 applySavedOverrides();
@@ -56,11 +56,13 @@ const play = () => { unlockAudio(); toast.hidden = true; startGame(); };
 // PLAY: level 0 (the tutorial) until it has been cleared once, then the level map. How to play: level 0 again.
 on('play', () => { unlockAudio(); toast.hidden = true; if (Save.tutorialDone) openMap(); else playTutorial(); });
 on('how', () => { unlockAudio(); toast.hidden = true; playTutorial(); });
-// Random Quilt (title, once the tutorial is done): a new generated road each run, off the map, so its weapon screen and
+// Endless (title, once the tutorial is done): a new generated road each run, off the map, so its weapon screen and
 // results lead back to the title. Custom Road (?recipe=, the level lab's Play it) sits top left of the title.
 const quiltBtn = document.getElementById('title-quilt'), customBtn = document.getElementById('title-custom');
-const showQuilt = () => quiltBtn.classList.toggle('locked', !Save.tutorialDone);
-on('title-quilt', () => { unlockAudio(); toast.hidden = true; if (Save.tutorialDone) chooseLevel('random'); else showToast('Play the tutorial first: tap PLAY'); });
+// Endless opens once world 1 is beaten (its boss level cleared)
+const endlessOpen = () => !!(Save.levels[worldBoss(C.map.worlds[0].id)] || {}).cleared;
+const showQuilt = () => quiltBtn.classList.toggle('locked', !endlessOpen());
+on('title-quilt', () => { unlockAudio(); toast.hidden = true; if (endlessOpen()) chooseLevel('random'); else showToast('Beat World 1 to open Endless'); });
 customBtn.hidden = !hasLevel('custom');
 on('title-custom', () => { unlockAudio(); toast.hidden = true; chooseLevel('custom'); });
 showQuilt();
@@ -80,7 +82,7 @@ initWeaponSelect({ onPick: id => { selectWeapon(id); rasterizeArt(); }, onStart:
   // the Moves row: what the level about to start allows (game.js: SHRED from CONFIG.shredFrom, a Skill from CONFIG.skillFrom)
   getMoves: () => (shredAllowed() ? [{ id: 'shred', isNew: shredIsNew() }] : []).concat(Object.keys(C.skills).filter(skillAllowed).map(id => ({ id, isNew: skillIsNew(id) }))) });
 // Level picker (same screen): switch the plate, road(s) and Pin spots, then re-run the resize chain for the new plate.
-// The pause card's Back to map only shows for a map level (Random Quilt / Custom Road have Title screen beside it).
+// The pause card's Back to map only shows for a map level (Endless / Custom Road have Title screen beside it).
 const pauseMap = document.getElementById('pause-map');
 function switchLevel(id) { setLevel(id); buildSpotButtons(); resize(); pauseMap.hidden = !onMap(id); }
 pauseMap.hidden = !onMap(view.levelId);
@@ -126,7 +128,7 @@ function refreshNews() {
   for (const screen in newsBtns) { const has = newDeals(screen).length > 0; for (const id of newsBtns[screen]) document.getElementById(id).classList.toggle('news', has); }
 }
 // Leaving a level's screens (weapon screen BACK, the results' Map, the pause card's Back to map): the map for a map
-// level, the title for Random Quilt / Custom Road.
+// level, the title for Endless / Custom Road.
 function backOut() { if (onMap(view.levelId)) openMap(); else goTitle(); }
 const openMeta = (screen, tab) => { unlockAudio(); if (screen === 'box') openBox(tab); else openShop(tab); };
 initLevelMap({ toast: showToast, onPick: chooseLevel, onBack: goTitle, onOpen: openMeta, onChange: refreshNews });
@@ -150,7 +152,7 @@ initArmory({ toast: showToast, onChange: metaChanged, refresh: () => { refreshSh
 // The run is over: the results card plays its Button tally.
 setRunEndHook(() => {
   showResults(state.tally); refreshNews();
-  if (lastReport && lastReport.endless) endlessRunEnded(lastReport); else hideRunLine();   // Random Quilt: post to the leaderboard
+  if (lastReport && lastReport.endless) endlessRunEnded(lastReport); else hideRunLine();   // Endless: post to the leaderboard
 });
 // The results card's Shop line: its button opens the Shop on the deal's tab (the card's tap-to-skip must not fire).
 on('res-shop-btn', e => { e.stopPropagation(); openMeta(e.currentTarget.dataset.screen, e.currentTarget.dataset.tab); });

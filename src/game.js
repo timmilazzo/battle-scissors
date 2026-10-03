@@ -334,7 +334,7 @@ const debugWaves = (() => {
   })).filter(w => w.length);
 })();
 
-// ---------- endless (Random Quilt) ----------
+// ---------- endless (Endless) ----------
 // Waves made from the run seed (their own stream, so they don't move with spawns or hits): planWaves at the start, more
 // as the run gets there. Wave n is a boss alone every bossEvery-th wave (the bosses in turn, trailed by Scraps from the
 // second time round), else groupsBase + groupsPerWave x (n - 1) groups of a type drawn by weight among those unlocked by
@@ -515,11 +515,11 @@ function endGame(won) {
   // the big button after a win: NEXT LEVEL when there is one (nextLevelId, across a world's end too) and nothing is
   // waiting to be shown on the map; TO THE MAP when this win queued rewards (Save.reveals: a morning-after note, new
   // scissors, stock on sale, Pin tiers: the map plays their cards) or it was the last level. TRY AGAIN after a loss;
-  // off the map (Random Quilt, Custom Road) a win offers another go (a new quilt) and the small button goes to the title.
+  // off the map (Endless, Custom Road) a win offers another go (a new quilt) and the small button goes to the title.
   // (main.js plays 'next': straight in with the same weapon, or through the weapon screen when that level brings a new tool.)
   const primary = !won || !mapped ? 'again' : nextLevelId() && !Save.reveals.length && !state.tally.chest ? 'next' : 'map';
   els.overSelect.dataset.act = primary;
-  els.overPrimary.textContent = primary === 'next' ? 'NEXT LEVEL' : primary === 'map' ? 'TO THE MAP' : endless ? 'NEW QUILT' : !won ? 'TRY AGAIN' : levelInfo(view.levelId).random ? 'NEW QUILT' : 'PLAY AGAIN';
+  els.overPrimary.textContent = primary === 'next' ? 'NEXT LEVEL' : primary === 'map' ? 'TO THE MAP' : endless ? 'NEW ROAD' : !won ? 'TRY AGAIN' : levelInfo(view.levelId).random ? 'NEW QUILT' : 'PLAY AGAIN';
   els.overMap.textContent = mapped ? 'Map' : 'Title';
   els.overMap.hidden = primary === 'map'; els.again.hidden = primary === 'again';
   lastReport.buttons = { stars: state.tally.starButtons, score: state.tally.scoreButtons, achievements: state.tally.achievements.map(a => a.id), total: state.tally.total };
@@ -1787,7 +1787,7 @@ const towers = state.towers;
 setLevel(view.levelId);
 export const canAfford = type => state.thread >= pinCost(type);
 // Progression (CONFIG.pinFrom / shredFrom): a tool introduced at map level id is here on every map level from it on;
-// off the map (Random Quilt, Custom Road) once that level has been cleared. An unknown id never holds anything back.
+// off the map (Endless, Custom Road) once that level has been cleared. An unknown id never holds anything back.
 function introduced(fromId) {
   if (lab.on) return true;                                       // the playtest workbench: every tool everywhere
   const at = mapIndex(fromId), here = mapIndex(view.levelId);
@@ -1985,7 +1985,7 @@ for (let i = 0; i < C.maxEnemies; i++) enemies.push({ on: false, type: null, nam
   marked: false, bastedT: 0, stitchBits: 0 });
 
 // A non-boss's hp multiplier (docs/worlds.md "Difficulty"): 1 + hpPerWave x (wave - 1) + levelHp x (hpPerWorld x
-// (world - 1) + hpPerLevel x (n - 1)), world / n its place on the map (meta.js levelPlace; Random Quilt / Custom Road
+// (world - 1) + hpPerLevel x (n - 1)), world / n its place on the map (meta.js levelPlace; Endless / Custom Road
 // count as hpOffMapWorld-hpOffMapLevel). Runners have levelHp 0. The tutorial's wave 0 stays at base.
 function hpScale(t) {
   if (isEndless()) return 1 + C.endless.hpPerWave * Math.max(0, state.wave - 1);   // endless: tougher by wave only
@@ -1993,7 +1993,7 @@ function hpScale(t) {
   const steps = isTutorial() ? 0 : C.hpPerWorld * (p.world - 1) + C.hpPerLevel * Math.max(0, p.n - 1);
   return 1 + C.hpPerWave * Math.max(0, state.wave - 1) + (t.levelHp || 0) * steps;
 }
-// The current level's global number on the map, 1..50 (Random Quilt / Custom Road: hpOffMapWorld-hpOffMapLevel's).
+// The current level's global number on the map, 1..50 (Endless / Custom Road: hpOffMapWorld-hpOffMapLevel's).
 function mapLevelNum() { return lab.place ? (lab.place.world - 1) * 10 + lab.place.n : levelPlace(view.levelId).global; }
 // Enemy ranks (CONFIG.enemyRanks): the rank mix for this level and wave (0 = rank 1s only), and a wave spawn's rank
 // drawn from it (rng.spawn, drawn only where the mix is above 0, so earlier levels' seeded runs replay as before).

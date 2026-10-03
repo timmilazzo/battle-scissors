@@ -1,4 +1,4 @@
-// The Random Quilt leaderboard's screens (DOM; the network side is leaderboard.js). Three places:
+// The Endless leaderboard's screens (DOM; the network side is leaderboard.js). Three places:
 // - the results card of an endless run (#res-lb): posts the run when the player has a name and shows the rank;
 //   the first time, "Put this run on the leaderboard?" opens the name card and posts once a name is taken
 // - the name card (#lb-name): picked once; starts on a made-up name (names.js), 🎲 rolls another, a typed one is

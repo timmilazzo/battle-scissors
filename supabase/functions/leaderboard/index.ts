@@ -1,4 +1,4 @@
-// The Random Quilt leaderboard (Supabase Edge Function, Deno). The game (src/leaderboard.js) calls:
+// The Endless leaderboard (Supabase Edge Function, Deno). The game (src/leaderboard.js) calls:
 //   POST /leaderboard/name   { name }                                   -> { ok, name } | { ok: false, reason }
 //   POST /leaderboard/score  { waves, kills, score, seed, durationSec, version } -> { ok, rank, total, best } | { ok: false, reason }
 //   GET  /leaderboard/top                                               -> { ok, top: [{ rank, name, waves, kills, score, me }], me }
