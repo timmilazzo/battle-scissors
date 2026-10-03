@@ -831,11 +831,13 @@ export const CONFIG = {
   heliCloseMs: 90,           // final snap-close (then a normal full-open snip fires)
   heliFinalShakePx: 14,      // screen shake on the final close
   heliBannerMs: 1100,        // "SHRED" banner time
+  shredBadge: { icon: '✂', felt: '#7a3fb8', blurb: 'Spin the open blades through everything in reach, then snip. Charges with snip kills.' },   // SHRED's look in a move slot (its HUD badge, its weapon-screen chip and line); the Skills' are below
 
-  // --- the second move slot: Skills (docs/worlds.md "Skills"; src/skills.js skillDef, game.js "Skills") ---
-  // One Skill at a time beside SHRED, picked on the weapon screen (Save.equippedSkill) on any map level from its own on
-  // (CONFIG.skillFrom); off the map once that level is cleared. Its meter is a round badge under SHRED's (actionBar.js),
-  // filled by its own charge (state.skill.charge 0..1: each charge event adds 1 / need). Tap the full meter (F on desktop)
+  // --- the moves: SHRED (above) and the Skills (docs/worlds.md "Skills"; src/skills.js skillDef, game.js "moves") ---
+  // Two free move slots (Save.moves): each holds SHRED or any Skill the level allows, picked on the weapon screen, a Skill
+  // on any map level from its own on (CONFIG.skillFrom); off the map once that level is cleared. Each slot's meter is a
+  // round badge under the HUD wave badge (actionBar.js), filled by its move's own charge (state.moves[i].charge 0..1: each
+  // charge event adds 1 / need). Tap the full meter (E for slot 1, F for slot 2 on desktop)
   // to use it: Focus and Thimble go off at once; Mark arms for the next tap on an enemy, Pinking for the next snip, Basting
   // for a drag across the road. Basting has no meter: it costs bastingCost Thread each time. Tier 0 is the move as it
   // arrives; tiers 1..3 (names in tiers) are bought in order with Buttons (skillCosts) once its level is cleared, each

@@ -1,5 +1,5 @@
 // The top-left HUD (DOM, felt style like the title buttons): wave badge (with the map level's number on top) and a DULL
-// badge while the weapon in use is in its dullest sharpness band (scissors.js sharpBandIndex); the SHRED and Skill meters sit in
+// badge while the weapon in use is in its dullest sharpness band (scissors.js sharpBandIndex); the two move slots' meters sit in
 // the same column (actionBar.js). The workshop's HP isn't here: the heart pad at the end of the road shows it
 // (render.js drawHeart). Shown during PLAYING / WAVE_CLEAR / GAME_OVER (not level 0). Only touches the DOM when a value changes.
 import { view } from './core.js';

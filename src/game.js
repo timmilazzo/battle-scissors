@@ -1,6 +1,6 @@
 // Game state + update(dt): state machine (TITLE -> MAP | SETTINGS, MAP -> SELECT -> PLAYING -> WAVE_CLEAR -> ... -> GAME_OVER,
 // or level 0 -> TUTORIAL -> the map), waves along the current level's road (one route, or several at a fork), the workshop, thread
-// economy, towers, bosses, the Helicopter special and the second move slot (Skills), the level-0 tutorial script, scoring,
+// economy, towers, bosses, the two move slots (SHRED's Helicopter spin and the Skills), the level-0 tutorial script, scoring,
 // pooled entities (plain data), snip
 // resolution, blade contact, run reports. No canvas calls here: render.js draws `state`.
 // Title / select / settings / game-over / boss-card screens are HTML in index.html; this module only shows, hides and fills them.
@@ -21,7 +21,7 @@ import { trackRunStart, trackRunEnd } from './analytics.js';
 import { KNOB_KEYS } from './debug.js';
 import { levelBefore, settleRun, wearBlade, levelPlace, mapIds, mapIndex } from './meta.js';
 import { pinDef, pinCost, towerDef, towerReachOf, rankUpCost } from './pins.js';
-import { skillDef } from './skills.js';
+import { skillDef, setMove } from './skills.js';
 import { critters, splats, plan as critterPlan, planCritters, critterWave, critterWaveEnd, updateCritters, snipCritters, clearCritters, introActive } from './critters.js';
 
 // ======================= state =======================
@@ -49,19 +49,19 @@ export const state = {
   enemies: [], frags: [], parts: [], labels: [], nums: [], pops: [], needles: [],
   curls: [],                 // the Ribbon Shears' ribbon curls on the road (pooled, CONFIG.curlMax; see dropCurl)
   towers: [],                // one per spot of the current level (towers[i] stands on spot i when on)
-  // Helicopter: charge = snip kills banked; phase '' | 'open' | 'spin' | 'close'; spread/rot drive the blades while active.
-  // armed = the full SHRED meter was tapped: the next press on the table (go) starts the spin where the scissors land.
-  shredOn: false,            // SHRED is in this run's level (shredAllowed(), CONFIG.shredFrom)
-  heli: { charge: 0, active: false, phase: '', spread: 0, rot: 0, theta0: 0, tick: 0, bannerT: 0, armed: false, go: false },
-  // The second move slot (the Skills section): skillOn = a Skill is in this run (the one picked on the weapon screen, if
-  // this level allows it). skill: id ('' = none), def (skills.js skillDef, cached at the run's start), charge 0..1, armed =
-  // the full meter was tapped (Mark, Pinking, Basting wait for their moment; Focus and Thimble go off at once), go = the
-  // next press on the table came (Mark taps, Basting starts its drag), marksLeft = Seam Mark marks still to place this use,
-  // focusT = Tailor's Focus seconds left (real time), bannerT = its word banner 1 -> 0, laneT / lx0..ly1 = the Pinking
-  // Cut's zigzag flash (1 -> 0) and where it ran, sewing = a Basting drag is under way from (sx, sy) to (ex, ey) (world px).
-  skillOn: false,
-  skill: { id: '', def: null, charge: 0, armed: false, go: false, marksLeft: 0, focusT: 0, bannerT: 0,
-    laneT: 0, lx0: 0, ly0: 0, lx1: 0, ly1: 0, lw: 0, sewing: false, sx: 0, sy: 0, ex: 0, ey: 0 },
+  // Helicopter (SHRED's spin; only one runs at a time, whichever slot holds it): phase '' | 'open' | 'spin' | 'close';
+  // spread/rot drive the blades while active. Its charge and armed live on its move slot (moves below).
+  heli: { active: false, phase: '', spread: 0, rot: 0, theta0: 0, tick: 0, bannerT: 0 },
+  // The two move slots (the moves section): each holds SHRED, a Skill or nothing for this run (Save.moves[i] if this level
+  // allows it; pickMove). Plain objects, the same fields for every move: i = its place (0 = slot 1), id ('' = empty, 'shred'
+  // or a CONFIG.skills id), def (SHRED: scissors.js shredDef; a Skill: skills.js skillDef; cached at the run's start),
+  // need = charge events to fill it (SHRED: snip kills; 0 = no meter), charge 0..1, armed = the full meter was tapped (SHRED
+  // and Mark, Pinking, Basting wait for their moment; Focus and Thimble go off at once), go = the next press on the table
+  // came (SHRED starts there, Mark taps, Basting starts its drag), uses = times used this run, marksLeft = Seam Mark marks
+  // still to place this use, focusT = Tailor's Focus seconds left (real time), bannerT = its word banner 1 -> 0, laneT /
+  // lx0..ly1 = the Pinking Cut's zigzag flash (1 -> 0) and where it ran, sewing = a Basting drag is under way from (sx, sy)
+  // to (ex, ey) (world px). The same move is never in both slots.
+  moves: [newSlot(0), newSlot(1)],
   thimble: 0,                // Thimble Guard: enemies the brass thimble on the heart pad will still stop (render.js draws it)
   thimbleHitT: 0,            // ...1 -> 0 after it stops one (a flash on the cap)
   stitches: [],              // Basting Stitch lines across the road (pooled, CONFIG.skills.basting.bastingMax; see sewStitch)
@@ -77,15 +77,20 @@ export const state = {
   // run = report counters: bestSnipKills = most kills by one snip, beetleExecutes = Button Beetles executed in the Cigar
   // Cutter's ring, prunerBite = a Ratchet Pruners armor-down bite ended a boss's armored phase (achievements.js)
   // critterKills = critters squished this run (src/critters.js)
-  // skills = uses of this run's Skill (the second move slot; specials stays SHRED's count)
-  run: { t0: 0, multiSnips: 0, towers: {}, rankUps: 0, specials: 0, skills: 0, leaks: 0, stars: 0, bestSnipKills: 0, beetleExecutes: 0, prunerBite: false, critterKills: 0 },
+  // specials = SHRED's uses this run, whichever slot held it (the noSpecial star, the run report; every move's own count is
+  // on its slot, moves[i].uses)
+  run: { t0: 0, multiSnips: 0, towers: {}, rankUps: 0, specials: 0, leaks: 0, stars: 0, bestSnipKills: 0, beetleExecutes: 0, prunerBite: false, critterKills: 0 },
   sharpMult: 1,              // snip damage multiplier from the weapon's edge at the run's start (sharpMult in scissors.js; x1 in level 0)
   sharpAtStart: 0,           // that edge, 0 (dull) .. 1 (sharp), for the run report
   tally: null,               // the finished run's Buttons (meta.js settleRun), for the results card
   events: { seq: 0, list: [] },
   critters, splats,          // src/critters.js pools: bonus targets only a manual snip hits, and their squish splats
 };
-const fx = state.fx, heli = state.heli, tut = state.tut, skill = state.skill;
+const fx = state.fx, heli = state.heli, tut = state.tut, moves = state.moves;
+// Which slot holds each move this run (null = neither), so an effect finds its numbers without a search: slotOf.shred,
+// slotOf.mark, ... (kept by setSlot; the same move is never in both slots).
+const slotOf = { shred: null };
+for (const id in C.skills) slotOf[id] = null;
 export const live = () => state.mode === 'PLAYING' || state.mode === 'WAVE_CLEAR' || state.mode === 'TUTORIAL';
 export const accuracyText = () => state.stats.snips ? Math.round(state.stats.kills / state.stats.snips * 100) + '%' : '—';
 
@@ -254,8 +259,8 @@ function clearWorld() {
   const last = input.last;
   last.ms = -1; last.kind = ''; last.ver++;
   fx.cut = fx.flash = fx.tooSlow = fx.kick = fx.ring = fx.space = fx.hitStop = fx.camShake = 0; state.bannerT = state.workshopHitT = 0;
-  heli.active = false; heli.phase = ''; heli.spread = heli.rot = 0; heli.bannerT = 0; heli.armed = heli.go = false;
-  clearSkill();
+  heli.active = false; heli.phase = ''; heli.spread = heli.rot = 0; heli.bannerT = 0;
+  clearMoves();
   state.paused = false; state.bossCardT = 0; state.goalsT = 0;
   state.gustT = state.gustBannerT = state.miniBannerT = 0;
   buildLights();                                                // the Pins are gone: so are their lights
@@ -303,9 +308,10 @@ export function startGame() {
 }
 function resetRun() {
   state.score = 0; state.hp = C.workshopHp; state.won = false; state.stats.snips = 0; state.stats.kills = 0; state.thread = level().startThread ?? C.startThread;
-  heli.charge = 0; state.shredOn = shredAllowed(); state.gustT = 0;
-  skill.id = pickSkill(); skill.def = skill.id ? skillDef(skill.id) : null; state.skillOn = !!skill.id; skill.charge = 0;
-  const r = state.run; r.t0 = Date.now(); r.multiSnips = 0; r.specials = 0; r.skills = 0; r.leaks = 0; r.stars = 0;
+  state.gustT = 0;
+  for (let i = 0; i < moves.length; i++) setSlot(moves[i], '');  // empty both first, so a move can change places
+  for (let i = 0; i < moves.length; i++) setSlot(moves[i], pickMove(i));
+  const r = state.run; r.t0 = Date.now(); r.multiSnips = 0; r.specials = 0; r.leaks = 0; r.stars = 0;
   r.bestSnipKills = 0; r.beetleExecutes = 0; r.prunerBite = false; r.critterKills = 0; r.rankUps = 0;
   if (!isTutorial()) planCritters(level(), levelWaves(), rng.critter, isBossName);   // mini bosses' waves keep their critters
   state.sharpAtStart = sharpness(weapon.id); state.sharpMult = isTutorial() ? 1 : sharpMult(state.sharpAtStart); state.tally = null;
@@ -531,7 +537,7 @@ function buildReport(inProgress = false) {
   return {
     version: VERSION, seed: state.seed, level: view.levelId, ...(level().gen ? { recipe: level().recipe } : {}), weapon: weapon.id, won: state.won, wavesReached: state.wave, score: state.score,
     snips: s.snips, kills: s.kills, accuracy: s.snips ? +(s.kills / s.snips).toFixed(3) : 0, multiSnips: r.multiSnips,
-    towers: { ...r.towers }, specialUses: r.specials, skill: state.skillOn ? skill.id : '', skills: r.skills, deathsAtWorkshop: r.leaks, stars: r.stars,
+    towers: { ...r.towers }, specialUses: r.specials, moves: moves.map(m => m.id), moveUses: moves.map(m => m.uses), deathsAtWorkshop: r.leaks, stars: r.stars,
     boss: levelWaves().some(w => w.some(([n]) => isBossName(n))), bestSnipKills: r.bestSnipKills,
     beetleExecutes: r.beetleExecutes, prunerBite: r.prunerBite, critterKills: r.critterKills, critterSpawns: critterPlan.spawned, rankUps: r.rankUps, upgradeTier: weapon.def.tier | 0, sharpness: +state.sharpAtStart.toFixed(3),
     ...(isEndless() ? { endless: true, wavesSurvived: Math.max(0, state.wave - 1) } : {}),
@@ -834,7 +840,7 @@ let snipMulti = false;                                        // current snip ha
 let snipInZone = 0, snipKills = 0;                            // enemies in the current snip's zone / cut by it (bosses, level 0)
 let snipLit = false;                                          // the current snip has shown its LIT word (once per snip)
 function doSnip(px, py, theta, spread, strong) {
-  if (!live() || heli.active || skill.sewing) return;          // the Helicopter owns the blades while it spins; a Basting drag sews, it doesn't snip
+  if (!live() || heli.active || sewing()) return;              // the Helicopter owns the blades while it spins; a Basting drag sews, it doesn't snip
   setCutZone(px, py, theta, spread);
   // wider opening = more closing power
   const power = C.powerAtMinOpen + (1 - C.powerAtMinOpen) * clamp((spread - C.snipOpenFrom) / (1 - C.snipOpenFrom), 0, 1);
@@ -856,10 +862,12 @@ function doSnip(px, py, theta, spread, strong) {
     const e = enemies[i]; if (!e.on || e.air) continue;
     if (cutZoneHits(e.x, e.y, e.r, pad)) strike(e, px, py, ax, ay, cut.L, strong, power);
   }
-  // the second move slot: an armed Pinking Cut goes off with this snip; the snip charges Focus (clean and full-open), Seam Mark
-  // (a nick that hit, or a near-miss) and Pinking (a multi-snip). SHRED's final snap isn't a manual snip: it does neither.
-  if (state.skillOn && !shredSnap) {
-    if (skill.armed && skill.id === 'pinking') pinkingCut(px, py, ax, ay, cut.L, power);
+  // the move slots: an armed Pinking Cut goes off with this snip; the snip charges Focus (clean and full-open), Seam Mark
+  // (a nick that hit, or a near-miss) and Pinking (a multi-snip), whichever slots hold them. SHRED's final snap isn't a
+  // manual snip: it does neither.
+  if (!shredSnap) {
+    const pk = slotOf.pinking;
+    if (pk && pk.armed) pinkingCut(pk, px, py, ax, ay, cut.L, power);
     skillSnipCharge(strong, spread, inZone, pad);
   }
   if (snipKills > state.run.bestSnipKills) state.run.bestSnipKills = snipKills;
@@ -901,10 +909,10 @@ function critterSquished(c) {
   sfx('squish', 0);
   sparks(c.x, c.y, 6, 0);
   Save.critterKills = (Save.critterKills | 0) + 1; persist();
-  if (state.skillOn && skill.id === 'thimble') skillCharge(skill.def.fishCharge);   // Thimble Guard charges on squished silverfish
+  const th = slotOf.thimble; if (th) moveCharge(th, th.def.fishCharge);   // Thimble Guard charges on squished silverfish
 }
 
-function tooSlow() { if (live() && !heli.active && !skill.sewing) { fx.tooSlow = 1; sfx('thump'); } }
+function tooSlow() { if (live() && !heli.active && !sewing()) { fx.tooSlow = 1; sfx('thump'); } }
 
 // Rendered opening, 0 (shut) .. 1 (fully open): includes the Space-key snap-shut pulse and the Helicopter's forced spread.
 export function visOpen() {
@@ -972,9 +980,9 @@ const gradedDamage = (g, strong, power) =>
 // The weak-spot bonus on a graded snip: lampMult for an enemy lit by a Lamp Pin (e.lit), lampMult again for every Stork
 // Snips hit (weakAlways); the two stack. (Not the nick's weakDamageMult: that's the penalty for a slow close.)
 const weakMult = e => (e.lit ? C.lampMult : 1) * (weapon.def.weakAlways ? C.lampMult : 1);
-// The second move slot on a graded hit: a Seam Mark's markMult (the mark is spent by the hit), a Basting Stitch's hold's
-// bastingDmgMult (1 below its tier 3).
-const skillMult = e => (e.marked && skill.id === 'mark' ? skill.def.markMult : 1) * (e.bastedT > 0 && skill.id === 'basting' ? skill.def.bastingDmgMult : 1);
+// The move slots on a graded hit: a Seam Mark's markMult (the mark is spent by the hit), a Basting Stitch's hold's
+// bastingDmgMult (1 below its tier 3), from whichever slot holds each.
+const skillMult = e => (e.marked && slotOf.mark ? slotOf.mark.def.markMult : 1) * (e.bastedT > 0 && slotOf.basting ? slotOf.basting.def.bastingDmgMult : 1);
 let pierceArmor = false;                                        // a tier-2 Pinking Cut's lane is striking: armor doesn't stop it
 function strike(e, px, py, ax, ay, L, strong, power) {
   const t = e.type;
@@ -1056,8 +1064,8 @@ function awardKill(e, bySnip = true) {
   if (state.mode !== 'TUTORIAL') {
     const pay = level().threadPerKill ?? C.threadPerKill;   // a level can trim it (its critters make up the difference)
     state.thread += pay; emit('thread', e.x, e.y, pay);
-    if (bySnip && !heli.active && state.shredOn) heli.charge = Math.min(shredDef().charge, heli.charge + 1);
-    if (state.skillOn) skillKill(e);                             // Thimble charges on kills near the heart; Focus refunds at tier 3
+    if (bySnip && slotOf.shred) moveCharge(slotOf.shred);         // SHRED charges on snip kills (not during its spin: moveBusy)
+    skillKill(e);                                                // Thimble charges on kills near the heart; Focus refunds at tier 3
   }
   if (t.boss || t.tier >= 2) startHitStop((t.boss ? C.bossHitStopMs : C.hitStopMs) / 1000);
   addShake(e.r * C.killShakePerR);
@@ -1384,16 +1392,19 @@ function rollBounce(e, dt) {
 }
 
 // ======================= special: Helicopter =======================
-// SHRED is the first move slot (the second, the Skills, has its own section below: armed the same way, armSkill).
-// Charged by snip kills (shredDef().charge). Snap fully open (outBack), spin shredDef().turns full turns (inOutSine; 1 at
-// tier 0, more as SHRED is bought up in the Shop's Moves tab) hitting everything within blade reach every
-// heliTickMs, then snap shut into a normal full-open snip. The pivot still follows the hand; spread and aim don't.
+// SHRED is a move like the Skills (the moves section below): it sits in whichever slot the player gave it, and its slot
+// (slotOf.shred) holds its charge and armed state; the spin itself (heli) is one at a time.
+// Charged by snip kills (shredDef().charge = its slot's need). Snap fully open (outBack), spin shredDef().turns full turns
+// (inOutSine; 1 at tier 0, more as SHRED is bought up in the Sewing Box's Moves tab) hitting everything within blade
+// reach every heliTickMs, then snap shut into a normal full-open snip. The pivot still follows the hand; spread and aim don't.
 const HELI_OPEN = { spread: 1 }, HELI_SHUT = { spread: 0 };
-const shredReady = () => live() && state.shredOn && !heli.active && heli.charge >= shredDef().charge;
+const shredReady = () => { const s = slotOf.shred; return !!s && live() && !heli.active && s.charge >= MOVE_FULL; };
+// Start the spin now (the extra finger, the slot's key while gripping, or the press an armed SHRED waited for).
 export function trySpecial() {
+  const s = slotOf.shred;
   if (!shredReady() || !input.gripping || input.scAlpha < 0.5) return;
-  heli.armed = heli.go = false;
-  heli.charge = 0; heli.active = true; heli.phase = 'open'; input.scAlpha = 1; heli.spread = input.pose.spread; heli.rot = 0;
+  s.armed = s.go = false; s.charge = 0; s.uses++;
+  heli.active = true; heli.phase = 'open'; input.scAlpha = 1; heli.spread = input.pose.spread; heli.rot = 0;
   heli.theta0 = input.pose.theta; heli.tick = 0; heli.bannerT = 1; state.run.specials++;
   tween(heli, HELI_OPEN, C.heliOpenMs, easing.outBack, heliSpin, 'heli');
 }
@@ -1414,16 +1425,16 @@ function heliDone() {
   shredSnap = false;
   addShake(C.heliFinalShakePx, C.heliFinalShakePx);
 }
-// The SHRED meter tapped while full: arm it (the next press on the table starts the spin there); tapped again: disarm.
-// Returns whether it is armed now.
-export function armShred() {
-  if (!shredReady()) { heli.armed = heli.go = false; return false; }
-  heli.armed = !heli.armed; heli.go = false;
-  if (heli.armed && !skill.sewing) skill.armed = skill.go = false;   // one move armed at a time
-  return heli.armed;
+// SHRED's badge tapped while full (slot m): arm it (the next press on the table starts the spin there); tapped again:
+// disarm. Returns whether it is armed now.
+function armShred(m) {
+  if (!shredReady()) { m.armed = m.go = false; return false; }
+  m.armed = !m.armed; m.go = false;
+  if (m.armed) disarmOthers(m);                                  // one move armed at a time
+  return m.armed;
 }
 // A new hand on the table: an armed SHRED starts there; an armed Seam Mark marks there, an armed Basting Stitch starts its drag.
-function onPress() { if (heli.armed) heli.go = true; if (skill.armed) skill.go = true; }
+function onPress() { for (let i = 0; i < moves.length; i++) if (moves[i].armed) moves[i].go = true; }
 
 // One spin tick: 1 damage to everything within blade reach, ignoring armor; leaves them slowed for a while.
 function heliTick() {
@@ -1441,11 +1452,15 @@ function heliTick() {
   }
 }
 
-// ======================= the second move slot: Skills =======================
-// docs/worlds.md "Skills": one Skill beside SHRED, picked on the weapon screen (Save.equippedSkill), in play from its
-// level on (CONFIG.skillFrom, skillAllowed). Every number comes from skill.def (skills.js skillDef: the Skill at the
-// tier bought, cached at the run's start). Its meter (skill.charge 0..1) fills by its own events (skillCharge: each
-// adds 1 / def.need), never while its effect is on (refunds aside). A full meter tapped (actionBar.js) or F: armSkill.
+// ======================= the moves: two slots, SHRED and the Skills =======================
+// docs/worlds.md "Skills": two free move slots (state.moves), each holding SHRED or any Skill the level allows, picked
+// on the weapon screen (Save.moves; skills.js setMove), the same move never in both. SHRED is in play from its level on
+// (CONFIG.shredFrom, shredAllowed), a Skill from its own (CONFIG.skillFrom, skillAllowed). Every number comes from the
+// slot's def (SHRED: shredDef; a Skill: skills.js skillDef at the tier bought; cached at the run's start). A slot's meter
+// (m.charge 0..1) fills by its move's own events (moveCharge: each adds 1 / m.need), never while its effect is on
+// (moveBusy; refunds aside). A full meter tapped (actionBar.js) or its key (E slot 1, F slot 2): useMove(i). Only one
+// slot is armed at a time. The code is the same for both slots: an effect finds its slot through slotOf[id].
+//   shred    charged by snip kills (strike); armed, the next press starts the spin (trySpecial; the Helicopter above).
 //   focus    charged by clean full-open snips (skillSnipCharge); goes off at once: the world runs at focusSlow for
 //            focusSec (update scales the world's dt right where hit-stop freezes it; input and the blades keep real
 //            time); tier 3: kills during it refund the meter (skillKill).
@@ -1457,75 +1472,141 @@ function heliTick() {
 //   basting  no meter: armed while bastingCost Thread is there; the next press starts a drag (skillInput) and lifting
 //            sews a stitch where the drag crossed the road (finishSew); the enemy loop holds the first to reach it (stitchHold).
 export const skillAllowed = id => !!C.skills[id] && !isTutorial() && introduced(C.skillFrom[id]);
-// A Skill that appears for the first time on this level (the weapon screen says NEW HERE and picks it).
+// A Skill that appears for the first time on this level (the weapon screen says NEW HERE and gives it a slot).
 export const skillIsNew = id => C.skillFrom[id] === view.levelId;
-// This run's Skill: the one picked on the weapon screen, if this level allows it ('' = none).
-function pickSkill() { const id = Save.equippedSkill; return id && skillAllowed(id) ? id : ''; }
-const SKILL_FULL = 0.999;
-const skillBusy = () => skill.focusT > 0 || state.thimble > 0 || skill.marksLeft > 0;   // its effect is on
-function skillCharge(n = 1) {
-  if (!state.skillOn || !skill.def.need || skillBusy() || !live()) return;
-  skill.charge = Math.min(1, skill.charge + n / skill.def.need);
+// Whether move id (SHRED or a Skill) is in play on this level.
+export const moveAllowed = id => id === 'shred' ? shredAllowed() : skillAllowed(id);
+// Slot i's move this run: the one picked on the weapon screen (Save.moves[i]), if this level allows it ('' = empty).
+function pickMove(i) { const id = Save.moves[i]; return id && moveAllowed(id) ? id : ''; }
+// The slot that holds move id this run, or null.
+export const moveSlot = id => slotOf[id] || null;
+const MOVE_FULL = 0.999;
+function newSlot(i) {
+  return { i, id: '', def: null, need: 0, charge: 0, armed: false, go: false, uses: 0, marksLeft: 0, focusT: 0, bannerT: 0,
+    laneT: 0, lx0: 0, ly0: 0, lx1: 0, ly1: 0, lw: 0, sewing: false, sx: 0, sy: 0, ex: 0, ey: 0 };
 }
-function skillRefund(f) { if (f > 0) skill.charge = Math.min(1, skill.charge + f); }
-// Whether the badge can be used now: Basting while its Thread is there, Seam Mark while marks are left to place, the
-// rest on a full meter with nothing on.
-export function skillReady() {
-  if (!live() || !state.skillOn) return false;
-  if (skill.id === 'basting') return state.thread >= skill.def.bastingCost;
-  if (skill.marksLeft > 0) return true;
-  return skill.charge >= SKILL_FULL && !skillBusy();
+// Put move id ('' = none) in slot m, uncharged and unarmed. The move it held stops (its effects end) unless it went to
+// the other slot.
+function setSlot(m, id) {
+  const old = m.id;
+  if (old && slotOf[old] === m) { slotOf[old] = null; endEffects(old); }
+  m.id = id; cacheDef(m);
+  m.charge = 0; m.uses = 0; m.armed = m.go = m.sewing = false; m.marksLeft = 0; m.focusT = 0; m.bannerT = 0; m.laneT = 0;
+  if (id) slotOf[id] = m;
 }
-// The badge tapped (or F): Focus and Thimble go off at once; the others arm (tapped again: disarm). Returns whether armed.
-export function armSkill() {
-  if (heli.active || !skillReady()) { if (!skill.sewing) skill.armed = skill.go = false; return false; }
-  if (skill.id === 'focus') { fireFocus(); return false; }
-  if (skill.id === 'thimble') { fireThimble(); return false; }
-  skill.armed = !skill.armed; skill.go = false; skill.sewing = false;
-  if (skill.armed) heli.armed = heli.go = false;                 // one move armed at a time
-  return skill.armed;
+// The slot's numbers for its move at the tier bought (SHRED: its need = shredDef().charge snip kills).
+function cacheDef(m) {
+  const id = m.id;
+  m.def = id === 'shred' ? shredDef() : id ? skillDef(id) : null;
+  m.need = id === 'shred' ? m.def.charge : m.def ? m.def.need : 0;
 }
-function skillUsed() { state.run.skills++; skill.bannerT = 1; }
-function fireFocus() { skill.charge = 0; skill.focusT = skill.def.focusSec; skillUsed(); sfx('focusIn', 0); }
-function fireThimble() {
-  skill.charge = 0; state.thimble = skill.def.thimbleStops; state.thimbleHitT = 1; skillUsed(); sfx('thimble', 0);
+// A move left the slots (the workbench, or a new run): what it left on the board goes.
+function endEffects(id) {
+  if (id === 'thimble') { state.thimble = 0; state.thimbleHitT = 0; }
+  else if (id === 'basting') { for (const s of stitches) s.on = false; stitchN = 0; }
+  else if (id === 'mark') for (const e of enemies) e.marked = false;
+}
+const sewing = () => { const b = slotOf.basting; return !!b && b.sewing; };   // a Basting drag is under way (snips wait)
+// Its effect is on (no charge builds): SHRED spinning, Focus running, the Thimble up, Seam Mark marks still to place.
+const moveBusy = m => m.id === 'shred' ? heli.active : m.focusT > 0 || m.marksLeft > 0 || (m.id === 'thimble' && state.thimble > 0);
+function moveCharge(m, n = 1) {
+  if (!m.need || moveBusy(m) || !live()) return;
+  m.charge = Math.min(1, m.charge + n / m.need);
+}
+function moveRefund(m, f) { if (f > 0) m.charge = Math.min(1, m.charge + f); }
+// Whether slot m's badge can be used now: SHRED and most Skills on a full meter with nothing on, Basting while its Thread
+// is there, Seam Mark while marks are left to place.
+export function moveReady(m) {
+  if (!live() || !m.id) return false;
+  if (m.id === 'shred') return shredReady();
+  if (m.id === 'basting') return state.thread >= m.def.bastingCost;
+  if (m.marksLeft > 0) return true;
+  return m.charge >= MOVE_FULL && !moveBusy(m);
+}
+// Slot i's badge tapped (actionBar.js): SHRED arms (the next press spins); Focus and Thimble go off at once; Mark, Pinking
+// and Basting arm (tapped again: disarm). Returns whether it is armed now.
+export function useMove(i) {
+  const m = moves[i];
+  if (!m || !m.id) return false;
+  return m.id === 'shred' ? armShred(m) : armSkill(m);
+}
+// Slot i's key (E slot 1, F slot 2): as a tap on its badge, except SHRED spins at once when the scissors are in hand.
+export function keyMove(i) {
+  const m = moves[i];
+  if (m && m.id === 'shred' && input.gripping && input.scAlpha >= 0.5) { trySpecial(); return; }
+  useMove(i);
+}
+// The extra finger while gripping: SHRED, whichever slot holds it, spins at once.
+function fingerMove() { if (slotOf.shred) trySpecial(); }
+// Arming slot m disarms the other (a Basting drag under way finishes first).
+function disarmOthers(m) {
+  for (let i = 0; i < moves.length; i++) { const o = moves[i]; if (o !== m && !o.sewing) o.armed = o.go = false; }
+}
+function armSkill(m) {
+  if (heli.active || !moveReady(m)) { if (!m.sewing) m.armed = m.go = false; return false; }
+  if (m.id === 'focus') { fireFocus(m); return false; }
+  if (m.id === 'thimble') { fireThimble(m); return false; }
+  m.armed = !m.armed; m.go = false; m.sewing = false;
+  if (m.armed) disarmOthers(m);                                  // one move armed at a time
+  return m.armed;
+}
+function skillUsed(m) { m.uses++; m.bannerT = 1; }
+function fireFocus(m) { m.charge = 0; m.focusT = m.def.focusSec; skillUsed(m); sfx('focusIn', 0); }
+function fireThimble(m) {
+  m.charge = 0; state.thimble = m.def.thimbleStops; state.thimbleHitT = 1; skillUsed(m); sfx('thimble', 0);
   const h = heartPoint(); sparks(h.x, h.y, 14, 3);
 }
 // The heart pad's centre (every route ends on it), in one reused object.
 const HEART = { x: 0, y: 0 };
 function heartPoint() { const p = state.paths[0]; HEART.x = p.x[p.n - 1]; HEART.y = p.y[p.n - 1]; return HEART; }
-function clearSkill() {
-  skill.armed = skill.go = skill.sewing = false; skill.marksLeft = 0; skill.focusT = 0; skill.bannerT = 0; skill.laneT = 0;
+// clearWorld: nothing armed or running, nothing on the board (the charges are reset by setSlot at the run's start).
+function clearMoves() {
+  for (let i = 0; i < moves.length; i++) {
+    const m = moves[i];
+    m.armed = m.go = m.sewing = false; m.marksLeft = 0; m.focusT = 0; m.bannerT = 0; m.laneT = 0;
+  }
   state.thimble = 0; state.thimbleHitT = 0;
   for (const s of stitches) s.on = false;
   stitchN = 0;
 }
-// A manual snip's charge (doSnip): Focus = a clean one (strong, from fullOpen, hit something), Pinking = a multi-snip,
-// Seam Mark = a nick that hit, or a snip that hit nothing with an enemy within markNearPx of its cut zone.
+// The Skill slots' timers (real time: Focus runs on it), once per unfrozen frame.
+function tickMoves(dt, ms) {
+  for (let i = 0; i < moves.length; i++) {
+    const m = moves[i];
+    if (m.focusT > 0) m.focusT = Math.max(0, m.focusT - dt);
+    m.bannerT = Math.max(0, m.bannerT - ms / C.skillBannerMs);
+    m.laneT = Math.max(0, m.laneT - ms / C.skillLaneMs);
+  }
+}
+// Tailor's Focus running: the world's dt is scaled by this (1 otherwise).
+const focusScale = () => { const f = slotOf.focus; return f && f.focusT > 0 ? f.def.focusSlow : 1; };
+// A manual snip's charge (doSnip), for whichever slots hold these: Focus = a clean one (strong, from fullOpen, hit
+// something), Pinking = a multi-snip, Seam Mark = a nick that hit, or a snip that hit nothing with an enemy within
+// markNearPx of its cut zone.
 function skillSnipCharge(strong, spread, inZone, pad) {
-  const id = skill.id, d = skill.def;
-  if (id === 'focus') { if (strong && inZone > 0 && spread >= d.fullOpen) skillCharge(); }
-  else if (id === 'pinking') { if (snipMulti) skillCharge(); }
-  else if (id === 'mark') {
-    if (inZone > 0) { if (!strong) skillCharge(); return; }
+  const f = slotOf.focus, pk = slotOf.pinking, mk = slotOf.mark;
+  if (f && strong && inZone > 0 && spread >= f.def.fullOpen) moveCharge(f);
+  if (pk && snipMulti) moveCharge(pk);
+  if (mk) {
+    if (inZone > 0) { if (!strong) moveCharge(mk); return; }
     for (let i = 0; i < enemies.length; i++) {
       const e = enemies[i];
-      if (e.on && !e.air && cutZoneHits(e.x, e.y, e.r, pad + d.markNearPx)) { skillCharge(); return; }
+      if (e.on && !e.air && cutZoneHits(e.x, e.y, e.r, pad + mk.def.markNearPx)) { moveCharge(mk); return; }
     }
   }
 }
 // A kill (awardKill): Thimble charges when it was near the heart; a tier-3 Focus refunds while it runs.
 function skillKill(e) {
-  const id = skill.id, d = skill.def;
-  if (id === 'focus') { if (skill.focusT > 0) skillRefund(d.refund); }
-  else if (id === 'thimble') { const h = heartPoint(), dx = e.x - h.x, dy = e.y - h.y; if (dx * dx + dy * dy <= d.thimbleNearPx * d.thimbleNearPx) skillCharge(); }
+  const f = slotOf.focus, th = slotOf.thimble;
+  if (f && f.focusT > 0) moveRefund(f, f.def.refund);
+  if (th) { const h = heartPoint(), dx = e.x - h.x, dy = e.y - h.y, r = th.def.thimbleNearPx; if (dx * dx + dy * dy <= r * r) moveCharge(th); }
 }
 
 // Thimble Guard: an enemy reached the capped heart pad. It pops with a clink (no damage, no thread, not a kill); a tier-2
 // thimble bumps it back thimbleBumpU up its road instead (the Magnet's tween on u, then dazed thimbleBumpHold); a mini
 // boss is always bumped, never popped.
 function thimbleStop(e) {
-  const d = skill.def, du = d.thimbleBumpU * C.traverseRefLen / state.paths[e.route].lenU;
+  const d = slotOf.thimble.def, du = d.thimbleBumpU * C.traverseRefLen / state.paths[e.route].lenU;
   state.thimble--; state.thimbleHitT = 1;
   sfx('thimble', 0); sparks(e.x, e.y, 10, 3);
   if (e.type.boss) { e.u = Math.max(0, 0.999 - du); e.seg = 0; e.holdT = Math.max(e.holdT, d.thimbleBumpHold); return; }
@@ -1542,8 +1623,8 @@ function thimbleStop(e) {
 // Seam Mark: the enemy nearest the press (x, y) within markTapPx of its edge takes a chalk mark (not one in the air, a
 // practice Scrap or one already marked). The first mark of a use empties the meter and leaves marks - 1 more to place
 // (tier 3) before it disarms. A press on nothing leaves it armed.
-function tryMark(x, y) {
-  const d = skill.def;
+function tryMark(m, x, y) {
+  const d = m.def;
   let best = null, bd = Infinity;
   for (let i = 0; i < enemies.length; i++) {
     const e = enemies[i];
@@ -1552,18 +1633,19 @@ function tryMark(x, y) {
     if (dd <= d.markTapPx && dd < bd) { bd = dd; best = e; }
   }
   if (!best) return;
-  if (skill.marksLeft <= 0) { skill.charge = 0; skill.marksLeft = d.marks; skillUsed(); }
-  best.marked = true; skill.marksLeft--;
-  if (skill.marksLeft <= 0) skill.armed = false;
+  if (m.marksLeft <= 0) { m.charge = 0; m.marksLeft = d.marks; skillUsed(m); }
+  best.marked = true; m.marksLeft--;
+  if (m.marksLeft <= 0) m.armed = false;
   sfx('chalk', 0); sparks(best.x, best.y, 8, 0);
 }
 // A marked enemy died (however): tier 2 refunds the meter, tier 1 passes the mark to up to markSpreadMax unmarked
 // neighbours within markSpreadPx.
 function markDied(e) {
   e.marked = false;
-  if (skill.id !== 'mark') return;
-  const d = skill.def, r2 = d.markSpreadPx * d.markSpreadPx;
-  skillRefund(d.markRefund);
+  const m = slotOf.mark;
+  if (!m) return;
+  const d = m.def, r2 = d.markSpreadPx * d.markSpreadPx;
+  moveRefund(m, d.markRefund);
   if (!d.spread) return;
   for (let i = 0, n = 0; i < enemies.length && n < d.markSpreadMax; i++) {
     const o = enemies[i], dx = o.x - e.x, dy = o.y - e.y;
@@ -1576,10 +1658,10 @@ function markDied(e) {
 // tips along the aim, pinkingW wide: everything it touches that the snip itself didn't (not in the air or a practice
 // Scrap) takes a strike at the tip grade (strike: past the tips, g = 1), through armor at tier 2 (bosses keep their
 // rules). Tier 3 leaves trail marks on the road along it (curls of kind 'pinking'). render.js flashes the zigzag.
-function pinkingCut(px, py, ax, ay, L, power) {
-  const d = skill.def, x0 = px + ax * L, y0 = py + ay * L, x1 = x0 + ax * d.pinkingLen, y1 = y0 + ay * d.pinkingLen, half = d.pinkingW / 2;
-  skill.armed = false; skill.charge = 0; skillUsed(); sfx('pinking', 0);
-  skill.laneT = 1; skill.lx0 = x0; skill.ly0 = y0; skill.lx1 = x1; skill.ly1 = y1; skill.lw = d.pinkingW;
+function pinkingCut(m, px, py, ax, ay, L, power) {
+  const d = m.def, x0 = px + ax * L, y0 = py + ay * L, x1 = x0 + ax * d.pinkingLen, y1 = y0 + ay * d.pinkingLen, half = d.pinkingW / 2;
+  m.armed = false; m.charge = 0; skillUsed(m); sfx('pinking', 0);
+  m.laneT = 1; m.lx0 = x0; m.ly0 = y0; m.lx1 = x1; m.ly1 = y1; m.lw = d.pinkingW;
   pierceArmor = d.armor;
   for (let i = 0; i < enemies.length; i++) {
     const e = enemies[i];
@@ -1608,36 +1690,37 @@ function nearRoad(x, y, r) {
 }
 
 // Basting Stitch: the stitches across the road (pooled; a full pool replaces the oldest). { on, x, y (the crossing),
-// ax, ay, bx, by (the line's ends, across the road), holds (enemies it will still hold), held (so far), t (seconds
-// since sewn), fraying (all used, or bastingLifeSec unused), fray 1 -> 0 (fading away) }.
+// ax, ay, bx, by (the line's ends, across the road), holds (enemies it will still hold), held (so far), sec (how long it
+// holds each, from its slot's def as sewn), t (seconds since sewn), fraying (all used, or bastingLifeSec unused), fray
+// 1 -> 0 (fading away) }.
 const stitches = state.stitches;
-for (let i = 0; i < C.skills.basting.bastingMax; i++) stitches.push({ on: false, x: 0, y: 0, ax: 0, ay: 0, bx: 0, by: 0, holds: 0, held: 0, t: 0, fraying: false, fray: 1 });
+for (let i = 0; i < C.skills.basting.bastingMax; i++) stitches.push({ on: false, x: 0, y: 0, ax: 0, ay: 0, bx: 0, by: 0, holds: 0, held: 0, sec: 0, t: 0, fraying: false, fray: 1 });
 let stitchN = 0;                                                // stitches on (the enemy loop skips the check when 0)
-// Armed Mark / Basting: the press came (skill.go, at input.pressX/Y): mark there, or start the drag; while it lasts its
-// end follows the pointer (input.ptX/Y) and lifting (input.ptDown false) sews. Disarms if it can't be used any more.
-function skillInput() {
-  if (skill.armed && !skill.sewing && !skillReady()) { skill.armed = skill.go = false; return; }
-  if (skill.go) {
-    skill.go = false;
+// Slot m armed with Mark / Basting: the press came (m.go, at input.pressX/Y): mark there, or start the drag; while it
+// lasts its end follows the pointer (input.ptX/Y) and lifting (input.ptDown false) sews. Disarms if it can't be used any more.
+function skillInput(m) {
+  if (m.armed && !m.sewing && !moveReady(m)) { m.armed = m.go = false; return; }
+  if (m.go) {
+    m.go = false;
     const x = input.pressX / view.Z, y = input.pressY / view.Z;  // screen px -> world px
-    if (skill.id === 'mark') tryMark(x, y);
-    else if (skill.id === 'basting') { skill.sewing = true; skill.sx = skill.ex = x; skill.sy = skill.ey = y; }
+    if (m.id === 'mark') tryMark(m, x, y);
+    else if (m.id === 'basting') { m.sewing = true; m.sx = m.ex = x; m.sy = m.ey = y; }
   }
-  if (skill.sewing) {
-    skill.ex = input.ptX / view.Z; skill.ey = input.ptY / view.Z;
-    if (!input.ptDown) finishSew();
+  if (m.sewing) {
+    m.ex = input.ptX / view.Z; m.ey = input.ptY / view.Z;
+    if (!input.ptDown) finishSew(m);
   }
 }
 // The drag ended: a long enough drag (bastingMinDragPx, screen px) that crosses a road sews there and pays bastingCost
 // Thread; otherwise nothing happens and it stays armed.
 const SEW = { x: 0, y: 0, tx: 0, ty: 0 };
-function finishSew() {
-  skill.sewing = false;
-  const d = skill.def, dx = skill.ex - skill.sx, dy = skill.ey - skill.sy;
+function finishSew(m) {
+  m.sewing = false;
+  const d = m.def, dx = m.ex - m.sx, dy = m.ey - m.sy;
   if (!live() || Math.hypot(dx, dy) * view.Z < d.bastingMinDragPx || state.thread < d.bastingCost) return;
-  if (!roadCrossing(skill.sx, skill.sy, skill.ex, skill.ey)) return;
-  state.thread -= d.bastingCost; skill.armed = false; skillUsed();
-  sewStitch(SEW.x, SEW.y, SEW.tx, SEW.ty);
+  if (!roadCrossing(m.sx, m.sy, m.ex, m.ey)) return;
+  state.thread -= d.bastingCost; m.armed = false; skillUsed(m);
+  sewStitch(d, SEW.x, SEW.y, SEW.tx, SEW.ty);
 }
 // Where segment a-b crosses a road centreline (of all the crossings, the one nearest the drag's middle): SEW = the point
 // and the road's unit direction there. Returns whether there is one.
@@ -1658,15 +1741,15 @@ function roadCrossing(ax, ay, bx, by) {
   }
   return found;
 }
-function sewStitch(x, y, tx, ty) {
-  const d = skill.def, half = level().roadHalfWidth * view.L * 1.15;
+function sewStitch(d, x, y, tx, ty) {
+  const half = level().roadHalfWidth * view.L * 1.15;
   let s = stitches[0];
   for (let i = 0; i < stitches.length; i++) { if (!stitches[i].on) { s = stitches[i]; break; } if (stitches[i].t > s.t) s = stitches[i]; }
   const bit = 1 << stitches.indexOf(s);
   for (let i = 0; i < enemies.length; i++) enemies[i].stitchBits &= ~bit;   // that slot's last stitch held these: forget it
   if (!s.on) stitchN++;
   s.on = true; s.x = x; s.y = y; s.ax = x - ty * half; s.ay = y + tx * half; s.bx = x + ty * half; s.by = y - tx * half;
-  s.holds = d.bastingHolds; s.held = 0; s.t = 0; s.fraying = false; s.fray = 1;
+  s.holds = d.bastingHolds; s.held = 0; s.sec = d.bastingSec; s.t = 0; s.fraying = false; s.fray = 1;
   sfx('basting', 0); sparks(x, y, 10, 0);
 }
 // Enemy loop: e (not in the air, an escort or a big boss) touching a stitch that still holds and hasn't held it: held
@@ -1676,7 +1759,7 @@ function stitchHold(e) {
     const s = stitches[k];
     if (!s.on || s.fraying || s.holds <= 0 || (e.stitchBits & (1 << k))) continue;
     if (segDistSq(e.x, e.y, s.ax, s.ay, s.bx, s.by) > e.r * e.r) continue;
-    const sec = skill.def.bastingSec;
+    const sec = s.sec;
     e.stitchBits |= 1 << k; e.holdT = Math.max(e.holdT, sec); e.bastedT = sec;
     s.holds--; s.held++; if (s.holds <= 0) s.fraying = true;
     sfx('stick', 0); sparks(e.x, e.y, 5, 0);
@@ -2092,7 +2175,7 @@ export function spaceSnip() {
 // Event-driven hooks (keys, third finger) are ignored while paused; frame-driven ones never run then.
 const unlessPaused = fn => (...a) => { if (!state.paused) fn(...a); };
 export const gameHooks = { onSnip: doSnip, onTooSlow: tooSlow, onGrip: onGrip, onSpace: unlessPaused(spaceSnip), onReset: goTitle,
-  onSpecial: unlessPaused(trySpecial), onSkill: unlessPaused(armSkill), onPause: togglePause, onPress: unlessPaused(onPress) };
+  onSpecial: unlessPaused(fingerMove), onMoveKey: unlessPaused(keyMove), onPause: togglePause, onPress: unlessPaused(onPress) };
 
 // ======================= critters (src/critters.js) =======================
 // One reused object tells critters.js what it needs from the game each frame (see updateCritters).
@@ -2125,7 +2208,14 @@ function labTick(dt) {
   const [name, rank] = labQueue[0], ne = level().entries || 1;
   if (spawnEnemy(name, ne > 1 ? Math.floor(Math.random() * ne) : 0, false, rank)) { labQueue.shift(); labQueueT = C.enemyTypes[name].gapMs / 1000; }
 }
-export function labCharge() { heli.charge = shredDef().charge; if (state.skillOn) skill.charge = 1; }
+export function labCharge() { for (let i = 0; i < moves.length; i++) if (moves[i].id) moves[i].charge = 1; }
+// The workbench puts move id ('' = empty) in slot i (Save.moves, sandboxed) and switches the run's slots at once, uncharged
+// (a normal run picks them at its start, resetRun). The other slot keeps its charge unless the move came from it. Also
+// re-reads both slots' tiers (the workbench calls it after a tier change too).
+export function labMove(i, id) {
+  setMove(i, id);
+  for (let k = 0; k < moves.length; k++) { const want = pickMove(k); if (moves[k].id !== want) setSlot(moves[k], want); else cacheDef(moves[k]); }
+}
 export function labClear() { labQueue.length = 0; for (const e of enemies) if (e.on) { e.on = false; tweens.cancel(e); e.pulling = false; } }
 export function labHeal() { state.hp = C.workshopHp; }
 
@@ -2209,11 +2299,13 @@ export function update(now, dt) {
   if (state.paused) return;                                      // frozen: no input, timers, tweens or clock
   updateInput(now, dt);                                          // input keeps running through hit-stop so no gesture is lost
   if (heli.active) input.scAlpha = 1;                            // a spinning SHRED never fades, even with the hand lifted
-  if (heli.armed) {                                              // armed SHRED: starts once the pressed hand has the scissors
-    if (!shredReady()) heli.armed = heli.go = false;
-    else if (heli.go) trySpecial();
+  for (let i = 0; i < moves.length; i++) {                       // an armed move waiting for its press (the moves section)
+    const m = moves[i];
+    if (m.id === 'shred') {                                      // armed SHRED: starts once the pressed hand has the scissors
+      if (m.armed && !shredReady()) m.armed = m.go = false;
+      else if (m.armed && m.go) trySpecial();
+    } else if (m.armed || m.sewing) skillInput(m);               // a Skill waiting for its tap / drag
   }
-  if (skill.armed || skill.sewing) skillInput();                 // the Skill waiting for its tap / drag (Skills section)
   state.clock += dt;
   const frozen = fx.hitStop > 0;                                 // kill hit-stop: freeze the world
   rtTweens.update(dt);                                           // screen shake + the hit-stop countdown run regardless
@@ -2234,15 +2326,13 @@ export function update(now, dt) {
   if (state.gustBannerT > 0) { const r = worldRule(); state.gustBannerT = r && r.gustBannerMs ? Math.max(0, state.gustBannerT - ms / r.gustBannerMs) : 0; }
   if (state.bossCardT > 0 && (state.bossCardT -= dt) <= 0) showScreens();   // the boss intro card closes
   if (state.goalsT > 0 && (state.goalsT -= dt) <= 0) showScreens();         // the star goals card closes
-  if (skill.focusT > 0) skill.focusT = Math.max(0, skill.focusT - dt);       // Tailor's Focus runs on real time
-  skill.bannerT = Math.max(0, skill.bannerT - ms / C.skillBannerMs);
-  skill.laneT = Math.max(0, skill.laneT - ms / C.skillLaneMs);
+  tickMoves(dt, ms);                                             // Tailor's Focus runs on real time
   state.thimbleHitT = Math.max(0, state.thimbleHitT - dt * 2);
 
   // Tailor's Focus: from here on the world runs at focusSlow (waves, Pins, needles, enemies, critters, stitches, tweens,
   // effects): the same gate as hit-stop's freeze above. Input and the blades (bladeContacts) keep real time.
   const realDt = dt;
-  if (skill.focusT > 0) dt *= skill.def.focusSlow;
+  dt *= focusScale();
   const wms = dt * 1000;
 
   // --- waves / onboarding ---
