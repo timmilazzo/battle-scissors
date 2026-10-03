@@ -160,7 +160,7 @@ const shredText = d => { const t = spins(d.turns); return t[0].toUpperCase() + t
 function shredPanel() {
   const tier = shredTier(), cur = C.shredTiers[tier], next = C.shredTiers[tier + 1], open = shredOpen();
   const p = el('div', 'arm-card skill' + (open ? '' : ' lockd'));
-  const icon = el('span', 'arm-skill-ico felt purple', '✂');
+  const icon = el('span', 'arm-skill-ico felt purple ico-shred', '✂');   // the kit's SHRED icon over the glyph (index.html .ico-shred)
   const head = el('div', 'arm-head');
   head.append(el('span', 'nm', 'SHRED · ' + cur.name));
   if (!open) head.append(el('span', 'tag', 'Clear Level ' + levelNo(C.shredFrom)));

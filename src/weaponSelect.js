@@ -156,7 +156,7 @@ function moveChip(icon, name, felt, isNew, cap) {
   c.innerHTML = (cap ? '<span class="mc-cap"></span>' : '') + '<span class="mc-ico"></span><span class="mc-name"></span>';
   if (cap) c.firstChild.textContent = cap;
   const ico = c.querySelector('.mc-ico');
-  ico.textContent = icon; if (felt) ico.style.setProperty('--fc', felt); c.lastChild.textContent = name;
+  ico.textContent = icon; ico.classList.toggle('ico-shred', icon === C.shredBadge.icon); if (felt) ico.style.setProperty('--fc', felt); c.lastChild.textContent = name;
   if (isNew) { const n = document.createElement('span'); n.className = 'mc-new'; n.textContent = 'NEW'; c.appendChild(n); }
   return c;
 }

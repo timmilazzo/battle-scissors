@@ -59,7 +59,8 @@ function buildWorld(W, wi, opts) {
     b.style.setProperty('--w', w); b.style.setProperty('--h', h);
     b.innerHTML = '<span class="sr-only"></span><span class="num" aria-hidden="true"></span>' +
       '<span class="check" aria-hidden="true">✓</span><span class="lock" aria-hidden="true"></span>' +
-      '<span class="stars" aria-hidden="true"><i></i><i></i><i></i></span>';   // best stars (kit stars, index.html CSS)
+      '<span class="stars" aria-hidden="true"><i></i><i></i><i></i></span>' +   // best stars (kit stars on the kit's star strip, index.html CSS)
+      '<span class="here" aria-hidden="true"></span>';   // the kit's "you are here" pin, on the next level to beat
     b.firstChild.textContent = 'Level ' + levelNo(id) + ': ' + (levelInfo(id) ? levelInfo(id).name : id);
     b.querySelector('.num').textContent = String(p.n);   // the plates' patches are blank: the number is drawn here
     b.addEventListener('click', () => {
@@ -232,7 +233,7 @@ function showReveal() {
     revealBody.innerHTML = '<div class="rv-credits"><h3>That&#39;s the demo!</h3><p>The Unstitcher is beaten and the quilt is safe.</p>' +
       '<p class="rv-demo">This is where the demo ends. Everything past here is still being sewn.</p>' +
       '<p class="rv-ask">One more favour: what was the <b>least fun</b> thing, and what should change?</p>' +
-      '<button class="felt-btn rv-ok" type="button" data-send-feedback="demo">Send feedback</button>' +
+      '<button class="felt-btn rv-ok" type="button" data-send-feedback="demo"><span class="kico mail" aria-hidden="true"></span>Send feedback</button>' +
       '<p>Battle Scissors<br>Made by Tim Milazzo · Built with Claude Code</p>' +
       '<small>Lilita One font (SIL OFL) · ZzFX sound by Frank Force (MIT) · mulberry32 (public domain)<br>v' + VERSION + '</small></div>';
   } else { Save.reveals.shift(); persist(); showReveal(); return; }   // nothing to show for this entry

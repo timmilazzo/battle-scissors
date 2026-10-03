@@ -352,7 +352,7 @@ function refreshMove(i, visible) {
     sh.on = on; sh.id = s.id; sh.key = ''; c.hidden = !on;
     if (on) {
       const look = s.id === 'shred' ? C.shredBadge : C.skills[s.id];
-      moveIcos[i].textContent = look.icon; c.style.setProperty('--sfc', look.felt); c.style.setProperty('--srim', rimOf(look.felt));
+      moveIcos[i].textContent = look.icon; moveIcos[i].classList.toggle('ico-shred', s.id === 'shred'); c.style.setProperty('--sfc', look.felt); c.style.setProperty('--srim', rimOf(look.felt));
       c.classList.toggle('skill', s.id !== 'shred');
       moveCosts[i].hidden = s.id !== 'basting'; moveCosts[i].textContent = s.id === 'basting' ? s.def.bastingCost : '';
     }

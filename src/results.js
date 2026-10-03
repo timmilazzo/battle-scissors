@@ -83,7 +83,7 @@ export function showResults(t) {
   });
   for (const a of t.achievements) steps.push(() => { tallyEl.appendChild(row('\u{1F3C6} ' + a.name, a.reward, 'ach')); sfx('pinPop', 0); });
   if (t.earns) steps.push(() => {
-    totalEl.innerHTML = '<span class="bt"></span><span></span><small></small>';
+    totalEl.innerHTML = '<span class="heap"></span><span></span><small></small>';   // the kit's heap of Buttons (index.html)
     totalEl.children[1].textContent = '+' + t.total;
     totalEl.children[2].textContent = 'You have ' + Save.buttons;
   });

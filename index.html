@@ -95,6 +95,7 @@
   }
   #topbar button { pointer-events: auto; width: 46px; height: 44px; padding: 0; border-radius: 12px; display: flex; align-items: center; justify-content: center; outline-offset: -6px; }
   #topbar button[hidden] { display: none; }
+  #topbar .kico { width: 28px; height: 28px; }
   #topbar svg { width: 22px; height: 22px; fill: #ffc93d; filter: drop-shadow(0 2px 0 rgba(60, 30, 5, 0.8)); }
   #topbar .ic-on, #topbar [aria-pressed="true"] .ic-off { display: block; }
   #topbar .ic-off, #topbar [aria-pressed="true"] .ic-on { display: none; }
@@ -443,6 +444,7 @@
   .res-total { display: flex; align-items: center; gap: 8px; font-size: 22px; color: #ffd23f; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5); animation: rsfade 300ms ease-out both; }
   .res-total:empty { display: none; }
   .res-total small { font-size: 14px; color: #ffe4aa; }
+  .res-total .heap { flex: none; width: 44px; height: 33px; background: url(assets/kit/03_currency/ui_currency_heap_01.png) center / contain no-repeat; filter: drop-shadow(0 2px 1px rgba(0, 0, 0, 0.45)); }
   .res-unlock { display: flex; align-items: center; gap: 10px; padding: 6px 12px; border-radius: 14px; background: rgba(255, 210, 63, 0.16);
     border: 2px dashed rgba(255, 210, 63, 0.6); font-size: 17px; color: #fff1c2; animation: rvpop 600ms cubic-bezier(.2, 1.6, .4, 1) both; }
   .res-unlock[hidden] { display: none; }
@@ -608,7 +610,14 @@
     align-items: center; justify-content: center; font: 400 clamp(12px, 2.6vh, 22px) var(--ui-font); }
   /* best stars along the bottom edge of a cleared level's patch (none until it's cleared): the kit's felt stars
      (gold = earned, stitched outline = not yet) */
-  .map-node .stars { display: none; position: absolute; left: 50%; top: 72%; transform: translateX(-50%); gap: 1px; pointer-events: none; }
+  .map-node .stars { display: none; position: absolute; left: 50%; top: 72%; transform: translateX(-50%); gap: 1px; pointer-events: none;
+    padding: 1px 6px 2px; background: url(assets/kit/06_markers/ui_star_strip_01.png) center / 100% 100% no-repeat; }
+  /* the kit's "you are here" pin (06_markers), stuck into the next level to beat, bobbing; its tip lands on the patch */
+  .map-node .here { display: none; position: absolute; left: 44%; bottom: 34%; width: 60%; aspect-ratio: 2 / 3; pointer-events: none;
+    background: url(assets/kit/06_markers/ui_you_are_here_01.png) center bottom / contain no-repeat; filter: drop-shadow(2px 4px 2px rgba(0, 0, 0, 0.45));
+    transform-origin: 50% 100%; animation: herebob 1.2s ease-in-out infinite; }
+  .map-node.next .here { display: block; }
+  @keyframes herebob { 50% { transform: translateY(-12%) rotate(4deg); } }
   .map-node.cleared .stars { display: flex; }
   .map-node .stars i { width: clamp(12px, 2.4vh, 22px); aspect-ratio: 1; background: url(assets/kit/sewing/sewing_star_empty_01.webp) center / contain no-repeat; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.6)); }
   .map-node .stars i.on { background-image: url(assets/kit/sewing/sewing_star_gold_01.webp); }
@@ -675,6 +684,21 @@
   .felt-btn.small { border-radius: 14px; }
   .felt-btn.blue { --fc: #24489a; --rim: #0c1d4a; }       /* the title's SHOP */
   .felt-btn.purple { --fc: #5c2590; --rim: #240a40; }     /* the title's HOW TO PLAY */
+  /* the kit's felt icons (assets/kit/07_icons, round 2) in buttons and tiles: .kico + its name */
+  .kico { display: inline-block; flex: none; width: 1.15em; height: 1.15em; background: center / contain no-repeat; filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.35)); }
+  .kico.back { background-image: url(assets/kit/07_icons/ui_icon_back_01.png); }
+  .kico.home { background-image: url(assets/kit/07_icons/ui_icon_home_01.png); }
+  .kico.mail { background-image: url(assets/kit/07_icons/ui_icon_mail_01.png); }
+  .kico.retry { background-image: url(assets/kit/07_icons/ui_icon_retry_01.png); }
+  .kico.pause { background-image: url(assets/kit/07_icons/ui_icon_pause_01.png); }
+  .kico.resume { background-image: url(assets/kit/07_icons/ui_icon_resume_01.png); }
+  .kico.shred { background-image: url(assets/kit/07_icons/ui_icon_shred_01.png); }
+  /* SHRED's felt icon on its round badges (the HUD move badge, the weapon screen's move chips, the Sewing Box panel):
+     laid over the badge's felt, the glyph kept for screen readers but hidden */
+  .ico-shred { position: relative; color: transparent !important; text-shadow: none !important; }
+  .ico-shred::after { content: ''; position: absolute; inset: 6%; background: url(assets/kit/07_icons/ui_icon_shred_01.png) center / contain no-repeat;
+    filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.4)); pointer-events: none; }
+  .felt-btn.back, .felt-btn.small:has(> .kico) { gap: 8px; }
   /* a felt icon in a button (cream felt with a dark drop, like the title tiles' cart and book) */
   .felt-btn .ico { flex: none; width: 1.25em; height: 1.25em; fill: #f6dca4; filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.4)); }
   /* The panel: brown felt with a fuzzy texture, a soft top light, a thick rim with a raised edge and a stitched border.
@@ -758,7 +782,7 @@
      the screen (the hero scrolls inside itself first), so BACK / START stay on screen. */
   #select { justify-content: center; }
   #select .card { width: min(560px, 100%); gap: 12px; max-height: calc(100% - 34px); min-height: 0; }
-  #select .card h2 { font-size: clamp(30px, 8.6vw, 50px); margin-top: -58px; flex-shrink: 0; }
+  #select .card h2 { font-size: clamp(22px, 7.2vw, 50px); margin-top: -50px; flex-shrink: 0; }
   #select .select-level, #select .select-actions { flex-shrink: 0; }
   .sel-hero { width: 100%; box-sizing: border-box; display: grid; grid-template-columns: minmax(84px, 34%) minmax(0, 1fr); gap: 8px 14px; align-items: center;
     padding: 12px 14px 14px; border-radius: 18px; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
@@ -811,7 +835,20 @@
   .move-chip .mc-ico { width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; background: var(--fc, #6d3fa8); }
   .move-chip[aria-pressed="true"] { border-color: #ffd23f; background: rgba(255, 210, 63, 0.18); box-shadow: 0 0 10px rgba(255, 210, 63, 0.4); }
   .move-chip .mc-new { margin-left: 2px; padding: 1px 4px 2px; border-radius: 5px; font-size: 10px; color: #2a170a; background: #ffd23f; }
-  @media (max-height: 740px) { .sel-hero .wc-blurb { display: none; } .sel-hero > img { height: clamp(80px, 15vh, 230px); } }   /* short phones: keep Sharpen in view */
+  /* The weapon screen has to fit a phone in a browser (360 x ~660 CSS px once the address and nav bars take their share)
+     without the panel scrolling inside itself, which hid the sharpness meter: the heading on one line, the meter without
+     its end labels and story line (both stay in the Sewing Box), the Sewing Box chip and Sharpen side by side under it,
+     and on shorter screens tighter gaps, no blurb, a smaller picture and a slimmer strip of pairs. */
+  #select .card h2 { white-space: nowrap; }
+  #select .sel-sharp .sm-ends, #select .sel-sharp .sm-note { display: none; }
+  #select .sel-sharp .sharp-meter { order: -1; }
+  #select .sel-sharp { padding-top: 8px; gap: 6px 10px; }
+  #select .sel-sharp .sharpen-btn, .card .felt-btn.small.sel-box { margin-top: 0; }
+  #select .sel-sharp { flex-wrap: wrap; }
+  #select .sel-sharp .felt-btn.small.sel-box { font-size: 13px; padding: 7px 9px 8px; gap: 4px; }
+  #select .sel-sharp .felt-btn.small.sharpen-btn { font-size: 14px; padding: 7px 10px 8px; gap: 5px; }
+  .sel-box .sb-ico { display: none; width: 18px; height: 18px; }
+  @media (max-width: 380px) { .sel-box .sb-txt { display: none; } .sel-box .sb-ico { display: block; } }   /* a narrow phone: the box icon, so the chip and Sharpen share a row */
   /* wide screens (and a phone on its side): the sharpness column sits beside the stats instead of under them */
   @media (min-width: 700px) { #select .card { width: min(800px, 100%); } .sel-hero { grid-template-columns: minmax(90px, 22%) minmax(0, 1fr) minmax(0, 1fr); }
     .sel-sharp { grid-column: 3; grid-row: 1; padding: 0 0 0 14px; border-top: 0; border-left: 2px dashed rgba(255, 228, 170, 0.25); } }
@@ -990,6 +1027,38 @@
     margin-top: 2px; padding: 8px; font: inherit; font-weight: 600; color: #dff9ff;
     background: rgba(20, 60, 80, 0.7); border: 1px solid rgba(160, 240, 255, 0.5); border-radius: 8px;
   }
+  /* (the weapon screen on shorter screens: see the note above #select .card h2's nowrap; last, so it beats the base rules) */
+  @media (max-height: 820px) {
+    #select .card { gap: 8px; padding-top: 26px; padding-bottom: 18px; }
+    .sel-hero { padding: 10px 12px 12px; gap: 6px 12px; }
+    .sel-hero .wc-blurb { display: none; }
+    .sel-hero > img { height: clamp(72px, 13vh, 230px); }
+    .sel-info { gap: 4px; }
+    .sel-info .wc-stats { gap: 2px; }
+    #select-goals li, #select-goals li.feat { padding: 2px 8px 2px 5px; font-size: 12px; }
+    #select-goals { gap: 3px 5px; }
+    #select-goals li i { width: 14px; height: 14px; }
+    .weapon-thumb { width: 78px; padding: 4px 5px 6px; gap: 2px; }
+    .weapon-thumb img { height: 38px; }
+    .select-actions .felt-btn { padding-top: 11px; padding-bottom: 12px; }
+  }
+  @media (max-height: 700px) {
+    #select .card { gap: 6px; }
+    #select .select-level { font-size: 17px; }
+    .sel-hero > img { height: clamp(64px, 11vh, 230px); }
+    .wt-name { min-height: 0; }
+    .weapon-thumb img { height: 32px; }
+    #select-goals li, #select-goals li.feat { padding: 2px 6px 2px 4px; font-size: 11px; gap: 4px; }
+    .sel-hero { padding: 8px 10px 10px; }
+    #select .sel-sharp { padding-top: 6px; }
+    .sel-moves .move-chip { padding-top: 3px; padding-bottom: 3px; }
+  }
+  @media (max-height: 640px) {
+    #select .card { padding-top: 22px; padding-bottom: 14px; }
+    .weapon-thumb img { height: 26px; }
+    .select-actions .felt-btn { padding-top: 9px; padding-bottom: 10px; }
+  }
+  @media (max-height: 620px) { .sel-info .wc-name { font-size: 18px; } }
 </style>
 </head>
 <body>
@@ -997,15 +1066,15 @@
 <div id="topbar">
   <!-- icon tiles: each shows .ic-on normally and .ic-off while aria-pressed="true" (paused / muted) -->
   <button id="pause" class="felt brown" type="button" aria-label="Pause" aria-pressed="false" hidden>
-    <svg class="ic-on" viewBox="0 0 24 24"><rect x="5" y="4" width="5" height="16" rx="1.5"/><rect x="14" y="4" width="5" height="16" rx="1.5"/></svg>
-    <svg class="ic-off" viewBox="0 0 24 24"><path d="M7 4.5v15a1 1 0 0 0 1.5.9l12-7.5a1 1 0 0 0 0-1.8l-12-7.5A1 1 0 0 0 7 4.5z"/></svg>
+    <span class="kico pause ic-on" aria-hidden="true"></span>
+    <span class="kico resume ic-off" aria-hidden="true"></span>
   </button>
   <button id="mute" class="felt brown" type="button" aria-label="Mute sound" aria-pressed="false">
     <svg class="ic-on" viewBox="0 0 24 24"><path d="M3 9v6h4l5 4V5L7 9H3z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="#ffc93d" stroke-width="2.2" stroke-linecap="round"/></svg>
     <svg class="ic-off" viewBox="0 0 24 24"><path d="M3 9v6h4l5 4V5L7 9H3z"/><path d="M15.5 9.5l5 5M20.5 9.5l-5 5" stroke="#ffc93d" stroke-width="2.4" stroke-linecap="round"/></svg>
   </button>
   <button id="reset" class="felt brown" type="button" aria-label="Back to title">
-    <svg class="ic-on" viewBox="0 0 24 24"><path d="M12 3.2 2.5 11.3a1 1 0 0 0 1.3 1.5l.7-.6V20a1 1 0 0 0 1 1h4.5v-6h4v6h4.5a1 1 0 0 0 1-1v-7.8l.7.6a1 1 0 0 0 1.3-1.5L12 3.2z"/></svg>
+    <span class="kico home ic-on" aria-hidden="true"></span>
   </button>
 </div>
 <div id="hud" hidden>
@@ -1063,7 +1132,7 @@
     </div>
   </div>
   <div class="map-bar">
-    <button id="map-back" class="felt-btn back" type="button">BACK</button>
+    <button id="map-back" class="felt-btn back" type="button"><span class="kico back" aria-hidden="true"></span>BACK</button>
   </div>
 </div>
 
@@ -1078,7 +1147,7 @@
       <button class="shop-tab" type="button" role="tab" data-tab="style">Style<span class="dot" hidden></span></button>
     </div>
     <div id="shop-body" class="meta-body" role="tabpanel"></div>
-    <button id="shop-back" class="felt-btn back" type="button">BACK</button>
+    <button id="shop-back" class="felt-btn back" type="button"><span class="kico back" aria-hidden="true"></span>BACK</button>
   </div>
 </div>
 <!-- the Sewing Box (sewingBox.js): what you hold and its upgrades; tabs built by armory.js -->
@@ -1092,7 +1161,7 @@
       <button class="shop-tab" type="button" role="tab" data-tab="moves">Moves<span class="dot" hidden></span></button>
     </div>
     <div id="box-body" class="meta-body" role="tabpanel"></div>
-    <button id="box-back" class="felt-btn back" type="button">BACK</button>
+    <button id="box-back" class="felt-btn back" type="button"><span class="kico back" aria-hidden="true"></span>BACK</button>
   </div>
 </div>
 <div id="trophies" class="screen meta-screen" hidden>
@@ -1100,7 +1169,7 @@
     <h2 class="blue" data-text="TROPHIES">TROPHIES</h2>
     <p class="meta-bal" id="trophies-sum"></p>
     <div id="trophies-body" class="meta-body"></div>
-    <button id="trophies-back" class="felt-btn back" type="button">BACK</button>
+    <button id="trophies-back" class="felt-btn back" type="button"><span class="kico back" aria-hidden="true"></span>BACK</button>
   </div>
 </div>
 
@@ -1115,7 +1184,7 @@
     <div id="sel-hero" class="sel-hero">
       <img alt="">
       <div class="sel-info"><span class="wc-name"></span><span id="sel-lock" class="sel-lock"></span><span class="wc-blurb"></span><span class="wc-stats"></span></div>
-      <div id="sel-sharp" class="sel-sharp"><button id="sel-box" class="felt-btn small sel-box" type="button" title="Your Buttons: open the Sewing Box"><span class="bt"></span><b id="sel-buttons">0</b><span class="sb-txt">Sewing Box</span></button></div>
+      <div id="sel-sharp" class="sel-sharp"><button id="sel-box" class="felt-btn small sel-box" type="button" title="Your Buttons: open the Sewing Box"><span class="bt"></span><b id="sel-buttons">0</b><span class="sb-txt">Sewing Box</span><svg class="ico sb-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 6V4.2C8.5 3 9.4 2 10.6 2h2.8c1.2 0 2.1 1 2.1 2.2V6h-1.8V4.4c0-.4-.2-.6-.6-.6h-2.2c-.4 0-.6.2-.6.6V6z"/><path d="M2.5 7h19v4.2h-19z"/><path d="M3.5 12.4h17v7.4c0 .9-.7 1.7-1.6 1.7H5.1c-.9 0-1.6-.8-1.6-1.7z"/><path d="M10.4 10h3.2v4.4h-3.2z" opacity=".5"/></svg></button></div>
     </div>
     <!-- the two move slots (src/weaponSelect.js): a chip per slot; tapping one opens the picks row under it (the moves this
          level allows: SHRED and the Skills, then Clear) -->
@@ -1123,7 +1192,7 @@
       <div id="sel-moves-picks" class="sm-list sm-picks" role="group" aria-label="Pick a move" hidden></div></div>
     <div id="weapon-cards" class="weapon-strip" role="group" aria-label="Your scissors"></div>
     <div class="select-actions">
-      <button id="select-back" class="felt-btn back" type="button">BACK</button>
+      <button id="select-back" class="felt-btn back" type="button"><span class="kico back" aria-hidden="true"></span>BACK</button>
       <button id="select-start" class="felt-btn" type="button"><span class="tri"></span>START</button>
     </div>
   </div>
@@ -1143,8 +1212,8 @@
     <button id="settings-haptics" class="felt-btn small" type="button" aria-pressed="false">Vibration: on</button>
     <button id="settings-analytics" class="felt-btn small" type="button" aria-pressed="false">Share play data: on</button>
     <p class="set-note">Anonymous: levels, scores and how a run went. No names, no email.</p>
-    <button class="felt-btn small" type="button" data-send-feedback>Send feedback</button>
-    <button id="settings-back" class="felt-btn back" type="button">BACK</button>
+    <button class="felt-btn small" type="button" data-send-feedback><span class="kico mail" aria-hidden="true"></span>Send feedback</button>
+    <button id="settings-back" class="felt-btn back" type="button"><span class="kico back" aria-hidden="true"></span>BACK</button>
     <p id="version" class="version"></p>
   </div>
 </div>
@@ -1183,7 +1252,7 @@
     <button id="pause-map" class="felt-btn" type="button">BACK TO MAP</button>
     <div class="over-actions">
       <button id="pause-sound" class="felt-btn small" type="button" aria-pressed="false">Sound: on</button>
-      <button id="pause-home" class="felt-btn small" type="button">Title screen</button>
+      <button id="pause-home" class="felt-btn small" type="button"><span class="kico home" aria-hidden="true"></span>Title screen</button>
     </div>
     <p id="hint"><b>Desktop controls:</b> move = aim point · hold left button to open, release to snip (wider = stronger) · wheel = open/close (flick fast to snip) · A/D or Shift+wheel = rotate · Space = instant snip · E = move 1 · F = move 2 · P/Esc = pause · R = title</p>
   </div>
@@ -1217,7 +1286,7 @@
     <button id="over-select" class="felt-btn" type="button"><span class="tri"></span><span id="over-primary">CONTINUE</span></button>
     <div class="over-actions">
       <button id="over-map" class="felt-btn small" type="button" hidden>Map</button>
-      <button id="again" class="felt-btn small" type="button">Play again</button>
+      <button id="again" class="felt-btn small" type="button"><span class="kico retry" aria-hidden="true"></span>Play again</button>
     </div>
     </div>
   </div>
@@ -1259,7 +1328,7 @@
     <button id="fb-send" class="felt-btn" type="button">SEND</button>
     <div class="over-actions">
       <button id="fb-cancel" class="felt-btn small" type="button">Cancel</button>
-      <button id="fb-email" class="felt-btn small" type="button" hidden>Email instead</button>
+      <button id="fb-email" class="felt-btn small" type="button" hidden><span class="kico mail" aria-hidden="true"></span>Email instead</button>
     </div>
   </div>
 </div>
